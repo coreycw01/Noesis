@@ -6,6 +6,25 @@ export function isPracticeConcluded(practice: Partial<Practice>) {
   return ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status || '');
 }
 
+export function completedPracticeResult(practice: Practice) {
+  if (practice.status === 'abandoned' || !isPracticeConcluded(practice)) return null;
+  const observation = practice.conclusion?.whatHappened?.trim() || practice.observedOutcome?.trim();
+  if (!observation) return null;
+  return {
+    practice,
+    observation,
+    implication: practice.conclusion?.intellectualChange?.trim() || practice.effectOnPosition?.trim() || '',
+    alternative: practice.conclusion?.alternativeExplanation?.trim() || practice.alternativeExplanation?.trim() || '',
+  };
+}
+
+export function latestCompletedPracticeResult(practices: readonly Practice[]) {
+  return practices.map(completedPracticeResult).filter(result => result !== null).sort((a, b) =>
+    (Date.parse(b.practice.dateUpdated) || 0) - (Date.parse(a.practice.dateUpdated) || 0)
+    || a.practice.id.localeCompare(b.practice.id),
+  )[0];
+}
+
 export function practiceNeedsOutcome(practice: Practice) {
   return !['abandoned', 'integrated'].includes(practice.status) && isPracticeConcluded(practice)
     && !(practice.conclusion?.whatHappened || practice.observedOutcome || practice.notes)?.trim();

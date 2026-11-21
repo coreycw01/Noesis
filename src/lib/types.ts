@@ -234,6 +234,7 @@ export interface Annotation extends NoesisStageState {
   text: string;
   type: AnnotationType;
   context?: string;
+  savedReason?: string;
   date: string;
   answer?: string;
   conceptTags?: string[];

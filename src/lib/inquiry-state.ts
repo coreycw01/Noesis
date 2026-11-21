@@ -1,6 +1,60 @@
-import type { InquiryEvidence, Question } from '@/lib/types';
+import type { InquiryEvidence, Practice, Question } from '@/lib/types';
 
 export const MAX_INQUIRY_EVIDENCE = 200;
+export const INQUIRY_STARTING_OBSERVATION = 'Starting observation';
+
+export function inquiryStartingObservation(text: string) {
+  return {
+    claim: text.trim(),
+    type: 'personal observation',
+    origin: INQUIRY_STARTING_OBSERVATION,
+    candidateId: '',
+    direction: 'contextualizes',
+    strength: 'moderate',
+    reliability: 'moderate',
+    notes: '',
+  } satisfies Omit<InquiryEvidence, 'id' | 'date'>;
+}
+
+export function inquiryExperimentSetup(
+  { prediction, action, measure }: { prediction: string; action: string; measure: string },
+  observation = '',
+) {
+  if (![prediction, action, measure].every(value => value.trim())) return null;
+  return {
+    intellectualBasis: observation.trim(),
+    hypothesis: prediction.trim(),
+    action: action.trim(),
+    observationMethod: `After each attempt, record what you did and compare what happened with this signal: ${measure.trim()}`,
+    expectedOutcome: measure.trim(),
+  };
+}
+
+export function practiceEvidenceDraft(practice: Pick<Practice, 'title'>, observation: string) {
+  return {
+    claim: observation.trim().slice(0, 1000),
+    origin: `Praxis · ${practice.title}`.slice(0, 200),
+    candidateId: '',
+    direction: 'contextualizes',
+    strength: 'moderate',
+    type: 'personal observation',
+  } satisfies Partial<InquiryEvidence>;
+}
+
+export const INQUIRY_REVIEW_CRITERION_TITLE = 'What would change my mind';
+
+export function latestInquiryReviewCriterion(question: Pick<Question, 'investigationNotes'>) {
+  return question.investigationNotes?.find(note =>
+    note.origin === 'user' && note.title === INQUIRY_REVIEW_CRITERION_TITLE && note.text.trim(),
+  )?.text.trim() || '';
+}
+
+export function replacedInquiryAnswer(question: Pick<Question, 'answer' | 'resolutionSummary'>, nextAnswer: string) {
+  const previous = question.answer?.trim();
+  if (!previous || previous === nextAnswer.trim()) return '';
+  const summary = question.resolutionSummary?.trim();
+  return summary ? `${previous}\n\nWhat led to this answer: ${summary}` : previous;
+}
 
 export function indexAnnotationInquiries(inquiries: readonly Question[]) {
   const byAnnotation = new Map<string, Question[]>();

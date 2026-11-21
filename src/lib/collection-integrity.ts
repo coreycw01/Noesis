@@ -79,13 +79,17 @@ export function annotationRecord(sourceId: string, annotation: Annotation, userI
   };
 }
 
-export function inquiryAnnotationUpdates(
+export type AnnotationMarkTransfer = { sourceId: string; annotationId: string; markId: string; text: string };
+
+export function annotationPromotionUpdates(
   sources: Pick<Media, 'id' | 'annotations' | 'dateUpdated'>[],
   references: ReadonlyArray<{ sourceId: string; annotationId: string }>,
-  inquiryId: string,
+  destination: 'inquiry' | 'position' | 'practice',
+  recordId: string,
+  transfer?: AnnotationMarkTransfer,
 ) {
   const bySource = new Map<string, Set<string>>();
-  for (const { sourceId, annotationId } of references) {
+  for (const { sourceId, annotationId } of transfer ? [...references, transfer] : references) {
     if (!bySource.has(sourceId)) bySource.set(sourceId, new Set());
     bySource.get(sourceId)!.add(annotationId);
   }
@@ -94,13 +98,36 @@ export function inquiryAnnotationUpdates(
     if (!source || [...ids].some((id) => !source.annotations?.some((annotation) => annotation.id === id))) {
       throw new Error('A selected annotation is no longer available. Refresh the selection and try again.');
     }
-    const annotations = source.annotations.map((annotation) => ids.has(annotation.id) ? {
-      ...annotation,
-      philosophyStatus: 'questioned' as const,
-      createdInquiryId: annotation.createdInquiryId || inquiryId,
-    } : annotation);
+    const annotations = source.annotations.map((annotation): Annotation => {
+      if (!ids.has(annotation.id)) return annotation;
+      const next = destination === 'inquiry' ? {
+        ...annotation, philosophyStatus: 'questioned' as const, createdInquiryId: annotation.createdInquiryId || recordId,
+      } : destination === 'position' ? {
+        ...annotation, philosophyStatus: 'used_in_position' as const, createdPositionId: annotation.createdPositionId || recordId,
+        linkedPositionIds: [...new Set([...(annotation.linkedPositionIds || []), recordId])],
+      } : { ...annotation };
+      if (transfer?.sourceId === sourceId && transfer.annotationId === annotation.id) {
+        const mark = annotation.marks?.find(item => item.id === transfer.markId);
+        const expectedKind = destination === 'inquiry' ? 'question' : destination === 'position' ? 'claim' : 'action';
+        if (!mark || mark.kind !== expectedKind) throw new Error('This mark changed. Reopen the annotation and try again.');
+        if (mark.movedTo) throw new Error('This mark was already sent. Reopen the annotation to see its destination.');
+        next.marks = annotation.marks?.map(item => item.id === mark.id
+          ? { ...item, movedTo: destination, movedId: recordId, movedText: transfer.text }
+          : item);
+      }
+      return next;
+    });
     return { sourceId, sourceVersion: source.dateUpdated, annotations: boundedNestedAnnotations(annotations), updated: annotations.filter((annotation) => ids.has(annotation.id)) };
   });
+}
+
+export function inquiryAnnotationUpdates(
+  sources: Parameters<typeof annotationPromotionUpdates>[0],
+  references: Parameters<typeof annotationPromotionUpdates>[1],
+  inquiryId: string,
+  transfer?: AnnotationMarkTransfer,
+) {
+  return annotationPromotionUpdates(sources, references, 'inquiry', inquiryId, transfer);
 }
 
 export function mergeAnnotationRecords(nested: Annotation[], records: AnnotationRecord[]) {

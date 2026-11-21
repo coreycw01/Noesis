@@ -3,6 +3,7 @@
 import { AnnotationsIndex } from '@/components/Library/AnnotationsIndex';
 import type { AiSettings, Annotation, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
+import type { AnnotationMarkTransfer } from '@/lib/collection-integrity';
 
 export interface AnnotationsRoutePageProps {
   media: Media[];
@@ -18,16 +19,19 @@ export interface AnnotationsRoutePageProps {
     sourceIds: string[];
     sourceAnnotationId?: string;
     annotationRefs?: Array<{ sourceId: string; annotationId: string }>;
+    annotationMarkTransfer?: AnnotationMarkTransfer;
     position?: { title: string; statement: string; description: string; confidence: number };
   }) => Promise<{ positionId: string; insightId: string; title: string }>;
-  onCreateInquiry: (data: { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
+  onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: AnnotationMarkTransfer }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
-  onAddPractice?: (data: Partial<Practice>) => unknown;
+  onAddPractice?: (data: Partial<Practice> & { annotationMarkTransfer?: AnnotationMarkTransfer }) => Promise<Practice>;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;
     sourceId?: string | null;
     positionId?: string | null;
+    practiceId?: string | null;
+    conceptId?: string | null;
     annotationSourceId?: string | null;
     annotationId?: string | null;
   }) => void;
@@ -75,6 +79,8 @@ export function AnnotationsRoutePage({
         onNavigate(nextView as NoesisView, {
           positionId: nextView === 'vault' ? targetId : null,
           questionId: nextView === 'questions' ? targetId : null,
+          practiceId: nextView === 'labs' ? targetId : null,
+          conceptId: nextView === 'concepts' ? targetId : null,
           sourceId: nextView === 'library' ? targetId : null,
         });
       }}

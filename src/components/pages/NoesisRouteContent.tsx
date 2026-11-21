@@ -135,7 +135,7 @@ export interface NoesisRouteContentProps {
     annotationSourceId?: string | null;
     annotationId?: string | null;
   }) => void;
-  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
+  addQuestion: (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: import('@/lib/collection-integrity').AnnotationMarkTransfer }) => Promise<Question>;
   updateQuestion: (question: Question) => void | Promise<void>;
   saveInquiryAiReview: (inquiryId: string, review: import('@/lib/inquiry-ai-review').InquiryAiReview, content: string) => Promise<void>;
   deleteQuestion: (id: string) => void | Promise<void>;
@@ -145,6 +145,7 @@ export interface NoesisRouteContentProps {
   deleteConcept: (id: string) => void;
   addMedia: (data: Partial<Media>) => Media | void | Promise<void>;
   updateMedia: (media: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: import('@/lib/source-ai-review').SourceReviewApproval) => void | Promise<unknown>;
+  attachSourcePhoto: (sourceId: string, photo: import('@/lib/types').StoredAsset) => Promise<void>;
   deleteMedia: (id: string) => void;
   updateAnnotation: (sourceId: string, annotation: Annotation, approval?: import('@/lib/annotation-ai-review').AnnotationReviewApproval) => void | Promise<Annotation | void>;
   deleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
@@ -170,7 +171,7 @@ export interface NoesisRouteContentProps {
   updateAtlasMap: (map: AtlasMap, rethrow?: boolean) => void | Promise<void>;
   moveAtlasMapNode: (mapId: string, key: string, position: { x: number; y: number }) => Promise<void>;
   deleteAtlasMap: (id: string) => Promise<void>;
-  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<VaultEntry>;
+  addVaultEntry: (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: import('@/lib/collection-integrity').AnnotationMarkTransfer }) => Promise<VaultEntry>;
   updateVaultEntry: (entry: VaultEntry, approval?: import('@/lib/position-ai-review').PositionReviewApproval) => void | Promise<void>;
   deleteVaultEntry: (id: string) => Promise<void>;
   addDraft: (data: Partial<Draft>, origin?: ContextDeskWorkOrigin) => Promise<Draft>;
@@ -178,7 +179,7 @@ export interface NoesisRouteContentProps {
   updateDraft: (draft: Draft, expectedVersion?: WorkVersion) => Promise<Draft>;
   markDraftOpened: (draft: Draft) => void | Promise<void>;
   deleteDraft: (id: string) => void;
-  addPractice: (data: Partial<Practice>) => Promise<Practice>;
+  addPractice: (data: Partial<Practice> & { annotationMarkTransfer?: import('@/lib/collection-integrity').AnnotationMarkTransfer }) => Promise<Practice>;
   updatePractice: (practice: Practice, approval?: import('@/lib/practice-ai-review').PracticeReviewApproval) => void | Promise<Practice | void>;
   deletePractice: (id: string) => void;
   addUnknown: (data: Partial<Unknown>) => Unknown;
@@ -269,6 +270,7 @@ export function NoesisRouteContent({
   deleteConcept,
   addMedia,
   updateMedia,
+  attachSourcePhoto,
   deleteMedia,
   updateAnnotation,
   deleteAnnotation,
@@ -351,6 +353,7 @@ export function NoesisRouteContent({
           showCommitments={goalPreferenceSettings.showGoalsOnDashboard}
           goalProgress={goalProgress}
           onCreateInquiry={addQuestion}
+          onUpdatePractice={updatePractice}
           onNavigate={navigateToView}
         />
       );
@@ -417,6 +420,7 @@ export function NoesisRouteContent({
           timeline={timeline}
           onAddMedia={addMedia}
           onUpdateMedia={updateMedia}
+          onAttachSourcePhoto={attachSourcePhoto}
           onDeleteMedia={deleteMedia}
           onAddConcept={addConcept}
           onCreateClaim={(data) => addVaultEntry({
@@ -456,6 +460,7 @@ export function NoesisRouteContent({
               sourceIds: data.sourceIds,
               sourceAnnotationId: data.sourceAnnotationId,
               annotationRefs: data.annotationRefs,
+              annotationMarkTransfer: data.annotationMarkTransfer,
               createdFrom: 'annotation',
             });
             return { positionId: created.id, insightId: '', title: created.title };
@@ -568,7 +573,7 @@ export function NoesisRouteContent({
       return <PracticesRoutePage renderCommitments={onOpenPraxis => <GoalsRoutePage
         goal={goalState} goalProgress={goalProgress} concepts={concepts} inquiries={questions} sources={media}
         positions={vault} works={drafts} practices={practices} profile={profile} onSaveGoal={saveGoal}
-        onSaveCheckIn={saveGoalCheckIn} focusedGoalId={null} onOpenCommitment={() => {}} onOpenPraxis={onOpenPraxis}
+        onSaveCheckIn={saveGoalCheckIn} focusedGoalId={null} onOpenCommitment={(goalId) => navigateToView('goals', { goalId })} onOpenPraxis={onOpenPraxis}
       />} aiSettings={aiSettings} onAddQuestion={addQuestion} practices={practices} concepts={concepts} media={media} questions={questions} positions={vault} drafts={drafts} links={links} onAddPractice={addPractice} onUpdatePractice={updatePractice} onDeletePractice={deletePractice} onAddConcept={addConcept} onCreateLink={addPhilosophicalLink} focusedPracticeId={focusedPracticeId} onNavigate={navigateToView} />;
     case 'settings':
       return (

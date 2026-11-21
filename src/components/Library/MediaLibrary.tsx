@@ -66,6 +66,7 @@ interface MediaLibraryProps {
   timeline: TimelineEvent[];
   onAddMedia: (data: Partial<Media>) => void | Promise<unknown>;
   onUpdateMedia: (media: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: SourceReviewApproval) => void | Promise<unknown>;
+  onAttachSourcePhoto: (sourceId: string, photo: import('@/lib/types').StoredAsset) => Promise<void>;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;
@@ -158,6 +159,7 @@ export function MediaLibrary({
   timeline,
   onAddMedia, 
   onUpdateMedia, 
+  onAttachSourcePhoto,
   onDeleteMedia, 
   onAddConcept,
   onCreateClaim,
@@ -177,6 +179,7 @@ export function MediaLibrary({
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sourceWorkbenchStep, setSourceWorkbenchStep] = useState<SourceWorkbenchStep>('overview');
+  const [markupSourceId, setMarkupSourceId] = useState<string | null>(null);
   // Another page (Annotations > New annotation) can ask a source to open on a given step.
   useEffect(() => {
     if (!focusedSourceId) return;
@@ -464,6 +467,10 @@ export function MediaLibrary({
   };
 
   useEffect(() => { setAnnotationDraft(''); setMarkupSelection(''); }, [selected?.id]);
+  useEffect(() => {
+    if (sourceWorkbenchStep === 'annotations' && selected?.id) setMarkupSourceId(selected.id);
+    else setMarkupSourceId(previous => previous === selected?.id ? previous : null);
+  }, [selected?.id, sourceWorkbenchStep]);
 
   const addAnnotation = async (kind: Annotation['type'] | 'evidence', text: string, clearDraft = false) => {
     if (!selected || !text.trim() || markLock.current) return;
@@ -471,12 +478,15 @@ export function MediaLibrary({
     setSavingMark(true);
     try {
     const type = kind === 'evidence' ? 'excerpt' : kind;
+    const passage = text.trim();
+    const capturedAt = today();
     const annotation: Annotation = {
       id: uid(),
       type,
       ...(kind === 'evidence' ? { consequenceKind: 'evidence' as const } : {}),
-      text: text.trim(),
-      date: today(),
+      text: passage,
+      date: capturedAt,
+      ...(type === 'question' ? { marks: [{ id: uid(), start: 0, end: passage.length, kind: 'question', text: passage, date: capturedAt }] } : {}),
       conceptTags: selected.tags,
       philosophyStatus: type === 'question' ? 'questioned' : 'raw',
     };
@@ -926,13 +936,15 @@ export function MediaLibrary({
             </div>
           </TabsContent>
 
-          <TabsContent value="annotations">
+          {(sourceWorkbenchStep === 'annotations' || markupSourceId === selected.id) && (
+          <TabsContent key={selected.id} value="annotations" forceMount className="data-[state=inactive]:hidden">
             <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.55fr)]">
               <section className="min-w-0 space-y-4" aria-label="Passage">
-                <SourcePagePhotos key={selected.id} sourceId={selected.id} photos={selected.pagePhotos || []} allowSave={!/^\/(demo|review)(\/|$)/.test(pathname)} onSave={async photo => {
+                <SourcePagePhotos key={selected.id} sourceId={selected.id} photos={selected.pagePhotos || []} allowSave={!/^\/(demo|review)(\/|$)/.test(pathname)} allowAiCleanup={Boolean(aiSettings?.aiAssistanceEnabled) && !/^\/(demo|review)(\/|$)/.test(pathname)} onSave={async photo => {
                   const source = selectedRef.current;
                   if (!source || source.id !== selected.id) return false;
-                  return Boolean(await updateSelected({ pagePhotos: [...(source.pagePhotos || []), photo] }));
+                  await onAttachSourcePhoto(source.id, photo);
+                  return true;
                 }} onText={text => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trim(), text].filter(Boolean).join('\n\n')); }} />
                 <div>
                   <label htmlFor="source-markup-passage" className="mb-2 block text-sm font-medium">Passage or note</label>
@@ -942,8 +954,7 @@ export function MediaLibrary({
                     placeholder="Paste a passage, extract text from a photo, or write a note."
                     className="min-h-52 font-body text-base leading-7" />
                 </div>
-                {(selected.description || selected.catalogSummary) && !annotationDraft && <Button variant="outline" size="sm" onClick={() => setAnnotationDraft(selected.description || selected.catalogSummary || '')}>Use source description</Button>}
-                <MarkupVoice key={selected.id} text={markupSelection || annotationDraft} onTranscript={words => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trimEnd(), words].filter(Boolean).join(' ')); }} />
+                {sourceWorkbenchStep === 'annotations' && <MarkupVoice key={selected.id} text={markupSelection || annotationDraft} onTranscript={words => { setMarkupSelection(''); setAnnotationDraft(prev => [prev.trimEnd(), words].filter(Boolean).join(' ')); }} />}
                 <Button variant="outline" size="sm" onClick={() => void addAnnotation('thought', annotationDraft, true)} disabled={savingMark || !annotationDraft.trim()}>Save as note</Button>
               </section>
 
@@ -969,6 +980,7 @@ export function MediaLibrary({
               </aside>
             </div>
           </TabsContent>
+          )}
 
           <TabsContent value="connections" className="space-y-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
