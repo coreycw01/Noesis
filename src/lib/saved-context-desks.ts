@@ -43,10 +43,10 @@ export function readSavedDesks(value: unknown): SavedContextDesk[] {
 export function replaceSavedDesk(current: SavedContextDesk[], id: string, expectedRevision: string | null, replacement: SavedContextDesk | null) {
   const existing = current.find(desk => desk.id === id);
   if ((existing?.revision ?? null) !== expectedRevision) throw new Error('This desk changed on another device. Reopen it before saving again.');
-  if (replacement && !existing && current.length >= MAX_SAVED_DESKS) throw new Error('Remove a saved desk before creating another.');
+  if (replacement && !existing && current.length >= MAX_SAVED_DESKS) throw new Error('Delete a Drawer before creating another.');
   const next = replacement
     ? existing ? current.map(desk => desk.id === id ? replacement : desk) : [...current, replacement]
     : current.filter(desk => desk.id !== id);
-  if (new TextEncoder().encode(JSON.stringify(next)).length > MAX_DESK_PAYLOAD_BYTES) throw new Error('The saved desk library is too large. Remove unused references and try again.');
+  if (new TextEncoder().encode(JSON.stringify(next)).length > MAX_DESK_PAYLOAD_BYTES) throw new Error('Your Drawers are too large to save. Remove some records and try again.');
   return next;
 }

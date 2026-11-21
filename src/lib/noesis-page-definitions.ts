@@ -160,10 +160,10 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
   {
     view: 'context-desk',
     route: '/context-desk',
-    title: 'Noesis AI',
-    purpose: 'Reread every kept AI result, and bring selected records together for a focused, bounded contextual review.',
+    title: 'Context Desk',
+    purpose: 'Build a named set of records you can return to, decide exactly what one request reads, and reread what every past run used.',
     section: 'More',
-    signatureExperience: 'A deliberate review desk where the user chooses every record the assistant may consider.',
+    signatureExperience: 'A desk where the user picks every record the assistant may read, and saves the set as a Drawer to pick up again.',
     loadingLayout: 'desk',
   },
   {
