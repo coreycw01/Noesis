@@ -88,6 +88,8 @@ interface ConceptAtlasProps {
   vault: VaultEntry[];
   drafts: Draft[];
   practices: Practice[];
+  /** Commitments, which ride with the position they promise to live out. */
+  commitments?: import('@/lib/types').GoalItem[];
   questions: Question[];
   timeline: TimelineEvent[];
   atlasMaps: AtlasMap[];
@@ -286,6 +288,7 @@ export function ConceptAtlas({
   vault,
   drafts,
   practices,
+  commitments,
   questions,
   timeline,
   atlasMaps,
@@ -2723,6 +2726,7 @@ export function ConceptAtlas({
             sources={media}
             practices={practices}
             works={drafts}
+            commitments={commitments}
             links={links}
             asOf={timelineWindow?.asOf ?? null}
             from={timelineWindow?.from ?? null}

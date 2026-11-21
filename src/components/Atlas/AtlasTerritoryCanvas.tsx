@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Concept, Draft, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
+import type { Concept, Draft, GoalItem, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
 import { cssColor } from '@/lib/css-color';
@@ -174,8 +174,10 @@ export function orderRegionConcepts(concepts: Array<Pick<Concept, 'id' | 'name' 
   return [...chain.slice(seam), ...chain.slice(0, seam)].map((concept) => concept.id);
 }
 
-export function buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works }: {
+export function buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works, commitments }: {
   regions: MapRegion[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[]; works?: Draft[];
+  /** Commitments ride with the position they promise to live out. */
+  commitments?: GoalItem[];
 }) {
   const byKey = new Map(concepts.map((concept) => [conceptKey(concept.name), concept]));
   const regionOf = new Map<string, number>();
@@ -201,6 +203,18 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   sources.forEach((item) => bump(conceptIdForTags(item.tags || [], item.conceptIds || [])));
   practices.forEach((item) => bump(conceptIdForTags(item.conceptTags || [])));
   (works || []).forEach((item) => bump(conceptIdForTags(item.conceptTags || [])));
+  // A commitment has no concept of its own: it is a promise about a position,
+  // so it belongs on whatever island that position stands on. One without a
+  // linked position has nothing to anchor it, and gets no landmark.
+  const conceptForCommitment = (commitment: GoalItem) => {
+    for (const id of commitment.relatedObjectIds?.positionIds || []) {
+      const position = positions.find((item) => item.id === id);
+      const concept = position && conceptIdForTags(position.tags || []);
+      if (concept) return concept;
+    }
+    return undefined;
+  };
+  (commitments || []).forEach((item) => bump(conceptForCommitment(item)));
 
   const clarityOf = (concept: Concept) => [concept.description?.trim(), (concept.examples || []).length, (concept.aliases || []).length || (concept.notSameAs || []).length, (concept.counterexamples || []).length].filter(Boolean).length;
   const radiusOf = (concept: Concept) => islandRadius(weight.get(concept.id) || 0, clarityOf(concept));
@@ -268,6 +282,10 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   sources.forEach((s) => add('source', s.id, s.title, s.dateAdded, conceptFor(s.tags || [], s.conceptIds || []), { detail: s.creator }));
   practices.forEach((x) => add('practice', x.id, x.title, x.startDate || x.dateCreated, conceptFor(x.conceptTags || []), { detail: (x.type || 'practice').replace(/_/g, ' ') }));
   (works || []).forEach((w) => add('work', w.id, w.title, w.dateCreated, conceptFor(w.conceptTags || []), { detail: (w.type || 'work').replace(/_/g, ' ') }));
+  (commitments || []).filter((item) => !['completed', 'abandoned'].includes(item.status)).forEach((item) => {
+    const id = conceptForCommitment(item);
+    add('practice', item.id, item.title, item.createdAt, id ? worldConcepts.find((concept) => concept.id === id) : undefined, { detail: 'commitment' });
+  });
   sources.forEach((source) => (source.annotations || []).forEach((note) => {
     const concept = conceptFor(note.conceptTags || [], []);
     add('annotation', note.id || `${source.id}:${note.text.slice(0, 12)}`, note.text, note.date || source.dateAdded, concept, { detail: source.title });
@@ -292,8 +310,8 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   return { regions: allRegions, regionCenters, regionPlans, concepts: worldConcepts, records, boundaries, notes };
 }
 
-export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, works, links, asOf, from, onOpen, onOpenRegion, focus, fullScreen, onToggleFullScreen }: {
-  regions: AtlasRegionViewModel[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[]; works?: Draft[];
+export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, works, commitments, links, asOf, from, onOpen, onOpenRegion, focus, fullScreen, onToggleFullScreen }: {
+  regions: AtlasRegionViewModel[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[]; works?: Draft[]; commitments?: GoalItem[];
   links: PhilosophicalLink[]; asOf?: number | null; from?: number | null;
   focus?: { id: string } | null;
   fullScreen?: boolean;
@@ -301,7 +319,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
   onOpenRegion?: (id: string) => void;
   onOpen: (target: { type: 'concept' | RecordType; id: string }) => void;
 }) {
-  const world = useMemo(() => buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works }), [regions, concepts, positions, inquiries, sources, practices, works]);
+  const world = useMemo(() => buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works, commitments }), [regions, concepts, positions, inquiries, sources, practices, works, commitments]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const view = useRef({ x: 0, y: 0, k: LEVELS[0][1], tx: 0, ty: 0, tk: LEVELS[0][1] });
   const [level, setLevel] = useState(0);
@@ -839,7 +857,9 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
                     <button key={record.id} type="button" className="text-left text-xs leading-5 underline-offset-2 hover:underline"
                       onClick={() => setSelection({ kind: 'record', record, conceptName: selection.concept.name })}>
                       {record.label}
-                      {record.type === 'inquiry' && !record.fog && <span className="text-muted-foreground"> · fog cleared</span>}
+                      {record.type === 'inquiry' && !record.fog
+                        ? <span className="text-muted-foreground"> · fog cleared</span>
+                        : record.detail ? <span className="text-muted-foreground"> · {record.detail}</span> : null}
                     </button>
                   ))}
                 </div>
