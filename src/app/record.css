@@ -19,7 +19,7 @@
 .noesis-path ol { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; list-style: none; margin: 0; padding: 0 0 6px; }
 /* The underline follows the section you are reading; the dots say where
    the work stands. It slides, so the move itself shows you where you went. */
-.noesis-path__slide { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--path-w, 0); border-radius: 2px; background: hsl(var(--tone)); transform: translateX(var(--path-x, 0)); transition: transform .3s cubic-bezier(.4,0,.2,1), width .3s cubic-bezier(.4,0,.2,1); }
+.noesis-path__slide { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--path-w, 0); border-radius: var(--radius-xs); background: hsl(var(--tone)); transform: translateX(var(--path-x, 0)); transition: transform .3s cubic-bezier(.4,0,.2,1), width .3s cubic-bezier(.4,0,.2,1); }
 @media (prefers-reduced-motion: reduce) { .noesis-path__slide { transition: none; } }
 .noesis-path li { position: relative; }
 .noesis-path li::before { content: ""; position: absolute; top: 11px; left: -50%; width: 100%; border-top: 2px solid hsl(var(--border)); }
@@ -49,7 +49,7 @@
 @media (max-width: 820px) { .noesis-step__cols, .noesis-step__cols--even { grid-template-columns: 1fr; } .noesis-step { padding: var(--space-4); } }
 
 /* Rows inside sections: an item with its tools at the end. */
-.noesis-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: 6px; padding: 8px 10px; border: var(--hair); border-radius: 10px; background: hsl(var(--background) / .5); }
+.noesis-row { display: flex; align-items: center; gap: var(--space-3); margin-bottom: 6px; padding: 8px 10px; border: var(--hair); border-radius: var(--radius-panel); background: hsl(var(--background) / .5); }
 .noesis-row--top { align-items: flex-start; }
 .noesis-row--lead { border-left: 3px solid hsl(var(--tone)); }
 .noesis-row__text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -59,9 +59,9 @@
 .noesis-row__x:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-row__x:disabled { opacity: .5; }
 @media (max-width: 640px) { .noesis-row__x { width: 36px; height: 36px; } }
-.noesis-letter { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: hsl(var(--kind-source)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; font-weight: 700; }
+.noesis-letter { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: hsl(var(--kind-source)); color: hsl(var(--background)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-xs); font-weight: 700; }
 .noesis-pick { display: flex; gap: 4px; flex: none; }
-.noesis-pick button { width: 26px; height: 26px; border: var(--hair); border-radius: 50%; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--foreground)); }
+.noesis-pick button { width: 26px; height: 26px; border: var(--hair); border-radius: 50%; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-xs); color: hsl(var(--foreground)); }
 .noesis-pick button[aria-pressed="true"] { background: hsl(var(--kind-source)); border-color: hsl(var(--kind-source)); color: hsl(var(--background)); }
 .noesis-pick button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 @media (max-width: 640px) { .noesis-pick button { width: 34px; height: 34px; } }
@@ -85,10 +85,10 @@
 .noesis-fieldrow select, .noesis-select { min-height: var(--control-h-sm); padding: 2px 10px; border: var(--hair); border-radius: var(--radius-pill); background: hsl(var(--background)); color: hsl(var(--foreground)); font: inherit; font-size: var(--text-sm); }
 .noesis-fieldrow select:focus-visible, .noesis-select:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-pull-list { display: grid; gap: 6px; max-height: 320px; overflow: auto; }
-.noesis-pull-item { display: flex; gap: var(--space-2); align-items: center; padding: 8px 10px; border: var(--hair); border-left: 3px solid hsl(var(--kind-inquiry)); border-radius: 10px; }
+.noesis-pull-item { display: flex; gap: var(--space-2); align-items: center; padding: 8px 10px; border: var(--hair); border-left: 3px solid hsl(var(--kind-inquiry)); border-radius: var(--radius-panel); }
 .noesis-pull-item--challenge { border-left-color: hsl(var(--kind-position)); }
 .noesis-pull-item__text { flex: 1; min-width: 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
-.noesis-mini { min-height: 26px; padding: 2px 10px; border: var(--hair); border-radius: var(--radius-pill); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: hsl(var(--foreground)); }
+.noesis-mini { min-height: 26px; padding: 2px 10px; border: var(--hair); border-radius: var(--radius-pill); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-xs); color: hsl(var(--foreground)); }
 .noesis-mini:hover { border-color: hsl(var(--tone)); color: hsl(var(--tone)); }
 .noesis-mini:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-check { display: flex; gap: var(--space-2); align-items: center; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
@@ -98,21 +98,21 @@
 .noesis-suggest { margin-top: var(--space-4); }
 .noesis-suggest__grid { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: var(--space-2); }
 .noesis-suggest__card { display: grid; gap: 6px; align-content: start; padding: 14px 16px; border: var(--hair-dashed); border-radius: var(--radius-md); }
-.noesis-suggest__card h3 { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.05rem; }
+.noesis-suggest__card h3 { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: var(--text-base); }
 .noesis-suggest__card p { margin: 0; color: hsl(var(--muted-foreground)); font-size: var(--text-sm); }
 .noesis-suggest__card q, .noesis-suggest__card .noesis-suggest__quote { color: hsl(var(--foreground)); font-style: italic; quotes: "“" "”"; }
 
 /* Ember: stated confidence as a glowing core that dims toward the edge. */
 .noesis-ember-lg { width: 84px; height: 84px; flex: none; border-radius: 50%; }
 .noesis-confbox { display: flex; align-items: center; gap: var(--space-4); }
-.noesis-confbox__big { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 2rem; line-height: 1; }
+.noesis-confbox__big { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: var(--text-display); line-height: 1; }
 .noesis-ba { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .noesis-ba > div { border: var(--hair); border-radius: var(--radius-md); padding: 10px 12px; }
 @media (max-width: 640px) { .noesis-ba { grid-template-columns: 1fr; } }
 
 /* Grounds gauge (position): the bar, the grounds marker, the slider. */
 .noesis-ggauge { position: relative; height: 46px; margin: var(--space-3) 0 6px; }
-.noesis-ggauge__bar { position: absolute; left: 0; right: 0; top: 20px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .6)); }
+.noesis-ggauge__bar { position: absolute; left: 0; right: 0; top: 20px; height: 8px; border-radius: var(--radius-pill); background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .6)); }
 .noesis-ggauge__mark { position: absolute; top: 8px; width: 0; height: 32px; border-left: 2px dashed hsl(var(--foreground)); transform: translateX(-50%); }
 .noesis-ggauge__label { position: absolute; top: -6px; transform: translateX(-50%); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; color: hsl(var(--foreground)); white-space: nowrap; }
 .noesis-range { width: 100%; accent-color: hsl(var(--tone)); }
@@ -125,7 +125,7 @@
 .noesis-spring__cap { display: grid; gap: 3px; justify-items: center; font-size: var(--text-xs); line-height: 1.25; min-width: 0; }
 .noesis-spring__name { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .noesis-meter { display: grid; gap: 6px; }
-.noesis-meter__bar { width: 90px; height: 8px; border-radius: 9px; background: hsl(var(--muted)); overflow: hidden; flex: none; }
+.noesis-meter__bar { width: 90px; height: 8px; border-radius: var(--radius-panel); background: hsl(var(--muted)); overflow: hidden; flex: none; }
 .noesis-meter__bar i { display: block; height: 100%; background: hsl(var(--kind-inquiry)); }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -144,10 +144,10 @@
 /* Markup: the passage stays whole and marks are drawn on it. The innermost
    mark tints the words; outer marks stack as underlines beneath them. */
 .noesis-markup { display: grid; gap: var(--space-3); }
-.noesis-markup__text { margin: 0; font-size: 1.15rem; line-height: 2; }
-.noesis-markup__text span { border-radius: 3px; padding: 1px 0; }
+.noesis-markup__text { margin: 0; font-size: var(--text-lg); line-height: 2; }
+.noesis-markup__text span { border-radius: var(--radius-xs); padding: 1px 0; }
 .noesis-markup__bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
-.noesis-markup__sentence { width: 100%; text-align: left; padding: 8px 10px; border: var(--hair); border-radius: 10px; font-size: var(--text-sm); color: hsl(var(--foreground)); }
+.noesis-markup__sentence { width: 100%; text-align: left; padding: 8px 10px; border: var(--hair); border-radius: var(--radius-panel); font-size: var(--text-sm); color: hsl(var(--foreground)); }
 .noesis-markup__sentence[aria-pressed="true"] { border-color: hsl(var(--tone, var(--accent))); background: hsl(var(--tone, var(--accent)) / .1); }
 .noesis-markup__sentence:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .noesis-mark-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; margin-bottom: 8px; padding: 10px 12px; border: var(--hair); border-left: 4px solid hsl(var(--tone)); border-radius: var(--radius-md); }
@@ -164,7 +164,7 @@
 .noesis-game__cols { display: grid; grid-template-columns: 1fr 1.3fr; gap: var(--space-4); align-items: start; }
 @media (max-width: 760px) { .noesis-game__cols { grid-template-columns: 1fr; } }
 .noesis-game__card { width: 100%; min-height: 48px; padding: 10px 12px; text-align: left; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font-size: var(--text-sm); }
-.noesis-game__card--term { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: 1.05rem; }
+.noesis-game__card--term { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: var(--text-base); }
 .noesis-game__card--sort { max-width: 320px; width: auto; }
 .noesis-game__card:disabled { opacity: .55; }
 .noesis-game__card:focus-visible, .noesis-game__word:focus-visible, .noesis-game__blank:focus-visible, .noesis-game__step:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
@@ -175,8 +175,8 @@
 .noesis-game__bar { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .noesis-game__verdict { margin: 0; min-height: 1.4em; font-size: var(--text-sm); color: hsl(var(--tone, var(--muted-foreground))); }
 .noesis-game__verdict.is-right, .noesis-game__verdict.is-wrong { color: hsl(var(--tone)); }
-.noesis-game__passage { margin: 0; font-size: 1.15rem; line-height: 2.1; }
-.noesis-game__blank { min-width: 110px; padding: 0 8px; margin: 0 4px; border: 0; border-bottom: 2px dashed hsl(var(--muted-foreground)); border-radius: 6px 6px 0 0; background: transparent; color: hsl(var(--foreground)); font: inherit; font-style: italic; }
+.noesis-game__passage { margin: 0; font-size: var(--text-lg); line-height: 2.1; }
+.noesis-game__blank { min-width: 110px; padding: 0 8px; margin: 0 4px; border: 0; border-bottom: 2px dashed hsl(var(--muted-foreground)); border-radius: var(--radius-sm) 6px 0 0; background: transparent; color: hsl(var(--foreground)); font: inherit; font-style: italic; }
 .noesis-game__blank.is-filled { border-bottom-style: solid; border-color: hsl(var(--accent)); background: hsl(var(--accent) / .12); }
 .noesis-game__blank.is-right { border-color: hsl(var(--ok)); background: hsl(var(--ok) / .14); }
 .noesis-game__blank.is-wrong { border-color: hsl(var(--problem)); background: hsl(var(--problem) / .14); }
@@ -188,8 +188,8 @@
 .noesis-game__bins { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
 @media (max-width: 820px) { .noesis-game__bins { grid-template-columns: 1fr 1fr; } }
 .noesis-game__bin { display: grid; gap: 6px; align-content: start; min-height: 140px; padding: 10px; border: 1.5px dashed hsl(var(--tone)); border-radius: var(--radius-lg); background: hsl(var(--tone) / .05); }
-.noesis-game__step { display: flex; align-items: center; gap: var(--space-3); padding: 12px 14px; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font-size: 1.02rem; }
-.noesis-game__claim { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: 1.15rem; border-left: 3px solid hsl(var(--kind-position)); padding-left: 14px; }
+.noesis-game__step { display: flex; align-items: center; gap: var(--space-3); padding: 12px 14px; border: 1.5px solid hsl(var(--border)); border-radius: var(--radius-md); background: hsl(var(--background) / .6); color: hsl(var(--foreground)); font-size: var(--text-base); }
+.noesis-game__claim { margin: 0; font-family: "Playfair Display", Georgia, serif; font-style: italic; font-size: var(--text-lg); border-left: 3px solid hsl(var(--kind-position)); padding-left: 14px; }
 
 /* ---------- Calibration: one bar, two marks ----------
    The grounds marker is placed by the record and moves on its own; the
@@ -198,8 +198,8 @@
 .noesis-calbar { display: grid; gap: var(--space-3); }
 .noesis-calbar__track { position: relative; height: 58px; padding-top: 22px; }
 .noesis-calbar__range { position: relative; z-index: 2; width: 100%; margin: 0; accent-color: hsl(var(--tone)); background: transparent; }
-.noesis-calbar__track::before { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .55)); }
-.noesis-calbar__gap { position: absolute; top: 36px; height: 8px; border-radius: 99px; background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .45) 0 3px, transparent 3px 7px); }
+.noesis-calbar__track::before { content: ""; position: absolute; left: 0; right: 0; top: 36px; height: 8px; border-radius: var(--radius-pill); background: linear-gradient(90deg, hsl(var(--tone) / .18), hsl(var(--tone) / .55)); }
+.noesis-calbar__gap { position: absolute; top: 36px; height: 8px; border-radius: var(--radius-pill); background: repeating-linear-gradient(90deg, hsl(var(--foreground) / .45) 0 3px, transparent 3px 7px); }
 .noesis-calbar__grounds { position: absolute; top: 26px; width: 0; height: 28px; border-left: 2px dashed hsl(var(--foreground)); transform: translateX(-50%); z-index: 3; }
 .noesis-calbar__grounds-label,
 .noesis-calbar__stated-label { position: absolute; transform: translateX(-50%); white-space: nowrap; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; }
@@ -230,7 +230,7 @@
    card stays the size it looks like and the page keeps its shape. */
 .noesis-scrollbox { max-height: min(60vh, 32rem); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
 .noesis-scrollbox::-webkit-scrollbar { width: 10px; }
-.noesis-scrollbox::-webkit-scrollbar-thumb { border-radius: 999px; background: hsl(var(--muted-foreground) / .35); border: 3px solid transparent; background-clip: content-box; }
+.noesis-scrollbox::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: hsl(var(--muted-foreground) / .35); border: 3px solid transparent; background-clip: content-box; }
 .noesis-scrollbox::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .55); background-clip: content-box; }
 /* Rows in such a list are the same height, so the list reads as a column
    rather than a ragged stack. */

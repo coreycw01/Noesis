@@ -17,6 +17,6 @@
 #noesis-startup-retry p:first-child { font-weight: 500; }
 #noesis-startup-retry p + p {
   margin-top: .25rem;
-  font-size: .875rem;
+  font-size: var(--text-sm);
   color: hsl(var(--muted-foreground));
 }

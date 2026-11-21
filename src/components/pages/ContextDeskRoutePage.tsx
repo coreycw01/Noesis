@@ -590,7 +590,7 @@ export function ContextDeskRoutePage({
                     >
                       <span className="flex size-9 items-center justify-center text-muted-foreground"><Icon className="size-[18px]" aria-hidden="true" /></span>
                       <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{record.label}</span><Badge variant="outline" className="text-[9px] uppercase">{record.type}</Badge></span>
+                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{record.label}</span><Badge variant="outline" className="text-label-sm uppercase">{record.type}</Badge></span>
                         <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
                         {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt) && (
                           <span className="mt-1 block noesis-eyebrow text-muted-foreground">
@@ -627,7 +627,7 @@ export function ContextDeskRoutePage({
                   <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
                   <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
                     <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
-                    <span className="mt-0.5 block text-[10px] uppercase text-muted-foreground">{record.type}</span>
+                    <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
                     <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{index < MAX_CONTEXT_ITEMS ? 'Next review: ' : 'On desk: '}{record.summary}</span>
                   </button>
                   <div className="grid justify-items-end">

@@ -635,7 +635,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
             <PraxisMethodShape shape={method.shape} className="mt-1" title={method.intent} />
             <h3 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors text-primary whitespace-normal break-words">{practice.title}</h3>
           </div>
-          <p className="mt-1 text-[12px] italic leading-5 text-muted-foreground whitespace-normal">
+          <p className="mt-1 text-xs italic leading-5 text-muted-foreground whitespace-normal">
             {practice.action || practice.description || 'No action defined yet.'}
             {visibleType === 'experiment' && practice.hypothesis && <span className="mt-1 block not-italic"><strong>Prediction:</strong> {practice.hypothesis}</span>}
           </p>
@@ -670,12 +670,12 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
           )}
         </div>
       )}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-[11px] leading-5 text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border/30 pt-3 text-xs leading-5 text-muted-foreground">
         <span className="min-w-0 max-w-xl truncate italic text-primary/80">{practice.intellectualBasis || firstLinkedPosition?.title || linkedQuestions[0]?.text}</span>
         <span className="noesis-eyebrow noesis-eyebrow--sm">{durationText}</span>
         <span className="noesis-eyebrow noesis-eyebrow--sm">{experimentShape.logCount} {experimentShape.logCount === 1 ? 'log' : 'logs'}</span>
         {setupNeed && (
-          <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-[10px] leading-4 text-foreground">{setupNeed}</span>
+          <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-label leading-4 text-foreground">{setupNeed}</span>
         )}
       </div>
 
@@ -734,7 +734,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
             </div>
             <Button variant="ghost" size="sm" onClick={() => setReviewOpen(false)} className="h-7 rounded-full px-2.5 noesis-eyebrow noesis-eyebrow--sm">Hide</Button>
           </div>
-          <div className="mt-3 grid gap-2 text-[11px] leading-5 text-muted-foreground sm:grid-cols-2">
+          <div className="mt-3 grid gap-2 text-xs leading-5 text-muted-foreground sm:grid-cols-2">
             <div className="rounded-lg border border-border/30 bg-card p-3">Was the practice performed as intended?</div>
             <div className="rounded-lg border border-border/30 bg-card p-3">What happened that you did not expect?</div>
             <div className="rounded-lg border border-border/30 bg-card p-3">Was the hypothesis supported, weakened, or complicated?</div>
@@ -1159,7 +1159,7 @@ function LinkGrid({ title, items, selected, onChange }: { title: string; items: 
             />
             <span className="font-body italic text-primary/80 line-clamp-1 group-hover:text-accent transition-colors">{item.label}</span>
           </label>
-        )) : <p className="text-[11px] text-muted-foreground italic p-2">No items discovered in vault.</p>}
+        )) : <p className="text-xs text-muted-foreground italic p-2">No items discovered in vault.</p>}
       </div>
     </Field>
   );

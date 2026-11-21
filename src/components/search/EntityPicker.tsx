@@ -220,13 +220,13 @@ export function EntityPicker({
       </div>
       <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'contents')}>
         {selected.length > 0 ? selected.map((item) => (
-          <Badge key={item.id} variant="secondary" tone={selectedTone} className={cn('flex shrink-0 items-center gap-1 font-body text-[11px]', !selectedTone && 'bg-card', inline && 'order-1')}>
+          <Badge key={item.id} variant="secondary" tone={selectedTone} className={cn('flex shrink-0 items-center gap-1 font-body text-xs', !selectedTone && 'bg-card', inline && 'order-1')}>
             <span className="max-w-[180px] truncate italic">{item.label}</span>
             <button type="button" onClick={(event) => { event.stopPropagation(); onToggle(item.id); }} aria-label={`Remove ${item.label}`} className="ml-1 hover:text-destructive">
               <X className="size-3" />
             </button>
           </Badge>
-        )) : <span className="px-1 py-1 text-[11px] italic text-muted-foreground">{emptySelectedLabel}</span>}
+        )) : <span className="px-1 py-1 text-xs italic text-muted-foreground">{emptySelectedLabel}</span>}
       </div>
     </div>
   );

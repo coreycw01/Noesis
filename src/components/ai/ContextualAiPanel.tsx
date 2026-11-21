@@ -340,7 +340,7 @@ export function ContextualAiPanel({
             </div>
             <h3 ref={focusedReviewHeading} tabIndex={-1} className="mt-2 break-words text-lg font-semibold leading-snug text-foreground">{formattedInline(focusedItem.title)}</h3>
           </div>
-          <span className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[10px] font-medium capitalize text-muted-foreground">
+          <span className="shrink-0 rounded-full border border-border px-2.5 py-1 text-label font-medium capitalize text-muted-foreground">
             {focusedItem.status}
           </span>
         </div>
@@ -629,7 +629,7 @@ export function ContextualAiPanel({
                                       <div className="noesis-eyebrow font-bold text-muted-foreground">{reviewItemLabel} {index + 1}</div>
                                       <h3 className="mt-1 text-base font-semibold leading-snug text-foreground">{formattedInline(item.title)}</h3>
                                     </div>
-                                    <span className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-medium capitalize ${item.status === 'kept' ? 'border-accent/50 text-accent' : 'border-border text-muted-foreground'}`}>{item.status}</span>
+                                    <span className={`shrink-0 rounded-full border px-2 py-1 text-label font-medium capitalize ${item.status === 'kept' ? 'border-accent/50 text-accent' : 'border-border text-muted-foreground'}`}>{item.status}</span>
                                   </div>
                                   <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{formattedInline(item.content)}</p>
                                 </button>

@@ -78,23 +78,27 @@ const LibraryShelf = glyph('library', [
 const SourceRows = glyph('source-index', [1.5, 5.5, 9.5].flatMap((y, row) => [1.5, 5.5, 9.5].map((x): GlyphPart => (
   ['rect', { x, y, width: 3, height: 3, ...FILL, opacity: [1, 0.7, 0.45][row] }]
 ))));
-const InkTrail = glyph('annotation', [
+const ANNOTATION_PARTS: GlyphPart[] = [
   ['path', { d: 'M3 11 L11 3', strokeWidth: 1.6 }],
   ['path', { d: 'M3 11 C4.5 12.6 7 11.2 8.5 12.4 C9.6 13.2 11 12.6 12.5 12.8', strokeWidth: 1, opacity: 0.75 }],
-]);
-const QuestionMark = glyph('inquiry', [
+];
+const InkTrail = glyph('annotation', ANNOTATION_PARTS);
+const INQUIRY_PARTS: GlyphPart[] = [
   ['path', { d: 'M4.4 4.8C4.4 3 5.6 1.8 7.2 1.8 8.9 1.8 10 3 10 4.4 10 6.4 7.4 6.6 7.4 8.8', strokeWidth: 1.7 }],
   ['circle', { cx: 7.4, cy: 11.6, r: 1.1, ...FILL }],
-]);
-const PlantedFlag = glyph('position', [
+];
+const QuestionMark = glyph('inquiry', INQUIRY_PARTS);
+const POSITION_PARTS: GlyphPart[] = [
   ['path', { d: 'M3.5 13V1.8', strokeWidth: 1.5 }],
   ['path', { d: 'M3.5 2.2h7.5L9.2 4.6 11 7H3.5Z', ...FILL }],
-]);
-const PraxisTarget = glyph('praxis', [
+];
+const PlantedFlag = glyph('position', POSITION_PARTS);
+const PRAXIS_PARTS: GlyphPart[] = [
   ['circle', { cx: 6.5, cy: 7.5, r: 5, strokeWidth: 1.3 }],
   ['circle', { cx: 6.5, cy: 7.5, r: 2.2, strokeWidth: 1.3 }],
   ['path', { d: 'M6.5 7.5 12.5 1.5M10.2 1.5h2.3v2.3', strokeWidth: 1.4 }],
-]);
+];
+const PraxisTarget = glyph('praxis', PRAXIS_PARTS);
 const EvolutionChevrons = glyph('evolution', [
   ['path', { d: 'M1.5 3.5 L4.5 7 L1.5 10.5 M5.5 3.5 L8.5 7 L5.5 10.5 M9.5 3.5 L12.5 7 L9.5 10.5', strokeWidth: 1.6 }],
 ]);
@@ -104,7 +108,8 @@ const AtlasMap = glyph('atlas', [
   ['path', { d: 'm3.1 8.1 3.4-2.8 4.2 1.6', strokeWidth: 1.05 }],
   ...[[3.1, 8.1], [6.5, 5.3], [10.7, 6.9]].map(([cx, cy]): GlyphPart => ['circle', { cx, cy, r: 0.95, ...FILL }]),
 ]);
-const WorkSheet = glyph('work', [['path', { d: 'M3 2h6l2 2v8H3Z', strokeWidth: 1.3 }]]);
+const WORK_PARTS: GlyphPart[] = [['path', { d: 'M3 2h6l2 2v8H3Z', strokeWidth: 1.3 }]];
+const WorkSheet = glyph('work', WORK_PARTS);
 const SettingsDial = glyph('settings', [
   ['circle', { cx: 7, cy: 7, r: 2.2, strokeWidth: 1.4 }],
   ['circle', { cx: 7, cy: 7, r: 5, strokeWidth: 1.4, strokeDasharray: '2 2' }],
@@ -132,6 +137,29 @@ export type NoesisIconKey =
   | 'settings'
   | 'exercise'
   | 'source-index';
+
+/**
+ * The geometry behind the glyphs, on the same 14 × 14 grid the components use.
+ *
+ * The Atlas draws its landmarks from this, so a record is the same shape on
+ * the map as it is in the navigation: change a glyph here and both follow.
+ * `source` is the exception — it restates lucide's BookOpen on the 14 grid,
+ * because that one icon is theirs rather than ours.
+ */
+export type NoesisGlyphPart = GlyphPart;
+export const NOESIS_GLYPH_PARTS = {
+  position: POSITION_PARTS,
+  inquiry: INQUIRY_PARTS,
+  annotation: ANNOTATION_PARTS,
+  work: WORK_PARTS,
+  praxis: PRAXIS_PARTS,
+  source: [
+    ['path', { d: 'M7 2.9v9.3', strokeWidth: 1.15 }],
+    ['path', { d: 'M11.7 11.1a1.2 1.2 0 0 0 1.2-1.2V2.9a1.2 1.2 0 0 0-1.2-1.2L9.3 1.75A2.9 2.9 0 0 0 7 2.9a2.9 2.9 0 0 0-2.3-1.15H2.3A1.2 1.2 0 0 0 1.1 2.9v7a1.2 1.2 0 0 0 1.2 1.2h2.4A2.9 2.9 0 0 1 7 12.25a2.9 2.9 0 0 1 2.3-1.15Z', strokeWidth: 1.15 }],
+  ] as GlyphPart[],
+} satisfies Record<string, GlyphPart[]>;
+
+export type NoesisGlyphKey = keyof typeof NOESIS_GLYPH_PARTS;
 
 export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   home: TodaySun,

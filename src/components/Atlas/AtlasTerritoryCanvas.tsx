@@ -6,6 +6,7 @@ import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
 import { cssColor } from '@/lib/css-color';
 import { conceptBoundaryMarks, type BoundaryKind } from '@/lib/concept-boundary-findings';
+import { NOESIS_GLYPH_PARTS, type NoesisGlyphKey } from '@/lib/noesis-icons';
 import { Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/ui/pill';
@@ -58,6 +59,11 @@ const RECORD_TONE: Record<RecordType, string> = {
   position: '--stage-claim', inquiry: '--stage-examine', source: '--stage-encounter',
   practice: '--stage-act', work: '--stage-integrate', annotation: '--stage-encounter',
 };
+/** Each record wears the glyph its own tab wears. */
+const GLYPH_FOR: Record<RecordType, NoesisGlyphKey> = {
+  position: 'position', inquiry: 'inquiry', source: 'source',
+  practice: 'praxis', work: 'work', annotation: 'annotation',
+};
 const RECORD_NOUN: Record<RecordType, string> = {
   position: 'positions', inquiry: 'inquiries', source: 'sources',
   practice: 'praxis', work: 'works', annotation: 'annotations',
@@ -94,7 +100,7 @@ export function elevationRings(involvement: number) {
  * its neighbours' water. Confidence and repeated edits do not enter into it.
  */
 export function islandRadius(involvement: number, clarity: number) {
-  return Math.round(44 + 15 * Math.log2(1 + Math.max(0, involvement)) + 5 * Math.max(0, clarity));
+  return Math.round(30 + 21 * Math.log2(1 + Math.max(0, involvement)) + 6 * Math.max(0, clarity));
 }
 
 /**
@@ -413,47 +419,78 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
       ctx.lineTo(x - s * .32, y + s * .32); ctx.lineTo(x - s, y);
       ctx.lineTo(x - s * .32, y - s * .32); ctx.closePath();
     };
-    /** A position: a flag planted in the ground. The banner is its stated confidence. */
-    const flag = (x: number, y: number, s: number, confidence?: number) => {
-      const held = typeof confidence === 'number' ? clamp01(confidence / 100) : 0.5;
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - s * 2.1); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x, y - s * 2.1);
-      ctx.lineTo(x + s * (0.5 + held * 1.4), y - s * 1.65);
-      ctx.lineTo(x, y - s * 1.2); ctx.closePath(); ctx.fill();
-    };
-    /** An inquiry: fog over the ground, with a small mark you can aim at. */
-    const fogPatch = (x: number, y: number, r: number, density: number) => {
-      const cloud = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
-      cloud.addColorStop(0, `rgba(226, 236, 245, ${0.5 * density})`);
-      cloud.addColorStop(0.55, `rgba(214, 228, 240, ${0.26 * density})`);
-      cloud.addColorStop(1, 'rgba(214, 228, 240, 0)');
-      ctx.fillStyle = cloud;
-      ctx.beginPath(); ctx.ellipse(x, y, r * 1.25, r * 0.82, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(x - r * 0.45, y + r * 0.2, r * 0.75, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(x + r * 0.5, y - r * 0.15, r * 0.65, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-    };
-    /** A source: a dock reaching into the water. */
-    const dock = (x: number, y: number, s: number, angle: number) => {
-      ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
-      ctx.beginPath(); ctx.moveTo(-s * 1.3, 0); ctx.lineTo(s * 1.3, 0); ctx.stroke();
-      for (const at of [-0.8, 0, 0.8]) { ctx.beginPath(); ctx.moveTo(s * at, -s * 0.1); ctx.lineTo(s * at, s * 0.75); ctx.stroke(); }
+    /**
+     * Landmarks are the navigation's own glyphs.
+     *
+     * A position on the map is the planted flag from the Positions tab; a
+     * source is the book from the Library. The geometry comes from
+     * NOESIS_GLYPH_PARTS rather than being redrawn here, so the map cannot
+     * drift away from the navigation: change a glyph once and both follow.
+     * Drawn on the glyph's own 14 x 14 grid under a transform, which keeps
+     * stroke weights in the proportions the icon was designed with.
+     */
+    const glyphCache = new Map<string, Path2D>();
+    const drawGlyph = (key: NoesisGlyphKey, x: number, y: number, size: number) => {
+      const parts = NOESIS_GLYPH_PARTS[key];
+      ctx.save();
+      ctx.translate(x - size / 2, y - size / 2);
+      ctx.scale(size / 14, size / 14);
+      for (const [tag, attrs] of parts) {
+        const a = attrs as Record<string, string | number>;
+        const filled = a.fill === 'currentColor';
+        ctx.globalAlpha = ctx.globalAlpha * (typeof a.opacity === 'number' ? a.opacity : 1);
+        // The glyphs are drawn for a 14–24px tab icon, where a 1px hairline
+        // reads. Shrunk onto the map that hairline disappears and the mark
+        // becomes a smudge, so hold a floor of roughly a screen pixel while
+        // keeping the proportions each glyph was designed with.
+        const designed = typeof a.strokeWidth === 'number' ? a.strokeWidth : 1.2;
+        ctx.lineWidth = Math.max(designed, (14 / size) * 1.05);
+        let path: Path2D;
+        if (tag === 'path') {
+          const d = String(a.d);
+          path = glyphCache.get(d) || new Path2D(d);
+          glyphCache.set(d, path);
+        } else if (tag === 'circle') {
+          path = new Path2D();
+          path.arc(Number(a.cx), Number(a.cy), Number(a.r), 0, Math.PI * 2);
+        } else {
+          path = new Path2D();
+          path.rect(Number(a.x), Number(a.y), Number(a.width), Number(a.height));
+        }
+        if (filled) ctx.fill(path); else ctx.stroke(path);
+        ctx.globalAlpha = ctx.globalAlpha / (typeof a.opacity === 'number' ? a.opacity : 1);
+      }
       ctx.restore();
     };
-    /** A work: a roof over a workbench. */
-    const workshop = (x: number, y: number, s: number) => {
-      ctx.beginPath(); ctx.moveTo(x - s * 1.15, y - s * 0.2); ctx.lineTo(x, y - s * 1.25); ctx.lineTo(x + s * 1.15, y - s * 0.2); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(x - s * 0.85, y + s * 0.75); ctx.lineTo(x + s * 0.85, y + s * 0.75); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x - s * 0.6, y + s * 0.75); ctx.lineTo(x - s * 0.6, y + s * 0.1); ctx.moveTo(x + s * 0.6, y + s * 0.75); ctx.lineTo(x + s * 0.6, y + s * 0.1); ctx.stroke();
-    };
-    /** Praxis: footprints, because a practice is something walked rather than claimed. */
-    const footprints = (x: number, y: number, s: number) => {
-      ctx.beginPath(); ctx.ellipse(x - s * 0.5, y + s * 0.4, s * 0.34, s * 0.6, -0.35, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(x + s * 0.45, y - s * 0.45, s * 0.34, s * 0.6, -0.35, 0, Math.PI * 2); ctx.fill();
-    };
-    /** An annotation: a quiet pin in the ground. */
-    const pin = (x: number, y: number, s: number) => {
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - s * 1.5); ctx.stroke();
-      ctx.beginPath(); ctx.arc(x, y - s * 1.75, s * 0.52, 0, Math.PI * 2); ctx.fill();
+
+    /**
+     * An inquiry: fog lying on the ground.
+     *
+     * Real fog is not a glow. It is many thin banks of vapour, wider than they
+     * are tall, drifting at different speeds and thickening where they
+     * overlap — so this draws nine of them rather than one, each faint, and
+     * lets the density come from the stacking. The banks drift slowly and
+     * deterministically from the inquiry's own seed, so the weather over one
+     * question is always its own and never jitters between frames.
+     */
+    const fogPatch = (x: number, y: number, r: number, density: number, seed: number, drift: number) => {
+      ctx.save();
+      for (let layer = 0; layer < 9; layer += 1) {
+        const wobble = Math.sin(seed * 1.7 + layer * 2.3);
+        const speed = 0.45 + ((layer * 37 + seed * 13) % 10) / 14;
+        const bank = r * (0.42 + (layer % 4) * 0.19);
+        const px = x + wobble * r * 0.46 + Math.sin(drift * speed + layer) * r * 0.2;
+        const py = y + Math.cos(seed * 2.1 + layer * 1.9) * r * 0.26 + Math.sin(drift * speed * 0.6 + layer) * r * 0.06;
+        const cloud = ctx.createRadialGradient(px, py, 0, px, py, bank);
+        const weight = 0.17 * density * (1 - layer / 16);
+        cloud.addColorStop(0, `rgba(232, 240, 248, ${weight})`);
+        cloud.addColorStop(0.6, `rgba(220, 232, 243, ${weight * 0.55})`);
+        cloud.addColorStop(1, 'rgba(220, 232, 243, 0)');
+        ctx.fillStyle = cloud;
+        // Banks are flat: fog settles along the ground rather than balling up.
+        ctx.beginPath(); ctx.ellipse(px, py, bank * 1.65, bank * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
     };
     /** A boundary: a small boat holding station just off the shore. */
     const boat = (x: number, y: number, s: number) => {
@@ -466,8 +503,12 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
     const conceptLinks = links.filter((link) => link.fromType === 'concept' && link.toType === 'concept' && conceptById.has(link.fromId) && conceptById.has(link.toId));
     const involvement = conceptInvolvement(world, links);
 
+    const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const started = performance.now();
+
     const frame = () => {
       if (!alive) return;
+      const drift = calm ? 0 : (performance.now() - started) / 2600;
       const v = view.current;
       v.x += (v.tx - v.x) * 0.18; v.y += (v.ty - v.y) * 0.18; v.k = Math.exp(Math.log(v.k) + (Math.log(v.tk) - Math.log(v.k)) * 0.18);
       const k = v.k; placed = [];
@@ -567,13 +608,24 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           blob(x, y, r, index * 1.7); ctx.fillStyle = dark ? '#28403b' : '#ecedda'; ctx.fill();
           const rings = elevationRings(involvement.get(concept.id) || 0);
           for (let ring = 0; ring < rings; ring += 1) {
-            blob(x, y, r * (1 - ring / (rings + 0.7)), index * 1.7 + ring * 0.35);
+            // Each line is a fixed step up, so the lines bunch near the top of
+            // a high concept exactly as they do on a real topographic map.
+            const step = Math.pow(1 - ring / (rings + 0.55), 1.25);
+            blob(x, y, r * step, index * 1.7 + ring * 0.35);
             ctx.strokeStyle = ring === 0
               ? (concept.id === selectedId ? accent : dark ? '#7fa39c' : '#6f958f')
-              : alpha(ink, Math.min(0.5, 0.16 + ring * 0.05));
-            ctx.lineWidth = ring === 0 ? (concept.id === selectedId ? 2.6 : 1.4) : 0.8;
+              : alpha(ink, Math.min(0.7, 0.26 + ring * 0.09));
+            ctx.lineWidth = ring === 0 ? (concept.id === selectedId ? 2.6 : 1.4) : 0.75 + ring * 0.08;
             if (ring === 0 && concept.status === 'contested') ctx.setLineDash([6, 4]);
             ctx.stroke(); ctx.setLineDash([]);
+          }
+          // A summit on the concepts most of the thinking rests on.
+          if (rings >= 4 && r > 34) {
+            const peak = r * 0.07;
+            ctx.beginPath();
+            ctx.moveTo(x - peak, y + peak * 0.6); ctx.lineTo(x, y - peak); ctx.lineTo(x + peak, y + peak * 0.6);
+            ctx.closePath();
+            ctx.strokeStyle = alpha(ink, 0.55); ctx.lineWidth = 1; ctx.stroke();
           }
           if (fresh) { ctx.fillStyle = accent; ctx.font = '9px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('NEW', x, y - r * 1.25); }
           if (starA < 0.5) label(concept.name, x, y - r * 1.05 - 10, `italic 600 ${Math.max(13, Math.min(21, 15 * Math.max(k, 0.9)))}px "Playfair Display", Georgia, serif`, ink);
@@ -587,10 +639,11 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           if (record.type !== 'inquiry' || !record.fog) return;
           const owner = conceptById.get(record.conceptId); if (!owner || !seen(record.born) || !seen(owner.born)) return;
           const [x, y] = toScreen(record.wx, record.wy);
-          const r = Math.max(14, Math.min(150, owner.island * 0.62 * k));
+          const r = Math.max(15, Math.min(104, owner.island * 0.46 * k));
           if (x + r * 2 < 0 || x - r * 2 > width || y + r * 2 < 0 || y - r * 2 > height) return;
           ctx.globalAlpha = islandA * (0.55 + recordA * 0.45);
-          fogPatch(x, y, r, record.fog);
+          const seed = [...record.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 97;
+          fogPatch(x, y, r, record.fog, seed, drift);
           ctx.globalAlpha = 1;
         });
       }
@@ -623,12 +676,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           const tone = css(RECORD_TONE[record.type]);
           ctx.globalAlpha = recordA;
           ctx.fillStyle = tone; ctx.strokeStyle = tone; ctx.lineWidth = Math.max(1.2, s * 0.18);
-          if (record.type === 'position') flag(x, y, s, record.confidence);
-          else if (record.type === 'source') dock(x, y, s, Math.atan2(y - toScreen(owner.wx, owner.wy)[1], x - toScreen(owner.wx, owner.wy)[0]));
-          else if (record.type === 'work') workshop(x, y, s);
-          else if (record.type === 'practice') footprints(x, y, s);
-          else if (record.type === 'annotation') pin(x, y, s * 0.8);
-          else { ctx.font = `600 ${Math.max(10, s * 1.5)}px "JetBrains Mono", monospace`; ctx.textAlign = 'center'; ctx.fillText('?', x, y + s * 0.5); }
+          drawGlyph(GLYPH_FOR[record.type], x, y, s * 2.6);
           if (selected?.kind === 'record' && selected.record.id === record.id) {
             ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, s * 2.2, 0, 7); ctx.stroke();
           }
@@ -854,7 +902,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
                 {selectedBoundaries.map((boundary) => (
                   <button key={boundary.id} type="button" className="text-left text-xs leading-5 underline-offset-2 hover:underline"
                     onClick={() => setSelection({ kind: 'boundary', boundary, conceptName: selection.concept.name })}>
-                    <b className="font-mono text-[10px] uppercase tracking-wider">{boundary.kind}</b> · {boundary.text}
+                    <b className="font-mono text-label uppercase tracking-wider">{boundary.kind}</b> · {boundary.text}
                   </button>
                 ))}
               </div>
@@ -898,18 +946,20 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
         <details className="noesis-territory__card">
           <summary className="noesis-territory__eyebrow cursor-pointer">What the landmarks mean</summary>
           <div className="mt-2 grid gap-1.5 text-xs">
+            <p className="mb-1 text-xs">Every landmark is the glyph its own tab uses, so a record looks the same on the map as it does in the navigation.</p>
             {[
               ['Star', 'a concept, seen from the sky'],
-              ['Island', 'that concept up close; rings are how much rests on it'],
-              ['Flag', 'a position; the banner is its stated confidence'],
-              ['Fog', 'an open inquiry; it thins with an answer and clears when resolved'],
-              ['Dock', 'a source, moored at the shore'],
-              ['Workshop', 'a work written about the concept'],
-              ['Footprints', 'praxis: a practice, experiment or commitment'],
-              ['Pin', 'an annotation left on the ground'],
+              ['Island', 'that concept up close. It grows with the records, notes and links resting on it, so a worked concept is a bigger island than an untouched one'],
+              ['Contours', 'one line per doubling of what rests on the concept — they crowd toward a summit on the ones carrying the most'],
+              ['Flag', 'a position — the same planted flag the Positions tab wears'],
+              ['Fog', 'an open inquiry lying over the ground; it thins with a working answer and clears when resolved'],
+              ['Book', 'a source, from the Library tab'],
+              ['Sheet', 'a work, from the Works tab'],
+              ['Target', 'praxis — a practice, experiment or commitment'],
+              ['Ink trail', 'an annotation, from the Annotations tab'],
               ['Boat', 'a boundary: what this concept is not'],
             ].map(([name, text]) => (
-              <span key={name} className="flex gap-2"><b className="w-20 shrink-0 font-mono text-[10px] uppercase tracking-wider">{name}</b><span>{text}</span></span>
+              <span key={name} className="flex gap-2"><b className="w-20 shrink-0 font-mono text-label uppercase tracking-wider">{name}</b><span>{text}</span></span>
             ))}
           </div>
         </details>

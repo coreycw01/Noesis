@@ -48,7 +48,7 @@ function SourceIndexCover({ source }: { source: Media }) {
   const hue = Array.from(source.title || '').reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
   return (
     <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
-      <span className="line-clamp-4 font-headline text-[.95rem] font-semibold italic leading-tight">{source.title}</span>
+      <span className="line-clamp-4 font-headline text-base font-semibold italic leading-tight">{source.title}</span>
       <span className="noesis-eyebrow noesis-eyebrow--sm opacity-80">{source.creator || source.type}</span>
     </div>
   );
@@ -534,10 +534,10 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         }
         actions={
           <>
-          <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
+          <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-label tracking-widest">
             <Copy className="size-4 mr-2" /> Copy Bibliography
           </Button>
-          <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-[10px] tracking-widest">
+          <Button variant="outline" onClick={() => setExportPreviewOpen(true)} size="sm" className="h-9 px-6 bg-card border-border/60 shadow-sm rounded-full font-bold uppercase text-label tracking-widest">
             <Download className="size-4 mr-2" /> Export BibTeX
           </Button>
           {headerActions}
@@ -660,8 +660,8 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                 <div className="line-clamp-2 font-headline text-base font-bold leading-5 text-foreground group-hover:text-accent">{m.title}</div>
                 <div className="mt-1 truncate text-xs text-muted-foreground">{m.creator || 'Unknown creator'}</div>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{MEDIA_LABELS[m.type]}</Badge>
-                  <Badge variant="outline" className="rounded-full px-2 py-0 text-[8px]">{connected} links</Badge>
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-label-sm">{MEDIA_LABELS[m.type]}</Badge>
+                  <Badge variant="outline" className="rounded-full px-2 py-0 text-label-sm">{connected} links</Badge>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
                   <span className="truncate">{catalogState.label}</span>
@@ -755,9 +755,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       <Badge variant="outline" className="shrink-0 rounded-full">{MEDIA_STATUS_LABELS[source.status]}</Badge>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      <Badge variant="secondary" className="rounded-full text-[8px]">{influence} influence</Badge>
-                      <Badge variant="secondary" className="rounded-full text-[8px]">{connected} links</Badge>
-                      <Badge variant="secondary" className="rounded-full text-[8px]">{countLabel(source.annotations?.length || 0, 'note')}</Badge>
+                      <Badge variant="secondary" className="rounded-full text-label-sm">{influence} influence</Badge>
+                      <Badge variant="secondary" className="rounded-full text-label-sm">{connected} links</Badge>
+                      <Badge variant="secondary" className="rounded-full text-label-sm">{countLabel(source.annotations?.length || 0, 'note')}</Badge>
                     </div>
                   </button>
                 ))}
@@ -799,7 +799,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <TableHead className="w-14 px-1 sm:w-24"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody className="font-body text-[13px]">
+          <TableBody className="font-body text-xs">
             {sourceRows.map(({ source: m, influence, connected, progress, metadataGaps, health, catalogState, linkedPositions, linkedWorks, linkedPractices, linkedQuestions }) => {
               return (
                 <TableRow key={m.id} data-state={selectedSourceSet.has(m.id) ? 'selected' : undefined} className="group h-16 cursor-pointer transition-colors hover:bg-muted/5" onClick={(event) => { if (isEntitySurfaceClick(event)) previewSource(m); }}>
@@ -840,7 +840,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                   </TableCell>
                   <TableCell className="hidden py-2.5 noesis-figure text-muted-foreground lg:table-cell">{m.year || '-'}</TableCell>
                   <TableCell className="hidden py-2.5 xl:table-cell">
-                    <div className="max-w-[150px] truncate text-[11px] text-muted-foreground" title={m.isbn || m.publisher}>
+                    <div className="max-w-[150px] truncate text-xs text-muted-foreground" title={m.isbn || m.publisher}>
                       {m.isbn || m.doi || m.publisher || m.platform || '-'}
                     </div>
                     {metadataGaps.length > 0 && (
@@ -870,7 +870,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     )}>
                       {catalogState.label}
                     </Badge>
-                    <div className="mt-1 max-w-[170px] text-[10px] leading-4 text-muted-foreground">
+                    <div className="mt-1 max-w-[170px] text-label leading-4 text-muted-foreground">
                       {catalogState.nextAction}
                     </div>
                   </TableCell>

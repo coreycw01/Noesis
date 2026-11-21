@@ -844,13 +844,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                                   >
                                     <span className="block">
                                       <span className="block noesis-eyebrow noesis-eyebrow--sm font-bold">{decision.label}</span>
-                                      <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted-foreground">{decision.description}</span>
+                                      <span className="mt-0.5 block text-xs normal-case tracking-normal text-muted-foreground">{decision.description}</span>
                                     </span>
                                   </Button>
                                 );
                               })}
                             </div>
-                            <p className="mt-2 text-[11px] text-caution">
+                            <p className="mt-2 text-xs text-caution">
                               Choosing one creates a typed link, so Atlas and Positions can remember how these claims relate.
                             </p>
                           </div>
@@ -1032,7 +1032,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     <button key={`${a.source.id}-${i}`} type="button" onClick={() => previewAnnotationSource(a)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
                       <span className="noesis-eyebrow noesis-eyebrow--sm text-accent/70 font-bold">{a.type}</span>
                       <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">&quot;{a.text}&quot;</p>
-                      <p className="text-[10px] text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
+                      <p className="text-label text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
                     </button>
                   ))}
                 </div>
@@ -1377,7 +1377,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 </div>
               </div>
 
-              <p className="text-[13px] leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-5">
+              <p className="text-xs leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-5">
                 {concept?.description || 'Inspect linked sources, positions, works, inquiries, and practices.'}
               </p>
 

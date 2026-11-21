@@ -47,7 +47,7 @@ export function PositionsUnderHeat({ rows, onOpen }: { rows: PositionHeat[]; onO
       {heat.map(({ position, gap, confidence }) => (
         <button key={position.id} type="button" onClick={() => onOpen(position.id)} className="noesis-heat-row">
           <Ember confidence={confidence} gap={gap} />
-          <span className="min-w-0 truncate font-headline text-[1rem] font-semibold italic">{position.title}</span>
+          <span className="min-w-0 truncate font-headline text-base font-semibold italic">{position.title}</span>
           <span className="font-code text-xs tabular-nums" data-stage-tone={Math.abs(gap) > 12 ? 'claim' : 'act'} style={{ color: 'hsl(var(--stage))' }}>{gap > 0 ? '+' : ''}{gap}</span>
         </button>
       ))}
@@ -105,7 +105,7 @@ export function PraxisCheckIn({ practices, day, onOpen, onUpdate }: { practices:
           <div key={practice.id} className="noesis-checkin-row" data-stage-tone={method.tone}>
             <PraxisMethodShape shape={method.shape} size={16} />
             <div className="min-w-0">
-              <button type="button" onClick={() => onOpen(practice.id)} className="block min-h-8 max-w-full break-words text-left text-[.95rem] hover:underline focus-visible:outline-2 focus-visible:outline-ring">{practice.title}</button>
+              <button type="button" onClick={() => onOpen(practice.id)} className="block min-h-8 max-w-full break-words text-left text-base hover:underline focus-visible:outline-2 focus-visible:outline-ring">{practice.title}</button>
               <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{method.intent}{rate !== null ? ` · ${rate}% kept` : ''}</span>
             </div>
             <div className="text-right" aria-live="polite">

@@ -802,7 +802,7 @@ export function MediaLibrary({
                       onChange={(event) => setSessionTargetMinutes(event.target.value)}
                       className="h-10 w-full rounded-md text-right noesis-figure sm:h-8 sm:w-28 sm:rounded-full"
                     />
-                    <Button variant="outline" size="sm" onClick={startSession} className="sm:h-8 sm:rounded-full sm:px-5 sm:text-[10px]">
+                    <Button variant="outline" size="sm" onClick={startSession} className="sm:h-8 sm:rounded-full sm:px-5 sm:text-label">
                       <Play className="mr-2 size-3.5" /> Start Session
                     </Button>
                   </div>
@@ -1035,7 +1035,7 @@ export function MediaLibrary({
               <p className="text-sm italic text-muted-foreground">Total active time: {formatDuration(elapsed)}</p>
             </DialogHeader>
             <div className="space-y-3 pt-3">
-              <Label className="readex-kicker text-[9px] font-bold uppercase">Reflection Notes</Label>
+              <Label className="readex-kicker text-label-sm font-bold uppercase">Reflection Notes</Label>
               <Textarea
                 value={endSessionNotes}
                 onChange={(event) => setEndSessionNotes(event.target.value)}
@@ -1268,11 +1268,11 @@ export function MediaLibrary({
               <SourceCover item={item} />
             </div>
             <div className="space-y-1.5">
-              <div className="readex-kicker text-muted-foreground font-bold text-[9px]">{MEDIA_LABELS[item.type].toUpperCase()}</div>
+              <div className="readex-kicker text-muted-foreground font-bold text-label-sm">{MEDIA_LABELS[item.type].toUpperCase()}</div>
               <h2 className="font-headline text-base font-bold italic leading-snug text-foreground transition-colors group-hover:text-accent">
                 <button type="button" onClick={() => openSelectedSource(item.id)} className="line-clamp-2 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-2 focus-visible:after:ring-ring">{item.title}</button>
               </h2>
-              <p className="readex-kicker text-muted-foreground truncate text-[9px] font-bold tracking-widest">{item.creator.toUpperCase()}</p>
+              <p className="readex-kicker text-muted-foreground truncate text-label-sm font-bold tracking-widest">{item.creator.toUpperCase()}</p>
               {!!item.tags?.[0] && (
                 <div className="line-clamp-1 text-sm font-semibold text-accent">{item.tags[0]}</div>
               )}
@@ -1295,7 +1295,7 @@ export function MediaLibrary({
           <div className="size-12 rounded-full bg-card flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-md border border-border/30">
             <Plus className="size-6 text-muted-foreground" />
           </div>
-          <span className="readex-kicker text-muted-foreground font-bold text-[10px]">Add source</span>
+          <span className="readex-kicker text-muted-foreground font-bold text-label">Add source</span>
         </button>
 
         {filtered.length === 0 && (
@@ -1331,7 +1331,7 @@ function SourceCover({ item, eager = false }: { item: Media; eager?: boolean }) 
   const hue = Array.from(item.title || '').reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
   return (
     <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
-      <div className="line-clamp-4 font-headline text-[1.05rem] font-semibold italic leading-tight">{item.title}</div>
+      <div className="line-clamp-4 font-headline text-base font-semibold italic leading-tight">{item.title}</div>
       <div className="noesis-eyebrow noesis-eyebrow--sm opacity-80">{item.creator || MEDIA_LABELS[item.type]}</div>
     </div>
   );

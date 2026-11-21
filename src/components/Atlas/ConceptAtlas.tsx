@@ -1816,7 +1816,7 @@ export function ConceptAtlas({
 
                 <div className="space-y-2">
                   {selectedNodeLinks.map(renderSelectedNodeLinkCard)}
-                  {!selectedNodeLinks.length && <p className="text-[10px] italic text-muted-foreground font-body">No links yet.</p>}
+                  {!selectedNodeLinks.length && <p className="text-label italic text-muted-foreground font-body">No links yet.</p>}
                 </div>
               </section>
             )}
@@ -3023,7 +3023,7 @@ export function ConceptAtlas({
                 onLostPointerCapture={(event) => endNodeGesture(event.pointerId, false)}
               >
                 <span className="sr-only">{quickLinkSource ? 'Link to' : 'Open concept'} </span>
-                <span className={cn('noesis-atlas-node-label block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-[15px]')}>{node.name}</span>
+                <span className={cn('noesis-atlas-node-label block max-w-28 break-words font-headline font-semibold text-primary', activeMapStyle.nodeStyle === 'compact' && 'text-sm', activeMapStyle.nodeStyle === 'pill' && 'text-sm')}>{node.name}</span>
                 {activeMapStyle.nodeStyle !== 'default' && <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{node.count} linked</span>}
               </button>
             ))}

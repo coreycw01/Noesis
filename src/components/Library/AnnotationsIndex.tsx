@@ -991,7 +991,7 @@ export function AnnotationsIndex({
               aria-pressed={filterType === button.id}
               onClick={() => setFilterType(button.id)}
               className={cn(
-                "min-h-10 px-3 py-2 rounded-full text-[9px] font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
+                "min-h-10 px-3 py-2 rounded-full text-label-sm font-code font-bold uppercase tracking-[0.14em] transition-all shadow-sm",
                 filterType === button.id ? "border border-ring bg-muted text-foreground" : "bg-card text-muted-foreground border border-border/60 hover:text-foreground"
               )}
             >
@@ -1225,7 +1225,7 @@ export function AnnotationsIndex({
             </div>
 
             <button type="button" onClick={() => openAnnotationDetail(annotation)} className="block w-full px-4 py-4 text-left">
-              <p className="font-body text-[15px] leading-6 text-foreground line-clamp-4">{annotation.text}</p>
+              <p className="font-body text-sm leading-6 text-foreground line-clamp-4">{annotation.text}</p>
               {annotation.context?.trim() && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context}</p>}
             </button>
 
@@ -1254,7 +1254,7 @@ export function AnnotationsIndex({
                   <BookOpen className="size-3 text-muted-foreground/60" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-[11px] font-medium leading-tight text-muted-foreground">{annotation.source.title}</p>
+                  <p className="truncate text-xs font-medium leading-tight text-muted-foreground">{annotation.source.title}</p>
                   <p className="mt-0.5 truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
                 </div>
             </div>

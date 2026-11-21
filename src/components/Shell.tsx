@@ -91,7 +91,7 @@ function WorkspaceSyncIndicator({ state, compact = false, offline = false }: { s
       aria-live="polite"
       title={label}
       className={cn(
-        'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-[9px] font-medium',
+        'inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-label-sm font-medium',
         visibleState === 'error' ? 'text-destructive' : visibleState === 'saving' ? 'text-accent' : 'text-sidebar-foreground/45',
         compact && 'justify-center px-1.5'
       )}
@@ -683,7 +683,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         <item.icon className="noesis-nav-item__icon size-4 shrink-0" />
         {(!collapsed || isMobile) && (
           <>
-            <span className={cn('text-[13px] font-body tracking-wide flex-1 text-left', isActive ? 'font-semibold' : 'font-medium')}>{page.title}</span>
+            <span className={cn('text-xs font-body tracking-wide flex-1 text-left', isActive ? 'font-semibold' : 'font-medium')}>{page.title}</span>
             {typeof item.count === 'number' && (
               <span className="rounded-full bg-sidebar-foreground/10 px-2 py-0.5 noesis-figure noesis-figure--sm text-sidebar-foreground/65">{item.count}</span>
             )}
@@ -723,7 +723,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             </div>
             {(!collapsed || isMobile) && (
               <div>
-                <span className="text-[25px] font-headline font-bold text-sidebar-foreground tracking-tight">Noesis<span className="text-accent">.</span></span>
+                <span className="text-2xl font-headline font-bold text-sidebar-foreground tracking-tight">Noesis<span className="text-accent">.</span></span>
                 <p className="noesis-eyebrow noesis-eyebrow--sm text-sidebar-foreground/35 font-medium">Turn thought into understanding.</p>
               </div>
             )}
@@ -754,13 +754,13 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         >
           <Avatar className="size-9 border border-sidebar-border">
             <AvatarImage src={profile?.photoURL || profile?.avatarUrl || ''} alt={profile?.displayName || 'Profile'} />
-            <AvatarFallback className="bg-sidebar-foreground/10 text-[11px] font-semibold text-sidebar-foreground">
+            <AvatarFallback className="bg-sidebar-foreground/10 text-xs font-semibold text-sidebar-foreground">
               {profileInitials}
             </AvatarFallback>
           </Avatar>
           {(!collapsed || isMobile) && (
             <div className="min-w-0 text-left">
-              <div className="truncate text-[12px] font-medium text-sidebar-foreground">{profile?.displayName || 'Profile'}</div>
+              <div className="truncate text-xs font-medium text-sidebar-foreground">{profile?.displayName || 'Profile'}</div>
               <div className="truncate noesis-eyebrow noesis-eyebrow--sm text-sidebar-foreground/38">
                 {workspaceMode || profile?.role || 'Private workspace'}
               </div>
@@ -790,7 +790,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
             {(!collapsed || isMobile) ? (
               <span className="min-w-0 flex-1 text-left">
                 <span className="block truncate noesis-eyebrow noesis-eyebrow--sm font-bold text-sidebar-primary">Attention</span>
-                <span className="block truncate text-[11px] text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
+                <span className="block truncate text-xs text-sidebar-foreground/55">{attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>
               </span>
             ) : <span className="sr-only">Attention {attentionTotal} item{attentionTotal === 1 ? '' : 's'} to review</span>}
           </button>
@@ -833,7 +833,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           )}
         </button>
         <div className={cn('flex items-center gap-2', collapsed && !isMobile ? 'justify-center' : 'justify-between')}>
-          {(!collapsed || isMobile) && <span className="text-[9px] font-code text-sidebar-foreground/20">v1.3.0 cloud</span>}
+          {(!collapsed || isMobile) && <span className="text-label-sm font-code text-sidebar-foreground/20">v1.3.0 cloud</span>}
           <WorkspaceSyncIndicator state={isOnline ? syncState : 'error'} compact={collapsed && !isMobile} offline={!isOnline} />
         </div>
       </div>
@@ -1001,7 +1001,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                       aria-label={`Open ${item.label}`}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'flex min-h-11 flex-col items-center justify-center rounded-2xl px-1 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                         isActive ? 'bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                       )}
                     >
@@ -1015,7 +1015,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                     type="button"
                     aria-label={activeMobileMorePage ? `More pages, current page: ${activeMobileMorePage.title}` : 'More pages'}
                     className={cn(
-                      'flex min-h-11 flex-col items-center justify-center rounded-[var(--button-radius)] px-1 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'flex min-h-11 flex-col items-center justify-center rounded-[var(--button-radius)] px-1 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       activeMobileMorePage ? 'bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
                     )}
                   >
@@ -1136,7 +1136,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
                         </span>
                       ) : null}
                       {(commandQuery.trim() && (item.matchedBecause || item.connectedConcepts?.length || item.relatedObjects?.length)) ? (
-                        <span className="mt-2 block rounded-xl bg-accent/5 px-3 py-2 text-[11px] leading-5 text-muted-foreground">
+                        <span className="mt-2 block rounded-xl bg-accent/5 px-3 py-2 text-xs leading-5 text-muted-foreground">
                           <span className="noesis-eyebrow noesis-eyebrow--sm text-accent">Matched Because </span>
                           {item.matchedBecause || (
                             item.connectedConcepts?.length

@@ -32,7 +32,7 @@ export function InquiryLean({ question }: { question: Question }) {
       <svg viewBox="0 0 40 40" width="42" height="42" role="img" aria-label={`${evidence} of ${EVIDENCE_TO_LEAN} pieces of evidence toward a lean`}>
         <circle cx="20" cy="20" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="3.5" />
         <circle cx="20" cy="20" r={radius} fill="none" stroke="hsl(var(--stage))" strokeWidth="3.5" strokeLinecap="round" strokeDasharray={`${circumference * progress} ${circumference}`} transform="rotate(-90 20 20)" />
-        <text x="20" y="24" textAnchor="middle" className="fill-foreground font-headline text-[11px] italic">{Math.min(evidence, EVIDENCE_TO_LEAN)}/{EVIDENCE_TO_LEAN}</text>
+        <text x="20" y="24" textAnchor="middle" className="fill-foreground font-headline text-xs italic">{Math.min(evidence, EVIDENCE_TO_LEAN)}/{EVIDENCE_TO_LEAN}</text>
       </svg>
       <div className="min-w-0 text-sm">
         <div>{candidates} possible answer{candidates === 1 ? '' : 's'} · {evidence} evidence{open !== null ? <span className="text-muted-foreground"> · open {open} days</span> : null}</div>
