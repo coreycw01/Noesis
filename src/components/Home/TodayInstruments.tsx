@@ -1,21 +1,21 @@
 "use client";
 
-import type { Practice, VaultEntry } from '@/lib/types';
-import { evidenceBalance } from '@/components/Vault/PositionCalibration';
+import type { PhilosophicalLink, Practice, VaultEntry } from '@/lib/types';
+import { evidenceBalance, resolvePositionGrounds } from '@/lib/position-grounds';
 import { PraxisDayStrip, PraxisMethodShape, praxisShapeFor } from '@/components/Practices/PraxisMethodShape';
 
 export interface PositionHeat { position: VaultEntry; gap: number; confidence: number; challenges: number }
 
 /** Stated confidence minus what the recorded evidence supports, for live positions. */
-export function positionHeat(positions: VaultEntry[]): PositionHeat[] {
+export function positionHeat(positions: VaultEntry[], links: PhilosophicalLink[]): PositionHeat[] {
   return positions
     .filter((position) => !['abandoned', 'rejected', 'replaced'].includes(position.status))
-    .map((position) => {
-      const support = (position.evidenceFor || []).length + (position.sourceIds || []).length;
-      const challenges = (position.evidenceAgainst || []).length;
-      const earned = evidenceBalance(support, challenges);
+    .flatMap((position) => {
+      const { supportCount, challengeCount } = resolvePositionGrounds(position, links);
+      if (!supportCount || !challengeCount) return [];
+      const earned = evidenceBalance(supportCount, challengeCount);
       const confidence = Math.round(position.confidence || 0);
-      return { position, confidence, challenges, gap: earned === null ? confidence : confidence - earned };
+      return earned === null ? [] : [{ position, confidence, challenges: challengeCount, gap: confidence - earned }];
     })
     .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
 }
@@ -32,8 +32,8 @@ function Ember({ confidence, gap }: { confidence: number; gap: number }) {
   );
 }
 
-export function PositionsUnderHeat({ positions, onOpen }: { positions: VaultEntry[]; onOpen: (id: string) => void }) {
-  const heat = positionHeat(positions).slice(0, 5);
+export function PositionsUnderHeat({ rows, onOpen }: { rows: PositionHeat[]; onOpen: (id: string) => void }) {
+  const heat = rows.slice(0, 5);
   return (
     <section className="noesis-instrument" aria-labelledby="heat-heading">
       <div id="heat-heading" className="noesis-instrument__label">Positions under heat</div>
@@ -44,7 +44,7 @@ export function PositionsUnderHeat({ positions, onOpen }: { positions: VaultEntr
           <span className="font-code text-xs tabular-nums" data-stage-tone={Math.abs(gap) > 12 ? 'claim' : 'act'} style={{ color: 'hsl(var(--stage))' }}>{gap > 0 ? '+' : ''}{gap}</span>
         </button>
       ))}
-      {!heat.length && <p className="text-sm text-muted-foreground">State a position to see where confidence and evidence part ways.</p>}
+      {!heat.length && <p className="text-sm text-muted-foreground">Add support and a challenge to a position to compare your confidence with its evidence balance.</p>}
       <p className="text-xs text-muted-foreground">Gap = stated confidence minus what your evidence supports.</p>
     </section>
   );

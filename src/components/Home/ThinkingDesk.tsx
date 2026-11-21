@@ -869,7 +869,8 @@ export function ThinkingDesk({
     );
   }
 
-  const hottest = positionHeat(positions)[0];
+  const heat = positionHeat(positions, links);
+  const hottest = heat[0];
   return (
     <div className="noesis-page">
       <div className="noesis-page-inner">
@@ -1040,7 +1041,7 @@ export function ThinkingDesk({
 
         <aside className="overflow-hidden rounded-lg border border-border bg-card">
           <div className="border-b border-border p-5">
-            <PositionsUnderHeat positions={positions} onOpen={(id) => onNavigate({ view: 'vault', targetId: id })} />
+            <PositionsUnderHeat rows={heat} onOpen={(id) => onNavigate({ view: 'vault', targetId: id })} />
           </div>
 
           <section className="border-b border-border p-5">

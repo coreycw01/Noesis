@@ -37,7 +37,7 @@ export function CalibrationBar({ stated, grounds, supportCount, challengeCount, 
         {grounds !== null && (
           <>
             <span className="noesis-calbar__grounds" style={{ left: `${grounds}%` }} aria-hidden="true" />
-            <span className="noesis-calbar__grounds-label" style={{ left: `${grounds}%` }}>Grounds {grounds}</span>
+            <span className="noesis-calbar__grounds-label" style={{ left: `${grounds}%` }}>Grounds {grounds}%</span>
           </>
         )}
         {grounds !== null && (
@@ -55,10 +55,11 @@ export function CalibrationBar({ stated, grounds, supportCount, challengeCount, 
       </div>
 
       <p className="noesis-lean" aria-live="polite">
-        {grounds === null ? <>Nothing weighed yet. Add support and a challenge and the grounds marker appears.</>
-          : Math.abs(gap!) <= 10 ? <><b>Well calibrated.</b> Your {dragged}% sits close to the {grounds} your grounds support.</>
-            : gap! > 0 ? <>You state {dragged}%, <b>{gap} above</b> what the grounds support ({grounds}). Add support, or lower it.</>
-              : <>You state {dragged}%, <b>{-gap!} below</b> what the grounds support ({grounds}).</>}
+        {grounds === null ? <>Nothing weighed yet. Add support or a challenge to see the balance.</>
+          : !supportCount ? <>Only challenges are recorded. Look for supporting evidence before reading too much into the gap.</>
+            : !challengeCount ? <>Only support is recorded. Consider a counterargument before reading too much into the gap.</>
+              : Math.abs(gap!) <= 10 ? <>Your {dragged}% confidence is close to the {grounds}% evidence balance.</>
+                : <>Your {dragged}% confidence is <b>{Math.abs(gap!)} points {gap! > 0 ? 'above' : 'below'}</b> the {grounds}% evidence balance. Review why before making a change.</>}
         {' '}<span className="text-muted-foreground">{zoneLabel(dragged).toLowerCase()}</span>
       </p>
 
@@ -76,7 +77,7 @@ export function CalibrationBar({ stated, grounds, supportCount, challengeCount, 
       )}
 
       <p className="text-xs text-muted-foreground">
-        The grounds marker moves on its own, from what you record: {supportCount} for · {challengeCount} against. Your own number only moves when you move it, and only with a reason.
+        Evidence balance is a count, not a measure of whether the claim is true: {supportCount} for · {challengeCount} against. Your number only changes when you save it with a reason.
       </p>
     </div>
   );
