@@ -4,7 +4,7 @@
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useMemo, useState } from 'react';
 import { useLocalDay } from '@/hooks/use-local-day';
-import { CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Edit, Eye, MoreHorizontal, PauseCircle, Play, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,6 @@ import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 const PracticeIcon = NOESIS_ICONS.practice;
 import { StageBadge } from '@/components/shared/StageBadge';
-import { PageHeader } from '@/components/shared/PageHeader';
 import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -43,7 +42,8 @@ import { Dictation } from '@/components/shared/Dictation';
 import { PraxisInstrument } from '@/components/Practices/PraxisInstrument';
 import { hasPracticeIntellectualBasis, isRepeatablePractice, normalizePracticeStatusForSave, practiceDesignGaps } from '@/lib/workflow-integrity';
 import { useToast } from '@/hooks/use-toast';
-import { PraxisMethodPicker, type PraxisMethod } from '@/components/Practices/PraxisMethodPicker';
+import type { PraxisMethod } from '@/components/Practices/PraxisMethodPicker';
+import { PraxisCardGroup, PraxisIndexHeader } from '@/components/Practices/PraxisIndex';
 import { PraxisDayStrip, PraxisMethodShape, praxisShapeFor } from '@/components/Practices/PraxisMethodShape';
 import type { NoesisView } from '@/lib/noesis-routes';
 
@@ -293,17 +293,14 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
   const practiceIsOpen = editorShown && Boolean(draft.id);
 
   return (
-    <div className="noesis-page noesis-labs-page" data-noesis-identity="experiment-log">
+    <div className={cn('noesis-labs-page', practiceIsOpen ? 'flex min-w-0 flex-1' : 'noesis-page')} data-noesis-identity="experiment-log">
       {!practiceIsOpen && (<>
-      <PageHeader
-        title="Praxis"
+      <PraxisIndexHeader
+        method={labTool}
         description={isExperiment ? 'Make a prediction, record what happens, and review the result.' : 'Choose a repeatable action and check in when you do it.'}
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <PraxisMethodPicker method={labTool} onChange={method => { clearPracticeFilters(); onPickMethod(method); }} />
-            <Button onClick={() => openEditor()}><Plus className="size-4" /> New {noun}</Button>
-          </div>
-        )}
+        createLabel={`New ${noun}`}
+        onPick={method => { clearPracticeFilters(); onPickMethod(method); }}
+        onCreate={() => openEditor()}
       />
 
       <FilterToolbar
@@ -477,13 +474,7 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
 }) {
   if (!practices.length) return null;
   return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">{title}</span>
-        <span className="h-px flex-1 bg-border/60" />
-        <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{practices.length}</Badge>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <PraxisCardGroup title={title} count={practices.length}>
         {practices.map((practice) => (
           <PracticeCard
             key={`${title}-${practice.id}`}
@@ -496,8 +487,7 @@ function ActiveLoopGroup({ title, practices, questions, positions, onEdit, onDel
             onCreateLink={() => {}}
           />
         ))}
-      </div>
-    </div>
+    </PraxisCardGroup>
   );
 }
 
@@ -909,16 +899,18 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
       })()}
       {draft.id && (() => {
         const logs = draft.logs || [];
-        const reviewed = Boolean(draft.observedOutcome?.trim());
-        const here = !draft.action?.trim() ? 'prx-action'
-          : practiceScheduleState(draft) === 'review' || reviewed ? 'prx-review'
-            : logs.length ? 'prx-run'
-              : 'prx-run';
-        const guide = !draft.action?.trim() ? 'Name the action in a sentence.'
-          : practiceScheduleState(draft) === 'review' && !reviewed ? 'The run is over: say what you expected and what happened.'
-            : reviewed ? 'Reviewed. Carry what it shows back to a position, or write about it in Works.'
-              : logs.length ? `${logs.length} log${logs.length === 1 ? '' : 's'} recorded. Keep going, then review.`
-                : 'Do the action, then log what happened.';
+        const concluded = isPracticeConcluded(draft);
+        const gap = practiceDesignGaps(draft)[0];
+        const needsSetup = !concluded && schedule !== 'review' && (Boolean(gap) || !hasPracticeBasis(draft as Practice) || schedule === 'inactive');
+        const here = concluded || schedule === 'review' ? 'prx-review' : needsSetup ? 'prx-action' : 'prx-run';
+        const guide = concluded ? 'This run is closed. Review what you recorded.'
+          : schedule === 'review' ? 'The run is over: compare what you expected with what happened.'
+          : gap ? `Finish setup: add the ${gap}.`
+          : !hasPracticeBasis(draft as Practice) ? 'Name what this run is testing, or link an inquiry or position.'
+          : schedule === 'inactive' ? 'Setup is ready. When you want to begin, set the status to Active in Schedule and setup, then save.'
+          : schedule === 'scheduled' ? `This run starts on ${draft.startDate}.`
+          : logs.length ? `${logs.length} log${logs.length === 1 ? '' : 's'} recorded. Keep going, then review.`
+            : 'Do the action, then log what happened.';
         return <RecordPath label="Where you are with this practice" hereId={here} guide={guide}
           stops={[{ id: 'prx-action', label: 'Action' }, { id: 'prx-run', label: 'Run' }, { id: 'prx-review', label: 'Review' }, { id: 'prx-carry', label: 'Carry forward' }]} />;
       })()}

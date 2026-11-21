@@ -136,7 +136,7 @@ import { metacognitionFeatureFlagPatch, resolveAiSettings, workDefaultPreference
 import { readBrowserPreference } from '@/lib/browser-preferences';
 import { NOESIS_DATA_REQUIREMENT_LABELS, NOESIS_PAGE_BY_VIEW, type NoesisWorkspaceDataKey } from '@/lib/noesis-page-definitions';
 import { normalizePositionConfidence, normalizePracticeStatusForSave, uniqueIds, withNoesisStage } from '@/lib/workflow-integrity';
-import { annotationRecord, boundedNestedAnnotations, boundedNestedPracticeLogs, boundedNestedWorkRevisions, boundedPositionVersionHistory, conceptIdsForLabels, inquiryAnnotationUpdates, mergeSourceAnnotationRecords, tagConceptId } from '@/lib/collection-integrity';
+import { annotationPromotionUpdates, annotationRecord, boundedNestedAnnotations, boundedNestedPracticeLogs, boundedNestedWorkRevisions, boundedPositionVersionHistory, conceptIdsForLabels, inquiryAnnotationUpdates, mergeSourceAnnotationRecords, tagConceptId, type AnnotationMarkTransfer } from '@/lib/collection-integrity';
 
 function historyRecordId(parentId: string, entryId: string) {
   return `${parentId}__${entryId}`.replace(/\//g, '_');
@@ -1612,6 +1612,16 @@ export function ReadexWorkspace({
     }, { operation: 'create', data: payload, rethrow: true });
   };
 
+  const attachSourcePhoto = async (sourceId: string, photo: import('@/lib/types').StoredAsset) => {
+    if (isOfflineReviewPreview) throw new Error('Sign in to save a photo.');
+    await commitAndReport({
+      db,
+      ref: doc(refs.media, sourceId),
+      operation: 'update',
+      data: { pagePhotos: arrayUnion(photo), dateUpdated: today() },
+    }, { rethrow: true });
+  };
+
   const updateMedia = async (item: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: SourceReviewApproval) => {
     const { conceptIds, createIfMissing } = prepareTagConcepts(item.tags || []);
     const mediaRef = doc(refs.media, item.id);
@@ -1840,7 +1850,7 @@ export function ReadexWorkspace({
     }
   };
 
-  const addVaultEntry = async (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
+  const addVaultEntry = async (data: Partial<VaultEntry> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: AnnotationMarkTransfer }) => {
     const tags = normalizeConceptTags(data.tags);
     const { conceptIds, createIfMissing } = prepareTagConcepts(tags);
     const vaultRef = doc(refs.vault);
@@ -1896,29 +1906,7 @@ export function ReadexWorkspace({
       data: { ...version, id: historyRecordId(payload.id, `${version.date || 'undated'}__${stableHistoryToken(version.description || '')}`), positionId: payload.id, userId: effectiveUid },
     }));
     const annotationRefs = data.annotationRefs || [];
-    const annotationWrites: NonNullable<Parameters<typeof commitWorkspaceMutation>[0]['relatedWrites']> = [];
-    if (annotationRefs.length) {
-      new Set(annotationRefs.map((item) => item.sourceId)).forEach((sourceId) => {
-        const source = media.find((item) => item.id === sourceId);
-        if (!source) return;
-        const annotationIds = new Set(annotationRefs.filter((item) => item.sourceId === sourceId).map((item) => item.annotationId));
-        const updatedAnnotations = (source.annotations || []).map((annotation) => annotationIds.has(annotation.id) ? {
-            ...annotation,
-            philosophyStatus: 'used_in_position' as const,
-            createdPositionId: annotation.createdPositionId || payload.id,
-            linkedPositionIds: uniqueIds([...(annotation.linkedPositionIds || []), payload.id]),
-          } : annotation);
-        const sourcePatch = {
-          annotations: boundedNestedAnnotations(updatedAnnotations),
-          dateUpdated: today(),
-        };
-        annotationWrites.push({ ref: doc(refs.media, sourceId), operation: 'update', data: sourcePatch });
-        updatedAnnotations.filter((annotation) => annotationIds.has(annotation.id)).forEach((annotation) => {
-          const record = annotationRecord(sourceId, annotation, effectiveUid);
-          annotationWrites.push({ ref: doc(refs.annotations, annotation.id), operation: 'set', data: record, setOptions: { merge: true } });
-        });
-      });
-    }
+    const annotationUpdates = annotationPromotionUpdates(media, annotationRefs, 'position', payload.id, data.annotationMarkTransfer);
     await commitAndReport({
       db,
       ref: vaultRef as any,
@@ -1926,7 +1914,15 @@ export function ReadexWorkspace({
       data: payload,
       thinkingEvent: positionEvent,
       createIfMissing,
-      relatedWrites: [...positionVersionWrites, ...annotationWrites],
+      requireUnchangedRecords: annotationUpdates.map(({ sourceId, sourceVersion }) => ({
+        ref: doc(refs.media, sourceId), field: 'dateUpdated', value: sourceVersion,
+      })),
+      relatedUpdates: annotationUpdates.map(({ sourceId, annotations }) => ({
+        ref: doc(refs.media, sourceId), data: { annotations, dateUpdated: today() },
+      })),
+      relatedWrites: [...positionVersionWrites, ...annotationUpdates.flatMap(({ sourceId, updated }) => updated.map(annotation => ({
+        ref: doc(refs.annotations, annotation.id), operation: 'set' as const, data: annotationRecord(sourceId, annotation, effectiveUid), setOptions: { merge: true },
+      })))],
     }, { operation: 'create', data: payload, rethrow: true });
     refreshBeliefProfile(payload as VaultEntry, { originSummary: payload.statement || payload.description });
     return payload as VaultEntry;
@@ -2194,10 +2190,10 @@ export function ReadexWorkspace({
     return positionPayload;
   };
 
-  const addQuestion = async (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => {
+  const addQuestion = async (data: Partial<Question> & { annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: AnnotationMarkTransfer }) => {
     const questionRef = doc(refs.questions);
     const annotationRefs = data.annotationRefs || [];
-    const annotationUpdates = inquiryAnnotationUpdates(media, annotationRefs, questionRef.id);
+    const annotationUpdates = inquiryAnnotationUpdates(media, annotationRefs, questionRef.id, data.annotationMarkTransfer);
     const annotationOrigins = promotedAnnotationOrigins(media, annotationRefs);
     const payload = {
       id: questionRef.id,
@@ -2615,7 +2611,7 @@ export function ReadexWorkspace({
       });
   };
 
-  const addPractice = async (data: Partial<Practice>): Promise<Practice> => {
+  const addPractice = async (data: Partial<Practice> & { annotationMarkTransfer?: AnnotationMarkTransfer }): Promise<Practice> => {
     const tags = normalizeConceptTags(data.conceptTags);
     const { conceptIds, createIfMissing } = prepareTagConcepts(tags);
     const practiceRef = doc(refs.practices);
@@ -2657,16 +2653,24 @@ export function ReadexWorkspace({
       operation: 'set' as const,
       data: { ...log, id: historyRecordId(payload.id, log.id), logId: log.id, practiceId: payload.id, userId: effectiveUid },
     }));
+    const annotationUpdates = annotationPromotionUpdates(media, [], 'practice', payload.id, data.annotationMarkTransfer);
     await commitAndReport({
       db,
       ref: practiceRef as any,
       operation: 'set',
       data: payload,
-      relatedUpdates: questions.filter((question) => payload.questionIds.includes(question.id)).map((question) => ({
+      requireUnchangedRecords: annotationUpdates.map(({ sourceId, sourceVersion }) => ({
+        ref: doc(refs.media, sourceId), field: 'dateUpdated', value: sourceVersion,
+      })),
+      relatedUpdates: [...questions.filter((question) => payload.questionIds.includes(question.id)).map((question) => ({
         ref: doc(refs.questions, question.id),
         data: { practiceIds: isOfflineReviewPreview ? uniqueIds([...(question.practiceIds || []), payload.id]) : arrayUnion(payload.id), dateUpdated: today() },
-      })),
-      relatedWrites: practiceLogWrites,
+      })), ...annotationUpdates.map(({ sourceId, annotations }) => ({
+        ref: doc(refs.media, sourceId), data: { annotations, dateUpdated: today() },
+      }))],
+      relatedWrites: [...practiceLogWrites, ...annotationUpdates.flatMap(({ sourceId, updated }) => updated.map(annotation => ({
+        ref: doc(refs.annotations, annotation.id), operation: 'set' as const, data: annotationRecord(sourceId, annotation, effectiveUid), setOptions: { merge: true },
+      })))],
       createIfMissing,
       thinkingEvent: {
         collection: refs.thinkingEvents as any,
@@ -3542,6 +3546,7 @@ export function ReadexWorkspace({
         deleteConcept={deleteConcept}
         addMedia={addMedia}
         updateMedia={updateMedia}
+        attachSourcePhoto={attachSourcePhoto}
         deleteMedia={deleteMedia}
         updateAnnotation={updateAnnotation}
         deleteAnnotation={deleteAnnotation}

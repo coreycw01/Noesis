@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Concept, Media, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { evidenceBalance, positionReviewCue } from '@/lib/position-grounds';
+export { evidenceBalance } from '@/lib/position-grounds';
 
 const ZONES = [
   { upTo: 20, label: 'Tentative' },
@@ -19,17 +21,6 @@ const ZONES = [
 
 export function zoneLabel(percent: number) {
   return (ZONES.find((zone) => percent <= zone.upTo) || ZONES[ZONES.length - 1]).label;
-}
-
-/**
- * Where the recorded evidence would put this position, from 0 to 100: the
- * share of recorded items that support it. Challenges pull it down, so an
- * unanswered objection visibly lightens the scale. Null when nothing is recorded.
- */
-export function evidenceBalance(supportCount: number, challengeCount: number) {
-  const total = supportCount + challengeCount;
-  if (!total) return null;
-  return Math.round((supportCount / total) * 100);
 }
 
 /**
@@ -184,19 +175,22 @@ export function PullEvidenceDialog({ open, onOpenChange, side, media, concepts, 
 }
 
 /** Compact scale for cards: stated (solid tick) against evidence (hollow tick), gap shaded. */
-export function PositionMiniScale({ confidence, supportCount, challengeCount }: { confidence: number; supportCount: number; challengeCount: number }) {
+export function PositionMiniScale({ confidence, supportCount, challengeCount, showCue = true }: { confidence: number; supportCount: number; challengeCount: number; showCue?: boolean }) {
   const earned = evidenceBalance(supportCount, challengeCount);
-  const gap = earned === null ? null : confidence - earned;
+  const cue = showCue ? positionReviewCue(confidence, supportCount, challengeCount) : '';
   return (
     <div className="grid gap-1.5" data-stage-tone="claim">
-      <div className="noesis-mini-scale" role="img" aria-label={`Stated ${confidence}%${earned === null ? '' : `, evidence ${earned}%`}`}>
+      <div className="noesis-mini-scale" aria-hidden="true">
         {earned !== null && <span className="noesis-mini-scale__gap" style={{ left: `${Math.min(confidence, earned)}%`, width: `${Math.abs(confidence - earned)}%` }} />}
         {earned !== null && <span className="noesis-mini-scale__earned" style={{ left: `${earned}%` }} />}
         <span className="noesis-mini-scale__stated" style={{ left: `${confidence}%` }} />
       </div>
-      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
-        {confidence} stated · {earned === null ? 'no evidence yet' : `${earned} evidence · ${Math.abs(gap!) <= 5 ? 'calibrated' : `${gap! > 0 ? '+' : ''}${gap}`}`}
-      </div>
+      <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+        <span>Your confidence <strong className="text-foreground">{confidence}%</strong></span>
+        {earned === null ? <span>No evidence yet</span> : <span>Evidence balance <strong className="text-foreground">{earned}%</strong></span>}
+      </p>
+      {earned !== null && <p className="text-xs text-muted-foreground">{supportCount} in support · {challengeCount} {challengeCount === 1 ? 'challenge' : 'challenges'}</p>}
+      {cue && <p className="text-xs font-medium text-muted-foreground">{cue}</p>}
     </div>
   );
 }

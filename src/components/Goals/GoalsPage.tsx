@@ -2,8 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { PraxisMethodPicker } from '@/components/Practices/PraxisMethodPicker';
-import { Check, ChevronDown, ChevronRight, Clock3, Compass, Minus, Plus, Save, Settings2, SkipForward, Target, Trash2 } from 'lucide-react';
+import { PraxisCardGroup, PraxisIndexHeader } from '@/components/Practices/PraxisIndex';
+import { PraxisMethodShape } from '@/components/Practices/PraxisMethodShape';
+import { Check, ChevronDown, Minus, Plus, Save, SkipForward, Target, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { PageEmptyState } from '@/components/shared/PageState';
 import { FooterSection, RecordFooter, RecordHeader, RecordPath } from '@/components/shared/record/RecordPage';
 import { Connections, History } from '@/components/shared/record/RecordParts';
 import { EntityMeta } from '@/components/shared/IntellectualStructures';
@@ -99,14 +101,6 @@ function goalProgressDescription(item: GoalItem, type?: GoalType) {
     ? 'Progress updates when a matching work is published.'
     : 'Progress updates when a matching work is complete, final, or published.';
   return 'Progress updates from the activity selected for this goal.';
-}
-
-function questNextStep(item: GoalItem & { percent?: number }, type?: GoalType) {
-  if (!item.commitmentAction?.trim()) return 'Define one observable action for this commitment.';
-  if (!commitmentPositionIds(item).length && !item.purpose?.trim()) return 'Link the Position this commitment expresses.';
-  if ((item.percent || 0) >= 100 || item.status === 'completed') return 'Write a review: what changed, what remains unclear, and whether the goal should transform.';
-  if (commitmentDueToday(item)) return item.commitmentAction || `Complete the next ${questTypeForGoal(item, type)} action.`;
-  return 'No action is due today. Review this commitment when its next interval arrives.';
 }
 
 function goalNeedsPurpose(item: GoalItem) {
@@ -240,7 +234,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
     () => savedGoals.filter((item) => commitmentDueToday(item, dayAnchor)),
     [dayAnchor, savedGoals]
   );
-  const todayFocusGoal = todayCommitments[0];
   const completedToday = useMemo(() => {
     return savedGoals.filter((item) => completedCommitmentDates(item).includes(localDay));
   }, [savedGoals, localDay]);
@@ -524,41 +517,26 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
               stops={[{ id: 'cmt-commit', label: 'Commit' }, { id: 'cmt-keep', label: 'Keep' }, { id: 'cmt-review', label: 'Review' }]}
             />
           </>
-        ) : <PageHeader
-          title={focusedGoalId ? 'Commitment unavailable' : 'Praxis'}
-          description={focusedGoalId
-            ? 'This commitment may have been removed.'
-            : 'Commitments help you uphold a chosen principle and compare what you say matters with what you repeatedly do.'}
-          tabs={!focusedGoalId && (
-            <div className="space-y-2">
-              <WorkspaceTabs
-                value={activeView}
-                onChange={setActiveView}
-                label="Commitment views"
-                items={[
-                  { id: 'today', label: 'Today', icon: NOESIS_ICONS.commitment },
-                  { id: 'active', label: 'Active', icon: Settings2 },
-                  { id: 'review', label: 'Insights', icon: Clock3 },
-                ]}
-              />
-            </div>
-          )}
-          actions={(
-            <div className="flex flex-wrap items-center gap-2">
-            {!focusedGoalId && <PraxisMethodPicker method="commitments" onChange={method => {
-              if (method === 'commitments' || saving) return;
-              // Unsaved work is confirmed in the app's own dialog, like every
-              // other confirmation; a clean draft just leaves.
-              if (draft === savedDraftRef.current) onOpenPraxis(method as 'practices' | 'experiments'); else setLeavingTo(method as 'practices' | 'experiments');
-            }} />}
-            {focusedGoalId ? <Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button> : <Button variant="outline" onClick={addGoal}>
-              <Plus className="mr-2 size-4" /> New commitment
-            </Button>}
-            {(!focusedGoalId || focusedGoal) && <Button onClick={saveGoals} disabled={saving || draft === savedDraftRef.current}>
-              <Save className="mr-2 size-4" /> {saving ? 'Saving' : 'Save changes'}
-            </Button>}
-            </div>
-          )}
+        ) : focusedGoalId ? <PageHeader title="Commitment unavailable" description="This commitment may have been removed."
+          actions={<Button variant="outline" onClick={() => onOpenCommitment(null)}>All commitments</Button>} />
+        : <PraxisIndexHeader
+          method="commitments"
+          description="Keep an action that reflects what matters to you, then review how it went."
+          createLabel="New commitment"
+          onCreate={addGoal}
+          onPick={method => {
+            if (method === 'commitments' || saving) return;
+            if (draft === savedDraftRef.current) onOpenPraxis(method);
+            else setLeavingTo(method);
+          }}
+          secondary={draft !== savedDraftRef.current && <Button variant="outline" onClick={saveGoals} disabled={saving}>
+            <Save className="size-4" /> {saving ? 'Saving' : 'Save changes'}
+          </Button>}
+          tabs={<WorkspaceTabs value={activeView} onChange={setActiveView} label="Commitment views" items={[
+            { id: 'today', label: 'Check-ins' },
+            { id: 'active', label: 'Manage' },
+            { id: 'review', label: 'Review' },
+          ]} />}
         />}
         {saveError && (
           <div className="mb-4 flex flex-wrap items-center gap-3 border border-destructive/50 p-3">
@@ -574,93 +552,46 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
         )}
 
         {activeView === 'today' && (
-          <div className="space-y-6" role="tabpanel" aria-label="Commitments due today">
-            <section className="border-y border-border bg-card/35 py-5 md:py-7">
-              <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 noesis-eyebrow font-bold text-accent">
-                    <Compass className="size-4" aria-hidden="true" /> Today&apos;s focus
-                  </div>
-                  {todayFocusGoal ? (
-                    <>
-                      <h2 className="mt-2 max-w-3xl font-headline text-2xl font-bold italic leading-tight md:text-3xl">{todayFocusGoal.commitmentAction || todayFocusGoal.title}</h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{todayFocusGoal.commitmentAction ? todayFocusGoal.title : questNextStep(todayFocusGoal, todayFocusGoal.type)}</p>
-                    </>
-                  ) : (
-                    <>
-                      <h2 className="mt-2 font-headline text-2xl font-bold italic">{activeGoals.length ? 'Nothing is due today' : 'Create your first meaningful commitment'}</h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{activeGoals.length ? 'Scheduled actions appear here. Review reminders are in Insights.' : 'Choose one Position you want your conduct to test, or state why the commitment matters.'}</p>
-                    </>
-                  )}
-                </div>
-                {todayFocusGoal ? (
-                  <div className="flex items-end gap-3 md:text-right">
-                    <div>
-                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Progress</div>
-                      <div className="font-headline text-3xl font-bold italic">{Math.round(todayFocusGoal.percent)}%</div>
+          <div className="space-y-5" role="tabpanel" aria-label="Commitment check-ins">
+            {([
+              { title: 'Due today', items: todayCommitments, due: true },
+              { title: 'Ongoing', items: activeGoals.filter(item => !todayCommitments.some(due => due.id === item.id)), due: false },
+            ]).filter(group => group.items.length > 0).map(group => (
+              <PraxisCardGroup key={group.title} title={group.title} count={group.items.length}>
+                {group.items.map(item => (
+                  <Card key={item.id} className="flex min-w-0 flex-col gap-3 p-4" data-stage-tone="act">
+                    <div className="flex items-start gap-2">
+                      <PraxisMethodShape shape="circle" size={16} className="mt-1" />
+                      <div className="min-w-0">
+                        <button type="button" className="text-left font-headline text-lg font-semibold leading-tight italic break-words hover:underline" onClick={() => {
+                          if (draft === savedDraftRef.current) onOpenCommitment(item.id);
+                          else { setPlanningGoalId(item.id); setActiveView('active'); }
+                        }}>{item.title}</button>
+                        {item.commitmentAction && <p className="mt-1 break-words text-sm text-muted-foreground">{item.commitmentAction}</p>}
+                      </div>
                     </div>
-                    <Button variant="outline" onClick={() => { setPlanningGoalId(todayFocusGoal.id); setActiveView('active'); }} className="min-h-10 rounded-full">
-                      Open commitment <ChevronRight className="ml-1 size-4" />
-                    </Button>
-                  </div>
-                ) : activeGoals.length ? (
-                  <Button variant="outline" onClick={() => setActiveView('active')} className="min-h-10 rounded-full">View active commitments</Button>
-                ) : (
-                  <Button onClick={() => { addGoal(); setActiveView('active'); }} className="min-h-10 rounded-full"><Plus className="mr-2 size-4" /> Add commitment</Button>
-                )}
-              </div>
-            </section>
-
-            <section aria-labelledby="active-goals-heading">
-              <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-                <div>
-                  <h2 id="active-goals-heading" className="font-headline text-xl font-bold italic">Due today</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Record the promised action. Practice logs also count automatically when they are linked.</p>
-                </div>
-                <span className="noesis-eyebrow text-muted-foreground">{todayCommitments.length} due · {completedToday.length} done</span>
-              </div>
-              {todayCommitments.length ? (
-                <div className="divide-y divide-border border-y border-border">
-                  {todayCommitments.map((item) => {
-                    const ItemIcon = goalIconForKind(questKindForGoal(item, item.type));
-                    return (
-                      <article key={item.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(150px,220px)_auto] sm:items-center">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <ItemIcon className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={2.25} aria-hidden="true" />
-                          <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">{questTypeForGoal(item, item.type)}</span>
-                            {commitmentReviewDue(item) && <Badge variant="outline" className="rounded-full text-[9px] uppercase">Review due</Badge>}
-                          </div>
-                          <h3 className="mt-1 text-base font-semibold leading-6 text-foreground">{item.title}</h3>
-                          <p className="mt-1 text-sm leading-5 text-muted-foreground">{item.commitmentAction || questNextStep(item, item.type)}</p>
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="mb-1 flex justify-between noesis-eyebrow noesis-eyebrow--sm text-muted-foreground"><span>Progress</span><span>{item.currentProgress}/{item.targetProgress}</span></div>
-                          <Progress value={item.percent} aria-label={`Progress for ${item.title}`} aria-valuetext={`${item.currentProgress} of ${item.targetProgress}`} className="h-2" />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                          <Button onClick={() => void recordCommitmentCheckIn(item, 'completed')} disabled={saving} className="min-h-10 rounded-full px-4" aria-label={`Done: log ${item.title} as completed today`}>
-                            <Check className="mr-1.5 size-4" /> Done
-                          </Button>
-                          <Button variant="ghost" disabled={saving} aria-expanded={skipGoalId === item.id} onClick={() => setSkipGoalId((current) => current === item.id ? null : item.id)} className="min-h-10 px-2 text-sm"><SkipForward className="mr-1 size-4" /> Can&apos;t today</Button>
-                          <Button variant="ghost" onClick={() => { setPlanningGoalId(item.id); setActiveView('active'); }} className="min-h-10 px-2 text-sm">Details</Button>
-                          {skipGoalId === item.id && (
-                            <div className="flex w-full items-center gap-2 sm:max-w-md">
-                              <Input value={skipReasons[item.id] || ''} onChange={(event) => setSkipReasons((reasons) => ({ ...reasons, [item.id]: event.target.value }))} placeholder="Why are you skipping today?" aria-label={`Reason for skipping ${item.title}`} />
-                              <Button variant="outline" disabled={!skipReasons[item.id]?.trim() || saving} onClick={() => void recordCommitmentCheckIn(item, 'skipped', skipReasons[item.id])}>Record</Button>
-                            </div>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <Card className="border-dashed bg-card/50 p-6 text-sm text-muted-foreground">Nothing is due today. Review your active commitments or return when the next action is due.</Card>
-              )}
-            </section>
+                    <div className="mt-auto">
+                      <div className="mb-1 flex justify-between gap-2 text-xs text-muted-foreground"><span>Progress</span><span>{item.currentProgress}/{item.targetProgress}</span></div>
+                      <Progress value={item.percent} aria-label={`Progress for ${item.title}`} aria-valuetext={`${item.currentProgress} of ${item.targetProgress}`} className="h-2" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {group.due ? <>
+                        <Button size="sm" onClick={() => void recordCommitmentCheckIn(item, 'completed')} disabled={saving} aria-label={`Done: log ${item.title} as completed today`}><Check className="size-4" /> Done</Button>
+                        <Button size="sm" variant="ghost" disabled={saving} aria-expanded={skipGoalId === item.id} onClick={() => setSkipGoalId(current => current === item.id ? null : item.id)}><SkipForward className="size-4" /> Can&apos;t today</Button>
+                      </> : completedToday.some(done => done.id === item.id) ? <Badge tone="practice">Checked in today</Badge> : null}
+                      {commitmentReviewDue(item) && <Badge tone="caution">Review due</Badge>}
+                    </div>
+                    {group.due && skipGoalId === item.id && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input className="min-w-0 flex-1" value={skipReasons[item.id] || ''} onChange={event => setSkipReasons(reasons => ({ ...reasons, [item.id]: event.target.value }))} placeholder="Why are you skipping today?" aria-label={`Reason for skipping ${item.title}`} />
+                        <Button size="sm" variant="outline" disabled={!skipReasons[item.id]?.trim() || saving} onClick={() => void recordCommitmentCheckIn(item, 'skipped', skipReasons[item.id])}>Record</Button>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </PraxisCardGroup>
+            ))}
+            {!activeGoals.length && !todayCommitments.length && <PageEmptyState title="No active commitments" description="Choose one action you want to keep, or find past commitments in Manage." />}
           </div>
         )}
 
@@ -721,29 +652,6 @@ export function GoalsPage({ goal, goalProgress, concepts, inquiries, sources, po
 
         {activeView === 'active' && (!focusedGoalId || focusedGoal) && (
           <>
-            {!focusedGoalId && <section className="mb-6 border-y border-border py-5 md:py-6" aria-labelledby="goals-heading">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="noesis-eyebrow font-bold text-accent">Commitment setup</div>
-                  <h2 id="goals-heading" className="mt-1 font-headline text-2xl font-bold italic">Make belief visible in practice</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Name the commitment, link the Position it expresses, and choose the practice evidence that counts.</p>
-                </div>
-                <Button onClick={addGoal} className="min-h-10"><Plus className="mr-2 size-4" /> Add commitment</Button>
-              </div>
-              <ol className="mt-5 grid gap-3 sm:grid-cols-3">
-                {[
-                  ['1', 'Name it', 'What are you committing to do?'],
-                  ['2', 'Ground it', 'Link the Position it expresses, or explain why it matters.'],
-                  ['3', 'Measure it', 'Choose the practice evidence that shows you lived it.'],
-                ].map(([number, title, detail]) => (
-                  <li key={number} className="flex gap-3 border-l border-border pl-3">
-                    <span className="noesis-figure font-bold text-accent">{number}</span>
-                    <div><div className="text-sm font-medium">{title}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p></div>
-                  </li>
-                ))}
-              </ol>
-            </section>}
-
             {!focusedGoalId && progressSettings}
 
             {planningGoalId && (() => {

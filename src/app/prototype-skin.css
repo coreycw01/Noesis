@@ -151,8 +151,10 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-instrument { display: grid; gap: .35rem; }
 .noesis-instrument__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: .35rem; }
 .noesis-heat-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: 10px; text-align: left; background: none; border: 0; }
-.noesis-heat-row:hover, .noesis-checkin-row:hover { background: hsl(var(--muted) / .6); }
+.noesis-heat-row:hover { background: hsl(var(--muted) / .6); }
 .noesis-checkin-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: .7rem; padding: .6rem .5rem; border-top: 1px solid hsl(var(--border)); text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; }
+.noesis-checkin-calendar > [role="img"] { flex-wrap: wrap; }
+.noesis-today-focus { max-width: 100%; border: 1px solid hsl(var(--proto-amber) / .45); border-radius: 9999px; background: hsl(var(--proto-amber) / .09); color: hsl(var(--proto-amber)); padding: .22rem .65rem; font-size: .8125rem; font-weight: 600; }
 
 /* Concept diagnosis as bars (prototype "what moves each bar"). */
 .noesis-diag { display: grid; gap: .55rem; }

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, Plus, Search, X } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -29,6 +29,7 @@ interface EntityPickerProps {
   createLabel?: (query: string) => string;
   compact?: boolean;
   inline?: boolean;
+  selectedTone?: BadgeTone;
   className?: string;
 }
 
@@ -44,6 +45,7 @@ export function EntityPicker({
   createLabel = (query) => `Create "${query}"`,
   compact,
   inline,
+  selectedTone,
   className,
 }: EntityPickerProps) {
   const [open, setOpen] = useState(false);
@@ -216,11 +218,11 @@ export function EntityPicker({
           </PopoverContent>
         </Popover>
       </div>
-      <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'order-1 min-h-0 border-0 bg-transparent p-0 sm:flex-nowrap sm:overflow-x-auto')}>
+      <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'contents')}>
         {selected.length > 0 ? selected.map((item) => (
-          <Badge key={item.id} variant="secondary" className="flex shrink-0 items-center gap-1 bg-card font-body text-[11px]">
+          <Badge key={item.id} variant="secondary" tone={selectedTone} className={cn('flex shrink-0 items-center gap-1 font-body text-[11px]', !selectedTone && 'bg-card', inline && 'order-1')}>
             <span className="max-w-[180px] truncate italic">{item.label}</span>
-            <button type="button" onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); onToggle(item.id); }} aria-label={`Remove ${item.label}`} className="ml-1 hover:text-destructive">
+            <button type="button" onClick={(event) => { event.stopPropagation(); onToggle(item.id); }} aria-label={`Remove ${item.label}`} className="ml-1 hover:text-destructive">
               <X className="size-3" />
             </button>
           </Badge>

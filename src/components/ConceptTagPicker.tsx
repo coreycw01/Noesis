@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import type { Concept } from '@/lib/types';
 import { conceptKey, normalizeConceptTags, UNSORTED_CONCEPT } from '@/lib/readex';
 import { EntityPicker } from '@/components/search/EntityPicker';
+import type { BadgeTone } from '@/components/ui/badge';
 
 interface ConceptTagPickerProps {
   concepts: Concept[];
@@ -12,10 +13,11 @@ interface ConceptTagPickerProps {
   onCreateConcept?: (name: string) => void | boolean | Promise<void | boolean>;
   compact?: boolean;
   inline?: boolean;
+  selectedTone?: BadgeTone;
   className?: string;
 }
 
-export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact, inline, className }: ConceptTagPickerProps) {
+export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact, inline, selectedTone, className }: ConceptTagPickerProps) {
   const selected = normalizeConceptTags(value);
   const items = useMemo(() => {
     const byId = new Map<string, { id: string; label: string; secondary?: string; searchText?: string[] }>();
@@ -57,6 +59,7 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
       createLabel={(query) => `Create "${query}"`}
       compact={compact}
       inline={inline}
+      selectedTone={selectedTone}
       className={className}
     />
   );

@@ -5,6 +5,8 @@ import {
   MAX_NESTED_ANNOTATIONS,
   appendAiReviewHistory,
   boundedNestedAnnotations,
+  annotationRecord,
+  annotationPromotionUpdates,
   conceptIdsForLabels,
   inquiryAnnotationUpdates,
   mergeAnnotationRecords,
@@ -26,6 +28,27 @@ test('inquiry promotion validates source ownership of selections and preserves e
   assert.equal(update.annotations.find(({ id }) => id === 'untouched')?.philosophyStatus, undefined);
   assert.throws(() => inquiryAnnotationUpdates(sources, [{ sourceId: 'wrong-source', annotationId: 'one' }], 'new-inquiry'), /no longer available/);
   assert.throws(() => inquiryAnnotationUpdates(sources, [...references, { sourceId: 'source', annotationId: 'missing' }], 'new-inquiry'), /no longer available/);
+});
+
+test('moving a mark preserves its original excerpt and records the exact destination in the source update', () => {
+  const annotation: Annotation = { id: 'ann', type: 'thought', text: 'A passage from the source.', date: '2026-11-20', marks: [
+    { id: 'q', kind: 'question', start: 0, end: 9, text: 'A passage', date: '2026-11-20' },
+    { id: 'p', kind: 'claim', start: 15, end: 25, text: 'the source', date: '2026-11-20' },
+    { id: 'x', kind: 'action', start: 2, end: 9, text: 'passage', date: '2026-11-20' },
+  ] };
+  const source = { id: 'source', annotations: [annotation], dateUpdated: '2026-11-20' };
+  const transfer = { sourceId: source.id, annotationId: annotation.id, markId: 'q', text: 'What does this passage mean?' };
+  const [update] = inquiryAnnotationUpdates([source], [], 'new-inquiry', transfer);
+  assert.equal(update.sourceVersion, source.dateUpdated);
+  assert.equal(update.updated[0].text, annotation.text);
+  assert.deepEqual(update.updated[0].marks?.[0], { ...annotation.marks?.[0], movedTo: 'inquiry', movedId: 'new-inquiry', movedText: transfer.text });
+  const [position] = annotationPromotionUpdates([source], [], 'position', 'new-position', { ...transfer, markId: 'p' });
+  assert.equal(position.updated[0].marks?.[1].movedId, 'new-position');
+  assert.deepEqual(position.updated[0].linkedPositionIds, ['new-position']);
+  const [practice] = annotationPromotionUpdates([source], [], 'practice', 'new-practice', { ...transfer, markId: 'x' });
+  assert.equal(practice.updated[0].marks?.[2].movedId, 'new-practice');
+  assert.throws(() => inquiryAnnotationUpdates([{ ...source, annotations: update.updated }], [], 'duplicate', transfer), /already sent/);
+  assert.throws(() => annotationPromotionUpdates([source], [], 'position', 'wrong', transfer), /changed/);
 });
 
 test('promotion carries only the original reviewed text references of the selected source annotations', () => {
@@ -72,6 +95,17 @@ test('bounds nested annotation compatibility caches', () => {
   const result = boundedNestedAnnotations(entries);
   assert.equal(result.length, MAX_NESTED_ANNOTATIONS);
   assert.equal(result[0].id, `annotation-${entries.length - 1}`);
+});
+
+test('annotation reminders survive both saved representations without changing the passage or status', () => {
+  const note: Annotation = {
+    id: 'a1', type: 'highlight', text: 'The original passage.', date: '2026-11-21',
+    philosophyStatus: 'raw', savedReason: 'I wanted to test this in practice.',
+  };
+  const [merged] = mergeAnnotationRecords(boundedNestedAnnotations([note]), [annotationRecord('source', note)]);
+  assert.equal(merged.savedReason, note.savedReason);
+  assert.equal(merged.text, note.text);
+  assert.equal(merged.philosophyStatus, 'raw');
 });
 
 test('first-class annotation records override matching nested cache records', () => {

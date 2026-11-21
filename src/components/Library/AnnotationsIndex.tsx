@@ -44,6 +44,7 @@ import { noesisUserError } from '@/lib/user-facing-errors';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { indexAnnotationInquiries } from '@/lib/inquiry-state';
+import type { AnnotationMarkTransfer } from '@/lib/collection-integrity';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { resolvedAiHistory } from '@/lib/contextual-ai';
@@ -58,11 +59,11 @@ interface AnnotationsIndexProps {
   onUpdateAnnotation: (sourceId: string, annotation: Annotation, approval?: AnnotationReviewApproval) => void | Promise<Annotation | void>;
   onDeleteAnnotation: (sourceId: string, annotationId: string) => Promise<void>;
   onOpenSource: (sourceId: string) => void;
-  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }>; position?: { title: string; statement: string; description: string; confidence: number } }) => Promise<{ positionId: string; insightId: string; title: string }>;
-  onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }> }) => Promise<Question>;
+  onCreatePosition: (data: { title: string; body: string; tags: string[]; sourceIds: string[]; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: AnnotationMarkTransfer; position?: { title: string; statement: string; description: string; confidence: number } }) => Promise<{ positionId: string; insightId: string; title: string }>;
+  onCreateInquiry: (data: Partial<Question> & { text: string; conceptIds: string[]; sourceIds: string[]; evidenceIds: string[]; type: 'annotation'; sourceAnnotationId?: string; annotationRefs?: Array<{ sourceId: string; annotationId: string }>; annotationMarkTransfer?: AnnotationMarkTransfer }) => Promise<Question>;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
-  onAddPractice?: (data: Partial<Practice>) => unknown;
+  onAddPractice?: (data: Partial<Practice> & { annotationMarkTransfer?: AnnotationMarkTransfer }) => Promise<Practice>;
   onNavigate?: (view: string, targetId?: string) => void;
   aiSettings?: AiSettings;
   focusedAnnotationSourceId?: string | null;
@@ -224,6 +225,7 @@ export function AnnotationsIndex({
 
   const annotations = useMemo(() => allAnnotations(media) as FlatAnnotation[], [media]);
   const isFullPageDetail = Boolean(focusedAnnotationSourceId && focusedAnnotationId);
+  const usesDetailRoute = Boolean(onOpenAnnotation);
   const focusedAnnotation = useMemo(
     () => annotations.find((annotation) => annotation.source.id === focusedAnnotationSourceId && annotation.id === focusedAnnotationId) || null,
     [annotations, focusedAnnotationId, focusedAnnotationSourceId]
@@ -414,6 +416,19 @@ export function AnnotationsIndex({
       setEditing(current => current?.id === next.id && current.source.id === source.id ? { ...next, source } : current);
       toast({ title: 'Annotation saved' });
       return true;
+    } finally { editSaveLock.current = false; setSavingEdit(false); }
+  };
+
+  const saveReminder = async (reason: string) => {
+    if (!focusedAnnotation || editSaveLock.current || reason === (focusedAnnotation.savedReason || '')) return;
+    const { source, ...annotation } = focusedAnnotation;
+    editSaveLock.current = true;
+    setSavingEdit(true);
+    try {
+      if (!await persistAnnotation(source.id, { ...annotation, savedReason: reason })) return;
+      setEditing(current => current && annotationKey(current) === annotationKey(focusedAnnotation)
+        ? { ...current, savedReason: reason } : current);
+      toast({ title: reason ? 'Reminder saved' : 'Reminder cleared' });
     } finally { editSaveLock.current = false; setSavingEdit(false); }
   };
 
@@ -630,7 +645,10 @@ export function AnnotationsIndex({
   };
 
   useEffect(() => {
-    if (!isFullPageDetail) return;
+    if (!isFullPageDetail) {
+      if (usesDetailRoute) setEditing(null);
+      return;
+    }
     if (!focusedAnnotation) {
       setEditing(null);
       return;
@@ -639,11 +657,11 @@ export function AnnotationsIndex({
     setDetailEffect(selectedEffectForAnnotation(focusedAnnotation));
     setEditDraft(null);
     setEditing(focusedAnnotation);
-  }, [focusedAnnotation, isFullPageDetail]);
+  }, [focusedAnnotation, isFullPageDetail, usesDetailRoute]);
 
   const closeAnnotationDetail = () => {
+    setEditing(null);
     if (isFullPageDetail) onCloseAnnotation?.();
-    else setEditing(null);
   };
 
   const nextActionLabelForEffect = (annotation: FlatAnnotation, action: ConsequenceAction) => {
@@ -698,17 +716,26 @@ export function AnnotationsIndex({
     setEditing((current) => current && current.id === annotation.id ? { ...current, marks } : current);
     if (movingMark === markId) setMovingMark(null);
   };
-  const recordMoved = async (annotation: FlatAnnotation, markId: string, movedTo: NonNullable<AnnotationMark['movedTo']>, movedId: string, movedText: string) => {
-    const { source, ...data } = annotation;
-    const marks = (annotation.marks || []).map((mark) => mark.id === markId ? { ...mark, movedTo, movedId, movedText } : mark);
-    await persistAnnotation(source.id, { ...data, marks });
-    setEditing((current) => current && current.id === annotation.id ? { ...current, marks } : current);
-    setMovingMark(null);
+  const sentMarkAction = (mark: AnnotationMark) => {
+    if (!mark.movedTo) return null;
+    const destination = {
+      position: { view: 'vault', label: 'position' },
+      inquiry: { view: 'questions', label: 'inquiry' },
+      concept: { view: 'concepts', label: 'concept' },
+      practice: { view: 'labs', label: 'Praxis record' },
+    }[mark.movedTo];
+    const id = mark.movedTo === 'concept'
+      ? concepts.find(concept => concept.id === mark.movedId || conceptKey(concept.name) === conceptKey(mark.movedId || ''))?.id
+      : mark.movedId;
+    return id && onNavigate ? <Button type="button" variant="outline" size="sm" onClick={() => onNavigate(destination.view, id)}>Open {destination.label}</Button>
+      : <Eyebrow size="sm">Sent to {markKind(mark.kind).destination}</Eyebrow>;
   };
   const sendMark = async (annotation: FlatAnnotation, mark: AnnotationMark) => {
     const text = moveText.trim();
-    if (!text || markSendLock.current) return;
+    if (!text || mark.movedTo || markSendLock.current) return;
     markSendLock.current = true;
+    setPendingAction(`mark:${mark.id}`);
+    const annotationMarkTransfer = { sourceId: annotation.source.id, annotationId: annotation.id, markId: mark.id, text };
     const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
     const sourceLabel = `${annotation.source.title}${annotation.source.creator ? ` by ${annotation.source.creator}` : ''}`;
     const provenance = `Marked as a ${mark.kind} in an annotation from ${sourceLabel}:\n“${mark.text}”`;
@@ -717,9 +744,10 @@ export function AnnotationsIndex({
         const created = await onCreatePosition({
           title: text.slice(0, 90), body: `${text}\n\n${provenance}`, tags, sourceIds: [annotation.source.id], sourceAnnotationId: annotation.id,
           annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
+          annotationMarkTransfer,
           position: { title: text.slice(0, 90), statement: text, description: provenance, confidence: 55 },
         });
-        await recordMoved(annotation, mark.id, 'position', created.positionId, text);
+        setMovingMark(null);
         toast({ title: 'Claim sent to Positions', description: created.title });
         onNavigate?.('vault', created.positionId);
       } else if (mark.kind === 'question') {
@@ -728,26 +756,31 @@ export function AnnotationsIndex({
           conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
           sourceIds: [annotation.source.id], evidenceIds: [annotation.id], type: 'annotation', sourceAnnotationId: annotation.id,
           annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
+          annotationMarkTransfer,
         });
-        await recordMoved(annotation, mark.id, 'inquiry', created.id, text);
+        setMovingMark(null);
         toast({ title: 'Question sent to Inquiries' });
         onNavigate?.('questions', created.id);
       } else if (mark.kind === 'action' && onAddPractice) {
-        await Promise.resolve(onAddPractice({
+        const practice = await onAddPractice({
           title: text.slice(0, 90), action: text, description: provenance, type: 'experiment', status: 'proposed',
-          conceptTags: tags, sourceIds: [annotation.source.id], durationMode: 'repeated', durationDays: 7,
-        }));
-        await recordMoved(annotation, mark.id, 'practice', '', text);
+          conceptTags: tags, sourceIds: [annotation.source.id], durationMode: 'repeated', durationDays: 7, annotationMarkTransfer,
+        });
+        setMovingMark(null);
         toast({ title: 'Action sent to Praxis', description: 'Open Praxis to finish its setup.' });
+        onNavigate?.('labs', practice.id);
       } else if (mark.kind === 'definition') {
         const { source, ...data } = annotation;
-        await persistAnnotation(source.id, { ...data, conceptTags: normalizeConceptTags(annotation.conceptTags || annotation.source.tags), philosophyStatus: 'connected' });
-        await recordMoved(annotation, mark.id, 'concept', tags[0] || '', text);
+        const marks = (annotation.marks || []).map((item): AnnotationMark => item.id === mark.id
+          ? { ...item, movedTo: 'concept', movedId: tags[0] || '', movedText: text } : item);
+        if (!await persistAnnotation(source.id, { ...data, marks, conceptTags: tags, philosophyStatus: 'connected' })) return;
+        setEditing(current => current?.id === annotation.id && current.source.id === source.id ? { ...current, marks } : current);
+        setMovingMark(null);
         toast({ title: 'Definition tied to the concept', description: tags[0] ? `Attached to ${tags[0]}.` : 'Attached to this annotation’s concepts.' });
       }
     } catch {
       toast({ title: 'Not sent', description: 'The mark is still here. Please try again.', variant: 'destructive' });
-    } finally { markSendLock.current = false; }
+    } finally { markSendLock.current = false; setPendingAction(null); }
   };
 
   const runDetailAction = (annotation: FlatAnnotation, action: ConsequenceAction) => {
@@ -844,7 +877,7 @@ export function AnnotationsIndex({
   const filtersActive = Boolean(search || filterType !== 'all' || filterConcept !== 'all' || filterSource !== 'all');
 
   return (
-    <div className="noesis-page noesis-annotations-index" data-noesis-identity="marginalia">
+    <div className={cn('noesis-annotations-index', isFullPageDetail ? 'flex min-w-0 flex-1' : 'noesis-page')} data-noesis-identity="marginalia">
       <div className={cn(isFullPageDetail && 'hidden')}>
       <PageHeader
         title="Annotations"
@@ -1348,6 +1381,17 @@ export function AnnotationsIndex({
                     <DropdownMenuItem className="text-problem focus:text-problem" onSelect={() => setDeleteTarget(editing)}><Trash2 className="mr-2 size-4" /> Delete annotation</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>} />
+                <details key={annotationKey(editing)} className="my-4 max-w-xl border-l border-border pl-3">
+                  <summary className="min-h-9 cursor-pointer py-2 text-sm font-medium">Why did you save this?</summary>
+                  <form className="grid gap-2 pb-2" onSubmit={event => {
+                    event.preventDefault();
+                    const reason = String(new FormData(event.currentTarget).get('savedReason') || '').trim();
+                    void saveReminder(reason);
+                  }}>
+                    <Textarea name="savedReason" aria-label="Why did you save this?" defaultValue={editing.savedReason || ''} maxLength={1000} placeholder="A question it raised, a stance you had, or something you wanted to try." className="min-h-16" disabled={savingEdit} />
+                    <Button type="submit" size="sm" variant="outline" className="justify-self-start" disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save reminder'}</Button>
+                  </form>
+                </details>
                 <RecordSection id="ann-markup" title="Markup" description="Mark any part of the passage. What you mark it as is where it goes." headingLevel="h2"
                   aside={<ContextualAiPanel
                       actions={['suggest_annotation_effect']}
@@ -1406,7 +1450,7 @@ export function AnnotationsIndex({
                         <span className="noesis-mark-row__text">“{mark.text}”</span>
                         <span className="noesis-mark-row__actions">
                           {mark.movedTo
-                            ? <Eyebrow size="sm">Sent to {markKind(mark.kind).destination}</Eyebrow>
+                            ? sentMarkAction(mark)
                             : mark.kind === 'reference'
                               ? <Eyebrow size="sm">Stays here</Eyebrow>
                               : <Button variant="secondary" size="sm" tone={kind.tone} onClick={() => { setMovingMark(open ? null : mark.id); setMoveText(shapeMarkText(mark.kind, mark.text)); }}>{open ? 'Close' : `Send to ${kind.destination}`}</Button>}
@@ -1423,7 +1467,7 @@ export function AnnotationsIndex({
                               </div>
                             )}
                             <div className="flex flex-wrap items-center gap-2">
-                              <Button variant="primary" size="sm" tone={kind.tone} disabled={!moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>Send to {kind.destination}</Button>
+                              <Button variant="primary" size="sm" tone={kind.tone} disabled={Boolean(pendingAction) || !moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>{pendingAction === `mark:${mark.id}` ? 'Sending…' : `Send to ${kind.destination}`}</Button>
                               <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
                               <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
                             </div>
@@ -1466,6 +1510,8 @@ export function AnnotationsIndex({
                       <Label className="mb-2 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concept tags</Label>
                       <ConceptTagPicker
                         concepts={concepts}
+                        inline
+                        selectedTone="concept"
                         value={editing.conceptTags || editing.source.tags || []}
                         onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
                         onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
@@ -1486,7 +1532,7 @@ export function AnnotationsIndex({
                 </RecordFooter>
         </RecordPage>
       ) : (
-      <Dialog open={!!editing} onOpenChange={(open) => !open && closeAnnotationDetail()}>
+      <Dialog open={!usesDetailRoute && !isFullPageDetail && !!editing} onOpenChange={(open) => !open && closeAnnotationDetail()}>
         <DialogContent className='max-w-2xl border-none shadow-2xl rounded-2xl max-sm:h-[calc(100dvh-1rem)] max-sm:w-[calc(100vw-1rem)] max-sm:max-w-none max-sm:grid-rows-[auto_minmax(0,1fr)_auto] max-sm:gap-0 max-sm:overflow-hidden max-sm:p-4'
           onCloseAutoFocus={(event) => {
             const target = pendingDetailDeleteRef.current;
@@ -1559,7 +1605,7 @@ export function AnnotationsIndex({
                         <span className="noesis-mark-row__text">“{mark.text}”</span>
                         <span className="noesis-mark-row__actions">
                           {mark.movedTo
-                            ? <Eyebrow size="sm">Sent to {markKind(mark.kind).destination}</Eyebrow>
+                            ? sentMarkAction(mark)
                             : mark.kind === 'reference'
                               ? <Eyebrow size="sm">Stays here</Eyebrow>
                               : <Button variant="secondary" size="sm" tone={kind.tone} onClick={() => { setMovingMark(open ? null : mark.id); setMoveText(shapeMarkText(mark.kind, mark.text)); }}>{open ? 'Close' : `Send to ${kind.destination}`}</Button>}
@@ -1576,7 +1622,7 @@ export function AnnotationsIndex({
                               </div>
                             )}
                             <div className="flex flex-wrap items-center gap-2">
-                              <Button variant="primary" size="sm" tone={kind.tone} disabled={!moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>Send to {kind.destination}</Button>
+                              <Button variant="primary" size="sm" tone={kind.tone} disabled={Boolean(pendingAction) || !moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>{pendingAction === `mark:${mark.id}` ? 'Sending…' : `Send to ${kind.destination}`}</Button>
                               <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
                               <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
                             </div>
