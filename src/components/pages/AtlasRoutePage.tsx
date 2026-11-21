@@ -24,6 +24,7 @@ export interface AtlasRoutePageProps {
   vault: VaultEntry[];
   drafts: Draft[];
   practices: Practice[];
+  commitments?: import('@/lib/types').GoalItem[];
   questions: Question[];
   timeline: TimelineEvent[];
   atlasMaps: AtlasMap[];
@@ -55,6 +56,7 @@ export function AtlasRoutePage({
   vault,
   drafts,
   practices,
+  commitments,
   questions,
   timeline,
   atlasMaps,
@@ -81,6 +83,7 @@ export function AtlasRoutePage({
       insights={insights}
       vault={vault}
       drafts={drafts}
+      commitments={commitments}
       practices={practices}
       questions={questions}
       timeline={timeline}

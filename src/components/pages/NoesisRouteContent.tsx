@@ -1,5 +1,6 @@
 "use client";
 
+import { goalCategories, goalItems } from '@/lib/goal-progress';
 import type { User } from 'firebase/auth';
 import type { RefObject } from 'react';
 import type { SettingsDraftCache } from '@/components/Settings/SettingsPage';
@@ -366,6 +367,7 @@ export function NoesisRouteContent({
           vault={vault}
           drafts={drafts}
           practices={practices}
+          commitments={goalItems(goalState, goalCategories(goalState))}
           questions={questions}
           timeline={timeline}
           atlasMaps={atlasMaps}
