@@ -51,3 +51,6 @@ firestore-debug.log
 /.next-dev-*/
 /.next-build-*/
 /public/ocr/
+
+# throwaway analysis scripts run against the repo (never shipped)
+/.scratch/
