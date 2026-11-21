@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { conceptBoundaries, inquiryFog, islandRadius, orderRegionConcepts } from '../../src/components/Atlas/AtlasTerritoryCanvas';
+import { inquiryFog, islandRadius, orderRegionConcepts } from '../../src/components/Atlas/AtlasTerritoryCanvas';
 
 test('fog follows the inquiry you actually recorded', () => {
   assert.equal(inquiryFog('open'), 1);
@@ -13,25 +13,6 @@ test('fog follows the inquiry you actually recorded', () => {
   assert.equal(inquiryFog('resolved'), 0);
   assert.equal(inquiryFog('no_longer_meaningful'), 0);
   assert.equal(inquiryFog('reopened'), 1);
-});
-
-test('boundaries come only from what the concept records', () => {
-  assert.deepEqual(conceptBoundaries({ id: 'c' }), []);
-  const boundaries = conceptBoundaries({
-    id: 'c',
-    notSameAs: ['Narrative Self'],
-    counterexamples: ['A role dropped at home', ''],
-    edgeCases: ['A conversion that keeps the habits'],
-    caseReasons: { 'A role dropped at home': 'An audience maintains it.' },
-  });
-  assert.deepEqual(boundaries.map((item) => item.kind), ['not the same as', 'counterexample', 'edge case']);
-  assert.equal(boundaries[1].reason, 'An audience maintains it.');
-  assert.equal(boundaries[0].reason, undefined);
-});
-
-test('a boundary is never listed twice', () => {
-  const boundaries = conceptBoundaries({ id: 'c', notSameAs: ['Habit'], counterexamples: ['Habit'] });
-  assert.equal(boundaries.length, 1);
 });
 
 test('concepts that are easy to confuse end up side by side', () => {

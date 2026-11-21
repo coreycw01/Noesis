@@ -5,6 +5,7 @@ import type { Concept, Draft, GoalItem, Media, PhilosophicalLink, Practice, Ques
 import type { AtlasRegionViewModel } from './atlas-diagnostics';
 import { conceptKey } from '@/lib/readex';
 import { cssColor } from '@/lib/css-color';
+import { conceptBoundaryMarks, type BoundaryKind } from '@/lib/concept-boundary-findings';
 import { Maximize, Minimize } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Pill } from '@/components/ui/pill';
@@ -43,7 +44,6 @@ interface WorldRecord {
   detail?: string;
 }
 export interface WorldBoundary { id: string; conceptId: string; kind: BoundaryKind; text: string; reason?: string; wx: number; wy: number }
-export type BoundaryKind = 'not the same as' | 'counterexample' | 'edge case';
 
 export type AtlasCanvasSelection =
   | { kind: 'region'; region: MapRegion; index: number }
@@ -110,23 +110,6 @@ export function inquiryFog(status?: string) {
   if (/answered/.test(state)) return 0.38;
   if (/suspended|enduring/.test(state)) return 0.6;
   return 1;
-}
-
-/**
- * The boundaries a concept has recorded about itself: what it is not the same
- * as, what falls outside it, and the cases sitting on its edge. Nothing is
- * inferred — a concept with none gets no boats.
- */
-export function conceptBoundaries(concept: Pick<Concept, 'id' | 'notSameAs' | 'counterexamples' | 'edgeCases' | 'caseReasons'>) {
-  const out: Array<{ kind: BoundaryKind; text: string; reason?: string }> = [];
-  const push = (kind: BoundaryKind, values?: string[]) => (values || []).forEach((text) => {
-    const clean = (text || '').trim();
-    if (clean && !out.some((item) => item.text === clean)) out.push({ kind, text: clean, reason: concept.caseReasons?.[clean] });
-  });
-  push('not the same as', concept.notSameAs);
-  push('counterexample', concept.counterexamples);
-  push('edge case', concept.edgeCases);
-  return out;
 }
 
 /**
@@ -296,7 +279,7 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   worldConcepts.forEach((concept) => {
     const source = conceptById.get(concept.id);
     if (!source) return;
-    conceptBoundaries(source).slice(0, 7).forEach((boundary, index) => {
+    conceptBoundaryMarks(source).slice(0, 7).forEach((boundary, index) => {
       const angle = Math.PI * 0.35 + index * 0.72;
       const reach = concept.island * 1.5;
       boundaries.push({
