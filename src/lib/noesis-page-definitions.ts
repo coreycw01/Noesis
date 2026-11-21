@@ -8,13 +8,22 @@ import {
 import type { Metadata } from 'next';
 
 /**
- * The thinking loop the navigation is organized around. Its stages spell the
- * app's name: Notice material, Outline what it means, Examine the questions it
- * raises, take a Stand, Implement it in how you live, then Survey the whole.
+ * Stable section keys shared by both navigation styles.
  */
 export const NOESIS_LOOP_STAGES = ['Notice', 'Outline', 'Examine', 'Stand', 'Implement', 'Survey'] as const;
 export const NOESIS_NAV_SECTIONS = ['Today', ...NOESIS_LOOP_STAGES, 'More'] as const;
 export type NoesisNavSection = typeof NOESIS_NAV_SECTIONS[number];
+
+export const NOESIS_LOOP_LABELS: Record<NoesisNavSection, string> = {
+  Today: 'Today',
+  Notice: 'Encounter',
+  Outline: 'Define',
+  Examine: 'Question',
+  Stand: 'Claim',
+  Implement: 'Action',
+  Survey: 'Review',
+  More: 'More',
+};
 
 /** Stage color token for each section (defined in theme.css as --stage-*). */
 export const NOESIS_NAV_SECTION_TONE: Record<NoesisNavSection, string> = {

@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic';
 import { MediaLibrary } from '@/components/Library/MediaLibrary';
 import { PageLoadingState } from '@/components/shared/PageState';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
-import { BookOpen, TableProperties } from 'lucide-react';
+import { BookOpen, Plus, TableProperties } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, TimelineEvent, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
@@ -53,6 +54,8 @@ export function LibraryRoutePage({
   aiSettings,
 }: LibraryRoutePageProps) {
   const [surface, setSurface] = useState<'library' | 'index'>('library');
+  const [addSourceRequested, setAddSourceRequested] = useState(false);
+  const [focusSwitcher, setFocusSwitcher] = useState(false);
 
   useEffect(() => {
     try {
@@ -62,6 +65,7 @@ export function LibraryRoutePage({
   }, []);
 
   const chooseSurface = (next: 'library' | 'index') => {
+    setFocusSwitcher(true);
     setSurface(next);
     try { window.localStorage.setItem('noesis:library-surface', next); } catch { /* Saving a view preference is optional. */ }
   };
@@ -70,7 +74,10 @@ export function LibraryRoutePage({
     return (
       <>
         <SourceIndex
-          headerTabs={<LibrarySurfaceTabs surface={surface} onChange={chooseSurface} />}
+          headerActions={<>
+            <LibrarySurfaceTabs surface={surface} onChange={chooseSurface} focusSelectedOnMount={focusSwitcher} />
+            <Button size="sm" onClick={() => { setFocusSwitcher(false); setAddSourceRequested(true); setSurface('library'); }}><Plus /> Add Source</Button>
+          </>}
           media={media}
           vault={vault}
           drafts={drafts}
@@ -85,7 +92,9 @@ export function LibraryRoutePage({
   return (
     <>
       <MediaLibrary
-        headerTabs={focusedSourceId ? undefined : <LibrarySurfaceTabs surface={surface} onChange={chooseSurface} />}
+        headerActions={focusedSourceId ? undefined : <LibrarySurfaceTabs surface={surface} onChange={chooseSurface} focusSelectedOnMount={focusSwitcher} />}
+        addSourceRequested={addSourceRequested}
+        onAddSourceRequestHandled={() => setAddSourceRequested(false)}
         media={media}
         concepts={concepts}
         vault={vault}
@@ -108,12 +117,15 @@ export function LibraryRoutePage({
   );
 }
 
-function LibrarySurfaceTabs({ surface, onChange }: { surface: 'library' | 'index'; onChange: (value: 'library' | 'index') => void }) {
+function LibrarySurfaceTabs({ surface, onChange, focusSelectedOnMount }: { surface: 'library' | 'index'; onChange: (value: 'library' | 'index') => void; focusSelectedOnMount: boolean }) {
   return (
     <WorkspaceTabs
       value={surface}
       onChange={onChange}
       label="Library views"
+      variant="segmented"
+      iconsOnly
+      focusSelectedOnMount={focusSelectedOnMount}
       items={[
         { id: 'library', label: 'Library', icon: BookOpen },
         { id: 'index', label: 'Source Index', icon: TableProperties },

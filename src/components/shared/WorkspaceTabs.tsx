@@ -20,6 +20,8 @@ interface WorkspaceTabsProps<T extends string = string> {
   label: string;
   variant?: 'underline' | 'segmented';
   activation?: 'automatic' | 'manual';
+  iconsOnly?: boolean;
+  focusSelectedOnMount?: boolean;
   className?: string;
 }
 
@@ -30,6 +32,8 @@ export function WorkspaceTabs<T extends string>({
   label,
   variant = 'underline',
   activation = 'automatic',
+  iconsOnly = false,
+  focusSelectedOnMount = false,
   className,
 }: WorkspaceTabsProps<T>) {
   const [focused, setFocused] = useState<T | null>(null);
@@ -68,6 +72,8 @@ export function WorkspaceTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
+            title={iconsOnly ? itemLabel : undefined}
+            autoFocus={focusSelectedOnMount && active}
             tabIndex={entryTab?.id === id ? 0 : -1}
             onFocus={() => setFocused(id)}
             disabled={disabled}
@@ -89,7 +95,7 @@ export function WorkspaceTabs<T extends string>({
             )}
           >
             {Icon && <Icon className="size-4" aria-hidden="true" />}
-            <span>{itemLabel}</span>
+            <span className={iconsOnly && Icon ? 'sr-only' : undefined}>{itemLabel}</span>
             {typeof count === 'number' && (
               <span className="min-w-5 rounded-full bg-muted px-1.5 py-0.5 noesis-figure noesis-figure--sm font-bold tabular-nums text-muted-foreground">
                 {count}

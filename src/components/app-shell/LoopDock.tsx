@@ -5,7 +5,7 @@ import type { LucideIcon } from 'lucide-react';
 import { MoveHorizontal, ChevronDown, ChevronUp, MoreHorizontal, Search, UserCircle2 } from 'lucide-react';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { cn } from '@/lib/utils';
-import { NOESIS_LOOP_STAGES, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, type NoesisNavSection } from '@/lib/noesis-page-definitions';
+import { NOESIS_LOOP_LABELS, NOESIS_LOOP_STAGES, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, type NoesisNavSection } from '@/lib/noesis-page-definitions';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 
 export const NOESIS_NAV_STYLE_KEY = 'noesis:nav-style';
@@ -111,12 +111,15 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
     const tone = NOESIS_NAV_SECTION_TONE[section];
     const group = itemsIn(section);
     const isActive = activeSection === section;
-    const total = group.reduce((sum, item) => sum + (item.count || 0), 0);
+    const label = NOESIS_LOOP_LABELS[section];
+    const total = section === 'More' ? 0 : group.reduce((sum, item) => sum + (item.count || 0), 0);
     return (
       <div key={section} className="noesis-loop__stage" data-stage={tone}>
         <button
           type="button"
           aria-expanded={open === section}
+          aria-label={total > 0 ? `${label}, ${total} records` : label}
+          title={label}
           aria-haspopup="true"
           aria-current={isActive ? 'true' : undefined}
           onClick={() => setOpen(open === section ? null : section)}
@@ -127,12 +130,11 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
           </span>
           {section === 'More'
             ? <span className="sr-only">More</span>
-            : <span className="noesis-loop__stage-name"><b className="noesis-loop__initial">{section[0]}</b>{section.slice(1)}</span>}
-          {section !== 'More' && total > 0 && <span className="sr-only">{total} records</span>}
+            : <span className="noesis-loop__stage-name">{label}</span>}
         </button>
         {open === section && (
-          <div className="noesis-loop__pop" role="menu" aria-label={`${section} pages`}>
-            <div className="noesis-loop__pop-label">{section}</div>
+          <div className="noesis-loop__pop" role="menu" aria-label={`${label} pages`}>
+            <div className="noesis-loop__pop-label">{label}</div>
             {group.map((item) => {
               const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
               const Icon = item.icon;
@@ -183,7 +185,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
       {aiItem && (
         <button type="button" className="noesis-loop__ask" aria-current={activeView === 'context-desk' ? 'page' : undefined} onClick={() => go('context-desk')}>
           <NoesisAiMark className="size-5" />
-          <span>Ask Noesis</span>
+          <span>Noesis AI</span>
         </button>
       )}
       {stageButton('More')}

@@ -111,7 +111,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-app-main--loop { padding-top: 48px; }
 
 /* The Loop dock in the prototype's light card style. */
-.noesis-loop { --dock-bg: hsl(var(--card) / .92); background: var(--dock-bg); color: hsl(var(--foreground)); border-color: hsl(var(--border)); box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .35); }
+.noesis-loop { --dock-bg: hsl(var(--card) / .92); background: var(--dock-bg); color: hsl(var(--foreground)); border-color: hsl(var(--accent) / .65); box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .35); }
 .noesis-loop [data-stage], .noesis-loop[data-stage] { --nav-stage: var(--stage-encounter); }
 .noesis-loop [data-stage="examine"], .noesis-loop[data-stage="examine"] { --nav-stage: var(--stage-examine); }
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
@@ -123,6 +123,8 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: .92rem; letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }
 .noesis-loop__ring { width: .7rem; height: .7rem; border-width: 1.5px; border-color: hsl(var(--nav-stage)); }
 .noesis-loop__ring svg { display: none; }
+.noesis-loop__stage[data-stage="more"] .noesis-loop__ring { width: 1rem; height: 1rem; border: 0; }
+.noesis-loop__stage[data-stage="more"] .noesis-loop__ring svg { display: block; }
 .noesis-loop__stage-button[aria-current="true"] .noesis-loop__ring { background: hsl(var(--nav-stage)); }
 .noesis-loop__stage-button[aria-current="true"] { color: hsl(var(--foreground)); }
 .noesis-loop__stage-button:hover, .noesis-loop__today:hover, .noesis-loop__fold:hover, .noesis-loop__stage-button[aria-expanded="true"] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
@@ -359,7 +361,6 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 [data-stage-tone="outline"] { --stage: var(--stage-outline); }
 .noesis-nav-section[data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
 .noesis-loop__stage[data-stage="outline"], [data-stage="outline"] { --loop-stage: var(--stage-outline); --stage: var(--stage-outline); }
-.noesis-loop__initial { font-weight: 700; color: hsl(var(--nav-stage, var(--accent))); }
 .noesis-loop [data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
 .noesis-loop__ask { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px 0 8px; border-radius: 999px; border: 1.5px solid hsl(var(--revise)); background: hsl(var(--revise) / .1); color: hsl(var(--revise)); font-size: .9rem; white-space: nowrap; box-shadow: 0 0 0 3px hsl(var(--revise) / .14); }
 .noesis-loop__ask:hover, .noesis-loop__ask[aria-current="page"] { background: hsl(var(--revise) / .2); }

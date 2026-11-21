@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons';
-import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_LOOP_STAGES, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
+import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_LOOP_LABELS, NOESIS_LOOP_STAGES, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
 
 test('Today loads its saved commitment visibility without visiting Settings first', () => {
   assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute('/home')).includes('goalPreferences'));
@@ -33,9 +33,9 @@ test('Implement is the user-facing stage for lived action; the page keeps the Pr
   assert.equal(NOESIS_PAGE_DEFINITIONS.some((page) => ['Test', 'Praxis'].includes(page.section as string)), false);
 });
 
-test('the navigation spells NOESIS: Notice, Outline, Examine, Stand, Implement, Survey', () => {
+test('the ribbon shows plain thinking steps without changing section keys or routes', () => {
   assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Notice', 'Outline', 'Examine', 'Stand', 'Implement', 'Survey', 'More']);
-  assert.equal(NOESIS_LOOP_STAGES.map((stage) => stage[0]).join(''), 'NOESIS');
+  assert.deepEqual(NOESIS_LOOP_STAGES.map(stage => NOESIS_LOOP_LABELS[stage]), ['Encounter', 'Define', 'Question', 'Claim', 'Action', 'Review']);
   assert.equal(NOESIS_PAGE_BY_VIEW.library.section, 'Notice');
   assert.equal(NOESIS_PAGE_BY_VIEW.concepts.section, 'Outline');
   assert.equal(NOESIS_PAGE_BY_VIEW.questions.section, 'Examine');
