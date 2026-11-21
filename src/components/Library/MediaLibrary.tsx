@@ -56,7 +56,9 @@ const MediaEditor = dynamic(() => import('./MediaEditor').then((module) => modul
 
 interface MediaLibraryProps {
   /** Sub-view tabs rendered in the shared page header. */
-  headerTabs?: React.ReactNode;
+  headerActions?: React.ReactNode;
+  addSourceRequested?: boolean;
+  onAddSourceRequestHandled?: () => void;
   media: Media[];
   concepts: Concept[];
   vault: VaultEntry[];
@@ -168,7 +170,9 @@ export function MediaLibrary({
   onFocusedSourceHandled,
   onOpenSourceRoute,
   aiSettings,
-  headerTabs,
+  headerActions,
+  addSourceRequested,
+  onAddSourceRequestHandled,
 }: MediaLibraryProps) {
   const pathname = usePathname();
   const [filter, setFilter] = usePersistentView<MediaType | 'all'>('noesis:library-type', 'all', ['all', ...MEDIA_TYPES]);
@@ -189,7 +193,10 @@ export function MediaLibrary({
     setSourceWorkbenchStep('annotations');
   }, [focusedSourceId]);
   const [engagementPhase, setEngagementPhase] = useState<'before' | 'sessions' | 'after'>('before');
-  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(Boolean(addSourceRequested));
+  useEffect(() => {
+    if (addSourceRequested) onAddSourceRequestHandled?.();
+  }, [addSourceRequested, onAddSourceRequestHandled]);
   const [savingSource, setSavingSource] = useState(false);
   const sourceSaveRef = useRef(false);
   const [draft, setDraft] = useState<Partial<Media>>({ type: 'book', title: '', creator: '', status: 'Want to Read', tags: [] });
@@ -1109,16 +1116,18 @@ export function MediaLibrary({
       <PageHeader
         title="Library"
         description="Engage actively, capture what matters, and trace what each source changes."
-        tabs={headerTabs}
         meta={
           <span className="noesis-eyebrow text-muted-foreground/60">
             {media.length} sources · {libraryStats.consuming} in progress · {libraryStats.annotations} annotations
           </span>
         }
         actions={
+          <>
+          {headerActions}
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 h-9 px-6 shadow-md shadow-accent/20 rounded-full font-bold">
             <Plus className="size-4 mr-1.5" /> Add Source
           </Button>
+          </>
         }
       />
 
