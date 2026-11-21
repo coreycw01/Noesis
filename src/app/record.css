@@ -5,7 +5,7 @@
  * Styles use tokens only. The page's stage colour arrives as --accent via
  * data-stage-tone on <main>; --tone is the same thing for anything nested.
  */
-.noesis-record { --tone: var(--accent); max-width: 68rem; margin-inline: auto; }
+.noesis-record { --tone: var(--accent); min-width: 0; width: 100%; }
 
 /* Header */
 .noesis-record__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin: var(--space-2) 0 var(--space-3); }

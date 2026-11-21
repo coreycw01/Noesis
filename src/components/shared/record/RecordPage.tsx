@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Pill } from '@/components/ui/pill';
@@ -156,16 +156,24 @@ export interface Suggestion {
   disabled?: boolean;
 }
 
-/**
- * Optional next steps, shown only when the page has a specific proposal
- * built from the record (a question from a challenge, a practice from the
- * strongest support). Never a generic "open an inquiry" button.
- */
-export function SuggestionCards({ suggestions }: { suggestions: Suggestion[] }) {
+export function OptionalRecordActions({ label, children, disclosureRef }: { label: string; children: React.ReactNode; disclosureRef?: React.Ref<HTMLDetailsElement> }) {
+  return (
+    <details ref={disclosureRef} className="group/optional mt-3 border-t border-border pt-1">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-sm text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+        <ChevronDown className="size-4 shrink-0 transition-transform group-open/optional:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+        <span className="min-w-0 break-words">{label}</span><span className="shrink-0 text-xs font-normal">Optional</span>
+      </summary>
+      <div className="pb-2 pt-1">{children}</div>
+    </details>
+  );
+}
+
+/** Suggestions grounded in something the user already recorded. */
+export function SuggestionCards({ suggestions, showLabel = true }: { suggestions: Suggestion[]; showLabel?: boolean }) {
   if (!suggestions.length) return null;
   return (
     <div className="noesis-suggest" aria-label="Suggested next steps">
-      <Eyebrow size="sm">Suggested from what you&apos;ve recorded · optional</Eyebrow>
+      {showLabel && <Eyebrow size="sm">Suggested from what you&apos;ve recorded · optional</Eyebrow>}
       <div className="noesis-suggest__grid">
         {suggestions.map((item) => (
           <div key={item.id} className="noesis-suggest__card" data-tone={item.tone}>

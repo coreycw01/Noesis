@@ -24,6 +24,7 @@ export interface LibraryRoutePageProps {
   focusedSourceId?: string | null;
   onAddMedia: (data: Partial<Media>) => void;
   onUpdateMedia: (media: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: import('@/lib/source-ai-review').SourceReviewApproval) => void | Promise<unknown>;
+  onAttachSourcePhoto: (sourceId: string, photo: import('@/lib/types').StoredAsset) => Promise<void>;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;
@@ -43,6 +44,7 @@ export function LibraryRoutePage({
   focusedSourceId,
   onAddMedia,
   onUpdateMedia,
+  onAttachSourcePhoto,
   onDeleteMedia,
   onAddConcept,
   onCreateClaim,
@@ -93,6 +95,7 @@ export function LibraryRoutePage({
         timeline={timeline}
         onAddMedia={onAddMedia}
         onUpdateMedia={onUpdateMedia}
+        onAttachSourcePhoto={onAttachSourcePhoto}
         onDeleteMedia={onDeleteMedia}
         onAddConcept={onAddConcept}
         onCreateClaim={onCreateClaim}

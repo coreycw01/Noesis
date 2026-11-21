@@ -233,7 +233,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     const relatedBeliefs = vault.filter((entry) => selected.beliefIds?.includes(entry.id) || entry.sourceInquiryId === selected.id
       || (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
     const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
-    const relatedPractices = practices.filter((practice) => (practice.questionIds || []).includes(selected.id));
+    const relatedPractices = practices.filter((practice) => practice.questionIds?.includes(selected.id) || selected.practiceIds?.includes(practice.id));
     return (
         <InquiryDetail
           aiSettings={aiSettings}

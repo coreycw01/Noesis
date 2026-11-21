@@ -35,6 +35,7 @@ export interface HomeRoutePageProps {
   showCommitments: boolean;
   goalProgress: Partial<Record<MediaType, number>>;
   onCreateInquiry: (data: Partial<Question>) => Promise<Question>;
+  onUpdatePractice: (practice: Practice) => void | Promise<Practice | void>;
   onNavigate: (view: NoesisView, options?: {
     conceptId?: string | null;
     questionId?: string | null;
@@ -78,6 +79,7 @@ export function HomeRoutePage({
   showCommitments,
   goalProgress,
   onCreateInquiry,
+  onUpdatePractice,
   onNavigate,
 }: HomeRoutePageProps) {
   return (
@@ -97,6 +99,7 @@ export function HomeRoutePage({
       showCommitments={showCommitments}
       goalProgress={goalProgress}
       onCreateInquiry={onCreateInquiry}
+      onUpdatePractice={onUpdatePractice}
       onNavigate={(target) => onNavigate(target.view, routeOptionsForHomeTarget(target))}
     />
   );

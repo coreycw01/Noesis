@@ -16,7 +16,7 @@ import { Dictation } from '@/components/shared/Dictation';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { EntityMeta } from '@/components/shared/IntellectualStructures';
-import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { FooterSection, OptionalRecordActions, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
 import { BenchBand, Connections, History, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { InquiryScale, answerWeight, inquiryLead, letter } from '@/components/Questions/InquiryScale';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -26,7 +26,8 @@ import type { AiContextEnvelope } from '@/lib/contextual-ai';
 import type { InquiryAiReview } from '@/lib/inquiry-ai-review';
 import type { AiSettings, Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { conceptKey, today, uid } from '@/lib/readex';
-import { assignInquiryEvidence, INQUIRY_REVIEW_CRITERION_TITLE, inquiryAiItemMemory, inquiryHasRecordedObjection, inquiryNeedsEvidence, isInquiryClosed, latestInquiryReviewCriterion, MAX_INQUIRY_EVIDENCE, replacedInquiryAnswer } from '@/lib/inquiry-state';
+import { completedPracticeResult, latestCompletedPracticeResult } from '@/lib/practice-state';
+import { assignInquiryEvidence, INQUIRY_REVIEW_CRITERION_TITLE, INQUIRY_STARTING_OBSERVATION, inquiryAiItemMemory, inquiryExperimentSetup, inquiryHasRecordedObjection, inquiryNeedsEvidence, inquiryStartingObservation, isInquiryClosed, latestInquiryReviewCriterion, MAX_INQUIRY_EVIDENCE, practiceEvidenceDraft, replacedInquiryAnswer } from '@/lib/inquiry-state';
 
 const EMPTY_EVIDENCE: Omit<InquiryEvidence, 'id' | 'date'> = { claim: '', type: 'personal observation', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' };
 
@@ -139,8 +140,10 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   const [positionConfidence, setPositionConfidence] = useState(50);
   const [existingPracticeId, setExistingPracticeId] = useState('');
   const [existingWorkId, setExistingWorkId] = useState('');
-  const [testDraft, setTestDraft] = useState({ tested: '', method: '' });
+  const [testDraft, setTestDraft] = useState({ prediction: '', action: '', measure: '' });
+  const [startingObservation, setStartingObservation] = useState('');
   const evidenceInput = useRef<HTMLTextAreaElement>(null);
+  const outcomeDisclosure = useRef<HTMLDetailsElement>(null);
 
   React.useEffect(() => {
     setEditingQuestion(false); setQuestionDraft(question.text); setEditingFrame(false); setFrameBase(undefined);
@@ -148,7 +151,8 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     setClarificationDraft(''); setAnswerDraft(''); setAnswerDetail({ support: '', objection: '', confidence: 3 });
     setEvidenceDraft(EMPTY_EVIDENCE); setEditingEvidenceId(null); setSaveAsNote(false); setWriteOpen(false); setPullOpen(false);
     setWorkingDraft(null); setResolutionSummary(question.resolutionSummary || ''); setCheckpointSkipReason(''); setPositionConfidence(50);
-    setExistingPracticeId(''); setExistingWorkId(''); setTestDraft({ tested: '', method: '' });
+    setExistingPracticeId(''); setExistingWorkId(''); setTestDraft({ prediction: '', action: '', measure: '' });
+    setStartingObservation('');
     if (initialSection === 'answer') window.requestAnimationFrame(() => document.getElementById('inq-conclude')?.scrollIntoView({ block: 'start' }));
     // Reset local drafts only when the record changes, not on every save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,19 +166,27 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   const workingConflict = workingDraft !== null && workingDraft.base !== savedAnswer;
   const lead = inquiryLead(answers, evidence);
   const reviewCriterion = latestInquiryReviewCriterion(question);
+  const praxisResult = latestCompletedPracticeResult(practices);
+  const praxisDraft = praxisResult ? practiceEvidenceDraft(praxisResult.practice, praxisResult.observation) : null;
+  const savedPraxisEvidence = praxisDraft ? evidence.find(item => item.claim === praxisDraft.claim && item.origin === praxisDraft.origin) : undefined;
   const weighedCount = evidence.filter(item => item.direction !== 'contextualizes' && answers.some(answer => answer.id === item.candidateId)).length;
   const unplaced = evidence.some((item) => !item.candidateId && item.direction !== 'contextualizes');
   const closed = isInquiryClosed(question);
   const answered = Boolean(savedAnswer.trim()) && question.status !== 'open' && question.status !== 'comparing_answers' && question.status !== 'gathering_evidence';
   const frameFilled = [question.whyItMatters, question.currentIntuition, question.uncertainty].some((value) => value?.trim());
+  const needsStartingPoint = !closed && !answers.length && !evidence.length && !savedAnswer.trim();
+  const savedStartingObservation = evidence.find(item => item.origin === INQUIRY_STARTING_OBSERVATION);
+  const directlyLinkedBeliefs = beliefs.filter(belief => question.beliefIds?.includes(belief.id) || belief.sourceInquiryId === question.id);
 
   let hereId: string; let guide: string;
-  if (closed) { hereId = 'inq-conclude'; guide = 'Decided. Reopen it any time, or take an optional next step.'; }
-  else if (answers.length < 2) { hereId = 'inq-answers'; guide = answers.length ? 'Add a second possible answer.' : 'Add two possible answers to compare.'; }
+  if (closed) { hereId = 'inq-conclude'; guide = 'A decision has been recorded.'; }
+  else if (answered) { hereId = 'inq-conclude'; guide = 'A working answer is saved.'; }
+  else if (needsStartingPoint) { hereId = 'inq-frame'; guide = 'Start with one moment that made you ask this.'; }
+  else if (answers.length < 2) { hereId = 'inq-answers'; guide = answers.length ? 'Add another explanation worth comparing.' : 'What might explain what you noticed? Start with one possibility.'; }
   else if (!evidence.length || unplaced) { hereId = 'inq-weigh'; guide = !evidence.length ? 'Add evidence, then place it on an answer.' : 'Place your remaining evidence on an answer.'; }
   else if (!working.trim() && weighedCount < 2) { hereId = 'inq-weigh'; guide = 'Look for one piece of evidence that helps tell two answers apart.'; }
   else if (!working.trim()) { hereId = 'inq-conclude'; guide = `The scale leans ${lead && lead.margin >= 2 ? `toward ${letter(lead.index)}. ` : 'nowhere clear yet. '}Write your working answer.`; }
-  else { hereId = 'inq-conclude'; guide = answered ? 'Answered. Decide the outcome when you are ready, or keep investigating.' : 'Mark it answered, or keep investigating.'; }
+  else { hereId = 'inq-conclude'; guide = answered ? 'A working answer is saved.' : 'A working answer is in progress.'; }
 
   const conceptNames = useMemo(() => {
     const ids = new Set(question.conceptIds || []);
@@ -200,10 +212,11 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
       }
     }
     for (const practice of availablePractices) {
-      const scope = scopeOf(practice.conceptTags) || (practice.questionIds?.includes(question.id) ? 'same' : null); if (!scope) continue;
-      const result = practice.observedOutcome?.trim() || [...(practice.logs || [])].reverse().find((log) => (log.outcome || log.observations)?.trim())?.outcome;
+      const scope = practice.questionIds?.includes(question.id) || question.practiceIds?.includes(practice.id) ? 'same' : scopeOf(practice.conceptTags); if (!scope) continue;
+      const result = completedPracticeResult(practice);
       if (!result) continue;
-      out.push({ key: `p:${practice.id}`, text: `${practice.title}: ${result}`, origin: 'Praxis · result', source: 'practice', scope, conceptName: (practice.conceptTags || [])[0] || '', direction: 'supports', strength: 'moderate', type: 'personal observation' });
+      const draft = practiceEvidenceDraft(practice, result.observation);
+      out.push({ key: `p:${practice.id}`, text: draft.claim, origin: draft.origin, source: 'practice', scope, conceptName: (practice.conceptTags || [])[0] || '', direction: draft.direction, strength: draft.strength, type: draft.type });
     }
     for (const position of allPositions) {
       const scope = scopeOf(position.tags) || (question.beliefIds?.includes(position.id) ? 'same' : null); if (!scope) continue;
@@ -213,7 +226,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     const already = new Set(evidence.map((item) => item.claim.trim().toLowerCase()));
     return out.filter((record) => record.text.trim() && !already.has(record.text.trim().toLowerCase()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allMedia, availablePractices, allPositions, evidence, conceptNames, nearNames, question.id]);
+  }, [allMedia, availablePractices, allPositions, evidence, conceptNames, nearNames, question.id, question.practiceIds]);
   const pullVisible = pullRecords.filter((record) => (pullSource === 'all' || record.source === pullSource) && (pullScope === 'all' || record.scope === pullScope) && (pullDirection === 'all' || record.direction === pullDirection) && (!pullQuery.trim() || `${record.text} ${record.origin} ${record.conceptName}`.toLowerCase().includes(pullQuery.trim().toLowerCase()))).slice(0, 60);
 
   // ----- actions -----
@@ -250,7 +263,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     if (!previous && evidence.length >= MAX_INQUIRY_EVIDENCE) { onAiFeedback('Evidence limit reached', 'Edit or remove a saved evidence record before adding another.', 'destructive'); return false; }
     if (draft.candidateId && !answers.some((item) => item.id === draft.candidateId)) { onAiFeedback('Answer no longer available', 'Choose another answer or leave the evidence unplaced.', 'destructive'); return false; }
     const next = assignInquiryEvidence(question, { ...draft, id: previous?.id || uid(), date: previous?.date || today(), claim: draft.claim.trim(), origin: draft.origin.trim(), notes: draft.notes.trim() }, draft.candidateId);
-    return onUpdateQuestion({ ...question, evidenceRecords: previous ? evidence.map((item) => item.id === previous.id ? next : item) : [next, ...evidence], status: !closed && inquiryNeedsEvidence(question) ? 'gathering_evidence' : question.status, dateUpdated: today() });
+    return onUpdateQuestion({ ...question, evidenceRecords: previous ? evidence.map((item) => item.id === previous.id ? next : item) : [next, ...evidence], status: !closed && next.direction !== 'contextualizes' && inquiryNeedsEvidence(question) ? 'gathering_evidence' : question.status, dateUpdated: today() });
   };
   const saveChangeMind = async () => {
     if (!changeMind.trim() || saving) return;
@@ -311,15 +324,17 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     onAiFeedback(status === 'provisionally_answered' ? 'Marked as answered' : status === 'resolved' ? 'Inquiry resolved' : 'Outcome saved', '');
   };
   const keepInvestigating = () => onUpdateQuestion({ ...question, status: answers.length >= 2 ? 'comparing_answers' : 'open', dateUpdated: today() });
-  const draftPractice = async (hypothesis: string, action: string, title: string) => {
-    if (saving) return; setSaving(true);
+  const draftPractice = async (observation?: string) => {
+    const setup = inquiryExperimentSetup(testDraft, observation);
+    if (!setup || saving || saveLock.current) return;
+    saveLock.current = true; setSaving(true);
     try {
-      const created = await onAddPractice({ title, description: `A test created from the inquiry: ${question.text}`, type: 'experiment', status: 'proposed', hypothesis, action, durationMode: 'repeated', durationDays: 7, questionIds: [question.id], conceptTags: concepts, sourceIds: sources.map((source) => source.id), positionIds: beliefs.map((belief) => belief.id), notes: '' });
+      const created = await onAddPractice({ ...setup, title: `Test: ${question.text}`, description: `A test created from the inquiry: ${question.text}`, type: 'experiment', status: 'proposed', durationMode: 'repeated', durationDays: 7, questionIds: [question.id], conceptTags: concepts, sourceIds: sources.map((source) => source.id), positionIds: directlyLinkedBeliefs.map(belief => belief.id), notes: '' });
       if (!created.id) throw new Error('not saved');
       onAiFeedback('Practice drafted', 'Open it in Praxis to finish its setup.');
       onOpenPractice(created.id);
     } catch { onAiFeedback('Practice not saved', 'Your inquiry is unchanged. Please try again.', 'destructive'); }
-    finally { setSaving(false); }
+    finally { saveLock.current = false; setSaving(false); }
   };
   const createWork = async () => {
     if (saving) return; setSaving(true);
@@ -349,14 +364,14 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
   // ----- suggestions (only when specific) -----
   const suggestions: Suggestion[] = [];
-  if (!closed && lead && lead.margin >= 2 && working.trim()) {
-    suggestions.push({ id: 'form-position', tone: 'position', title: 'Form a position', quote: working.trim(), because: 'Proposed statement, from your working answer. The scale leans its way.', actionLabel: 'Draft the position', disabled: saving || workingConflict, onAction: () => { setResolutionSummary((value) => value || `Formed from the inquiry: ${question.text}`); void saveWorking('converted'); } });
+  if (!closed && answered && !directlyLinkedBeliefs.length && lead && lead.margin >= 2 && savedAnswer.trim() === lead.answer.statement.trim()) {
+    suggestions.push({ id: 'form-position', tone: 'position', title: 'Form a position', quote: savedAnswer, because: 'Your saved answer matches the answer that leads on the scale.', actionLabel: 'Review the outcome', disabled: saving || workingConflict, onAction: () => {
+      const disclosure = outcomeDisclosure.current;
+      if (disclosure) { disclosure.open = true; disclosure.querySelector('textarea')?.focus(); }
+    } });
   }
   const strongest = lead ? evidence.filter((item) => item.candidateId === lead.answer.id && item.direction === 'supports').sort((a, b) => (b.strength === 'strong' ? 3 : b.strength === 'moderate' ? 2 : 1) - (a.strength === 'strong' ? 3 : a.strength === 'moderate' ? 2 : 1))[0] : null;
-  if (strongest && lead) {
-    const action = `For seven days, act on “${strongest.claim.slice(0, 80)}” and log whether it held.`;
-    suggestions.push({ id: 'test-practice', tone: 'practice', title: 'Put it to the test', quote: action, because: `Your strongest support for ${letter(lead.index)} is “${strongest.claim.slice(0, 90)}”. A week-long practice could check it.`, actionLabel: 'Draft the practice', disabled: saving, onAction: () => void draftPractice(strongest.claim, action, `Test: ${lead.answer.statement.slice(0, 60)}`) });
-  }
+  const experimentBasis = (strongest || savedStartingObservation)?.claim;
 
   const trailing = (
     <>
@@ -447,6 +462,17 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
         ) : (
           <SectionEmpty title="No starting thinking yet." hint="Optional. Ask Noesis can start from the question alone." />
         )}
+        {needsStartingPoint && (
+          <form className="mt-4 grid max-w-xl gap-2" onSubmit={async event => {
+            event.preventDefault();
+            if (!startingObservation.trim() || saving) return;
+            if (await addEvidence(inquiryStartingObservation(startingObservation))) setStartingObservation('');
+          }}>
+            <Label htmlFor={`starting-observation-${question.id}`}>When did this last come up?</Label>
+            <Textarea id={`starting-observation-${question.id}`} value={startingObservation} onChange={event => setStartingObservation(event.target.value)} placeholder="What happened, in a sentence or two?" maxLength={1000} disabled={saving} />
+            <Button type="submit" variant="secondary" size="sm" className="justify-self-start" disabled={saving || !startingObservation.trim()}>Save observation</Button>
+          </form>
+        )}
         <div className="mt-4">
           <Eyebrow as="h3">Terms and assumptions</Eyebrow>
           {(question.assumptions || []).length > 0 && (
@@ -461,6 +487,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       {/* ---------- Answers ---------- */}
       <RecordSection id="inq-answers" title="Possible answers" description="Write two or more answers worth comparing. None is final." here={hereId === 'inq-answers'}>
+        {savedStartingObservation && answers.length < 2 && <p className="mb-3 whitespace-pre-wrap break-words border-l border-border pl-3 text-sm text-muted-foreground"><strong className="text-foreground">What you noticed:</strong> {savedStartingObservation.claim}</p>}
         {answers.length ? answers.map((answer, index) => (
           <Row key={answer.id} lead={<span className="noesis-letter">{letter(index)}</span>} meta={[answer.support ? `For: ${answer.support}` : '', answer.objection ? `Against: ${answer.objection}` : ''].filter(Boolean).join(' · ') || undefined} tools={<Eyebrow size="sm">net {answerWeight(evidence, answer.id) > 0 ? '+' : ''}{answerWeight(evidence, answer.id)}</Eyebrow>} onRemove={() => void removeAnswer(answer.id)} removeLabel={`Remove answer ${letter(index)}`} disabled={saving}>
             {answer.statement}
@@ -483,7 +510,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
       </RecordSection>
 
       {/* ---------- Weigh ---------- */}
-      <RecordSection id="inq-weigh" title="Weigh the evidence" description="Add what you have found, then place each piece on the answer it bears on." here={hereId === 'inq-weigh'}>
+      <RecordSection id="inq-weigh" title="Weigh the evidence" description="Add evidence and choose which answer it supports or challenges." here={hereId === 'inq-weigh'}>
         <div className="noesis-step__cols">
           <div>
             {evidence.length ? evidence.map((item) => (
@@ -546,9 +573,30 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       {/* ---------- Conclude ---------- */}
       <RecordSection id="inq-conclude" title="Conclude" description="Your best answer for now. You can reopen it any time." here={hereId === 'inq-conclude'}>
+        {frameFilled && <details className="mb-3 border-l border-border pl-3 text-sm">
+          <summary className="min-h-8 cursor-pointer font-medium">Compare with your starting point</summary>
+          <dl className="space-y-2 pb-2 text-muted-foreground">
+            {([['Why it mattered', question.whyItMatters], ['Starting view', question.currentIntuition], ['Starting uncertainty', question.uncertainty]] as const).map(([label, value]) => value?.trim() && <div key={label}><dt className="font-medium text-foreground">{label}</dt><dd className="whitespace-pre-wrap break-words">{value}</dd></div>)}
+          </dl>
+        </details>}
         {reviewCriterion && <div className="mb-3 border-l border-border pl-3">
           <Eyebrow>What would change your mind</Eyebrow>
           <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{reviewCriterion}</p>
+        </div>}
+        {praxisResult && praxisDraft && <div className="mb-3 space-y-1 border-l border-border pl-3 text-sm">
+          <Eyebrow>Latest linked Praxis result</Eyebrow>
+          <button type="button" className="block min-h-8 text-left font-medium underline underline-offset-2" onClick={() => onOpenPractice(praxisResult.practice.id)}>{praxisResult.practice.title}</button>
+          <p className="whitespace-pre-wrap break-words text-muted-foreground">{praxisResult.observation}</p>
+          {praxisResult.implication && <p className="whitespace-pre-wrap break-words text-muted-foreground"><strong>What it changed:</strong> {praxisResult.implication}</p>}
+          {praxisResult.alternative && <p className="whitespace-pre-wrap break-words text-muted-foreground"><strong>Another explanation:</strong> {praxisResult.alternative}</p>}
+          {savedPraxisEvidence ? <p className="text-xs text-muted-foreground">Already recorded in Weigh.</p> : <p className="text-xs text-muted-foreground">This result does not change the scale or your answer on its own.</p>}
+          {!savedPraxisEvidence && !closed && <Button type="button" size="sm" variant="outline" disabled={saving || Boolean(evidenceDraft.claim.trim())} onClick={() => {
+            setEditingEvidenceId(null);
+            setSaveAsNote(false);
+            setEvidenceDraft({ ...EMPTY_EVIDENCE, ...praxisDraft });
+            setWriteOpen(true);
+            window.requestAnimationFrame(() => evidenceInput.current?.focus());
+          }}>Review in Weigh</Button>}
         </div>}
         {answers.length >= 2 && (
           <div className="noesis-decide" data-tone={lead && lead.margin >= 2 ? 'ok' : 'caution'}>
@@ -577,10 +625,11 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
         </Dictation>
         {closed && <p className="mt-3 text-sm text-muted-foreground">This inquiry is {question.status.replace(/_/g, ' ')}. <Button variant="link" size="sm" onClick={() => void onUpdateQuestion({ ...question, status: 'reopened', dateUpdated: today() })}>Reopen it</Button></p>}
 
-        {!closed && working.trim() && (
-          <details className="noesis-fold">
-            <summary><Button asChild variant="tertiary" size="sm"><span>Decide the outcome</span></Button></summary>
-            <div className="noesis-fold__body">
+      </RecordSection>
+
+      {!closed && answered && working.trim() && (
+          <OptionalRecordActions label="Decide the outcome" disclosureRef={outcomeDisclosure}>
+            <div className="grid gap-3">
               <Label htmlFor={`resolution-${question.id}`}>What led you here?</Label>
               <Textarea id={`resolution-${question.id}`} value={resolutionSummary} onChange={(event) => setResolutionSummary(event.target.value)} placeholder="What mattered most, and what remains open?" className="min-h-[80px]" />
               {!inquiryHasRecordedObjection(question) && (
@@ -603,11 +652,24 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
                 <Button variant="secondary" tone="position" onClick={() => void saveWorking('converted')} disabled={saving || workingConflict}>Form a position from this answer</Button>
               </div>
             </div>
-          </details>
-        )}
-        {beliefs.length > 0 && <p className="mt-3 text-sm text-muted-foreground">Bears on: {beliefs.map((belief, index) => <span key={belief.id}>{index ? ' · ' : ''}<Button variant="link" size="sm" onClick={() => onOpenPosition(belief.id)}>{belief.title}</Button></span>)}</p>}
-        <SuggestionCards suggestions={suggestions} />
-      </RecordSection>
+          </OptionalRecordActions>
+      )}
+      {suggestions.length > 0 && <OptionalRecordActions label="Suggested from what you've recorded"><SuggestionCards suggestions={suggestions} showLabel={false} /></OptionalRecordActions>}
+        <OptionalRecordActions label="Design a Praxis experiment">
+          <form className="grid max-w-xl gap-3" onSubmit={event => { event.preventDefault(); void draftPractice(experimentBasis); }}>
+            {experimentBasis && <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground"><strong className="text-foreground">Starting evidence:</strong> {experimentBasis}</p>}
+            {([
+              ['action', 'What will you do next time?', 'When someone asks for help, I’ll check my nearest deadline before answering.'],
+              ['prediction', 'What do you expect to happen?', 'I expect I can help without missing an important deadline.'],
+              ['measure', 'What will you look for?', 'Did I help, and did I keep the deadline?'],
+            ] as const).map(([field, label, placeholder]) => (
+              <label key={field} className="grid gap-1 text-sm">{label}
+                <Textarea value={testDraft[field]} placeholder={placeholder} maxLength={600} onChange={event => setTestDraft({ ...testDraft, [field]: event.target.value })} disabled={saving} />
+              </label>
+            ))}
+            <Button type="submit" variant="secondary" className="justify-self-start" disabled={saving || !inquiryExperimentSetup(testDraft)}>Draft experiment</Button>
+          </form>
+        </OptionalRecordActions>
 
       <RecordFooter>
         <FooterSection title="Connections" count={sources.length + beliefs.length + drafts.length + practices.length} defaultOpen>
@@ -625,10 +687,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
             { type: 'Praxis', tone: 'practice', items: practices.map((practice) => ({ id: practice.id, label: practice.title, meta: practice.status.replace(/_/g, ' '), onOpen: () => onOpenPractice(practice.id) })),
               action: (
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <Textarea value={testDraft.tested} onChange={(event) => setTestDraft((prev) => ({ ...prev, tested: event.target.value }))} placeholder="What are you trying to learn?" aria-label="What are you trying to learn" className="min-h-[72px]" />
-                  <Textarea value={testDraft.method} onChange={(event) => setTestDraft((prev) => ({ ...prev, method: event.target.value }))} placeholder="What will you do or observe?" aria-label="What will you do or observe" className="min-h-[72px]" />
                   <div className="flex flex-col gap-2 sm:flex-row md:col-span-2">
-                    <Button variant="secondary" size="sm" disabled={saving || !testDraft.tested.trim() || !testDraft.method.trim()} onClick={() => void draftPractice(testDraft.tested.trim(), testDraft.method.trim(), `Test for: ${question.text.slice(0, 60)}`)}>Design a test</Button>
                     <Select value={existingPracticeId} onValueChange={setExistingPracticeId} disabled={saving}><SelectTrigger aria-label="Choose a practice to link" className="flex-1"><SelectValue placeholder="Or choose a practice to link" /></SelectTrigger><SelectContent>{availablePractices.filter((item) => !(question.practiceIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
                     <Button variant="outline" size="sm" onClick={() => void link('practice', existingPracticeId)} disabled={saving || !existingPracticeId}>Link</Button>
                   </div>

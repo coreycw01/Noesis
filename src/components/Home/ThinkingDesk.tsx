@@ -103,6 +103,7 @@ interface ThinkingDeskProps {
   goalProgress: Partial<Record<MediaType, number>>;
   onNavigate: (target: HomeTarget) => void;
   onCreateInquiry?: (data: Partial<Question>) => Promise<Question>;
+  onUpdatePractice: (practice: Practice) => void | Promise<Practice | void>;
 }
 
 function recentDate(value?: unknown) {
@@ -142,6 +143,7 @@ export function ThinkingDesk({
   goalProgress,
   onNavigate,
   onCreateInquiry,
+  onUpdatePractice,
 }: ThinkingDeskProps) {
   const day = useLocalDay();
   const mode = useMemo<HomeMode>(() => 'continue', []);
@@ -881,13 +883,14 @@ export function ThinkingDesk({
             : currentThemes.length
               ? `Your recent thinking is converging around ${currentThemes.join(', ')}.`
               : 'Home chooses the next useful act from your unfinished thinking.'}
-          meta={currentThemes.length ? [
-            <span key="focus-label" className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current focus</span>,
-            ...currentThemes.map((theme) => (
-              <span key={theme} className="border-l border-border pl-2 text-sm font-medium text-foreground/75">{theme}</span>
-            )),
-          ] : undefined}
-        />
+        >
+          {currentThemes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current focus</span>
+              {currentThemes.map(theme => <span key={theme} className="noesis-today-focus break-words">{theme}</span>)}
+            </div>
+          )}
+        </PageHeader>
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
           <section className="space-y-5">
@@ -957,7 +960,7 @@ export function ThinkingDesk({
             </section>
 
             <div className="rounded-[14px] border border-border bg-card p-5">
-              <PraxisCheckIn practices={practices} onOpen={(id) => onNavigate({ view: 'labs', targetId: id })} />
+              <PraxisCheckIn practices={practices} day={day} onUpdate={onUpdatePractice} onOpen={(id) => onNavigate({ view: 'labs', targetId: id })} />
             </div>
 
             <section className="rounded-lg border border-border bg-card p-5">

@@ -3,14 +3,13 @@
 
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { FooterSection, OptionalRecordActions, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
 import { BenchBand, Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
-import { RecordHistory, ThroughConcept } from '@/components/shared/ThroughConcept';
-import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Wind, Zap } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Button, IconButton } from '@/components/ui/button';
@@ -49,6 +48,7 @@ import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { PositionMiniScale, PullEvidenceDialog, zoneLabel } from '@/components/Vault/PositionCalibration';
 import { distinctPositionStatement, evidenceBalance, resolvePositionGrounds } from '@/lib/position-grounds';
+import { positionReviewInputs } from '@/lib/position-review-inputs';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -163,7 +163,8 @@ type PositionViewFilter =
 type StressStage = {
   title: string;
   prompt: string;
-  signal: string;
+  field: 'evidenceAgainst' | 'assumptions' | 'falsification';
+  existing?: string;
 };
 
 const POSITION_VIEW_LABELS: Record<PositionViewFilter, string> = {
@@ -370,82 +371,11 @@ function diagnosePosition(entry: VaultEntry, links: PhilosophicalLink[], practic
   };
 }
 
-function buildStressStages({
-  selected,
-  assumptions,
-  strongestSupport,
-  strongestObjection,
-  counterposition,
-  linkedSources,
-  linkedPractices,
-}: {
-  selected: VaultEntry;
-  assumptions: string[];
-  strongestSupport: string;
-  strongestObjection: string;
-  counterposition: string;
-  linkedSources: Media[];
-  linkedPractices: Practice[];
-}): StressStage[] {
-  const claim = selected.statement || selected.description || selected.title;
-  const sourceSignal = linkedSources.length
-    ? `${linkedSources.length} source(s) currently support or contextualize this claim.`
-    : 'No source evidence is linked yet.';
-  const practiceSignal = linkedPractices.length
-    ? `${linkedPractices.length} practice(s) currently test this position.`
-    : 'No lived test is linked yet.';
-
+function buildStressStages(position: VaultEntry): StressStage[] {
   return [
-    {
-      title: 'Clarify the claim',
-      prompt: `Restate this position in one precise sentence: "${claim}"`,
-      signal: 'A position cannot be tested until its exact claim is clear.',
-    },
-    {
-      title: 'Steelman the opposition',
-      prompt: 'Before settling this position, state the strongest opposing position in words its best advocate would accept.',
-      signal: counterposition || strongestObjection,
-    },
-    {
-      title: 'Identify assumptions',
-      prompt: `Which assumption is most load-bearing: ${assumptions.join(' ')}`,
-      signal: assumptions[0] || 'No assumptions have been derived yet.',
-    },
-    {
-      title: 'Present strongest objection',
-      prompt: 'What is the strongest objection from someone intelligent who rejects this?',
-      signal: strongestObjection,
-    },
-    {
-      title: 'Consider counterexample',
-      prompt: 'Name one concrete case where this position may fail, become too narrow, or mislead action.',
-      signal: counterposition,
-    },
-    {
-      title: 'Compare alternative explanation',
-      prompt: 'What alternative explanation could account for the same evidence without accepting this position?',
-      signal: sourceSignal,
-    },
-    {
-      title: 'Identify missing evidence',
-      prompt: 'What evidence would make this position meaningfully stronger or meaningfully weaker?',
-      signal: sourceSignal,
-    },
-    {
-      title: 'Define falsification condition',
-      prompt: 'What would need to happen for you to reduce confidence or abandon this position?',
-      signal: `Current confidence: ${confidencePercent(selected.confidence)}%.`,
-    },
-    {
-      title: 'Examine practical consequences',
-      prompt: 'If you lived as if this were true for a week, what would change in behavior?',
-      signal: practiceSignal,
-    },
-    {
-      title: 'Decide outcome',
-      prompt: 'After this pressure test, should the position stay active, be revised, be challenged, or be abandoned?',
-      signal: `Current status: ${selected.status || 'active'}.`,
-    },
+    { field: 'evidenceAgainst', title: 'Strongest objection', prompt: 'What is the strongest reason this claim could be wrong? A counterexample or a different explanation from the same evidence both count.', existing: position.evidenceAgainst?.filter(item => item.trim()).at(-1) },
+    { field: 'assumptions', title: 'Key assumption', prompt: 'What has to be true for this claim to hold? Name the one assumption that matters most.', existing: position.assumptions?.filter(item => item.trim()).at(-1) },
+    { field: 'falsification', title: 'What would change my mind', prompt: 'What specific observation or result would make you narrow, revise, or let go of this claim?', existing: position.falsification },
   ];
 }
 
@@ -467,7 +397,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const { toast } = useToast();
   const inquiryCreationLock = useRef(false);
 
-  const [stressAnswer, setStressAnswer] = useState('');
+  const [stressDrafts, setStressDrafts] = useState<Record<string, string>>({});
+  const [savingStress, setSavingStress] = useState(false);
+  const stressSaveLock = useRef(false);
   const [revisionReason, setRevisionReason] = useState('');
   const [stressStageIndex, setStressStageIndex] = useState(0);
   const [tensionDrawerOpen, setTensionDrawerOpen] = useState(false);
@@ -684,22 +616,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const formation = positionFormation(selected);
     const diagnostic = positionDiagnostics.get(selected.id) || diagnosePosition(selected, links, practices);
     const firstLinkedSource = linkedSources[0];
-    const strongestObjection = tensionLinks[0]?.note || selected.evidenceAgainst?.[0] || 'No direct objection has been articulated yet.';
-    const strongestSupport = selected.evidenceFor?.[0] || linkedSources[0]?.title || 'No direct support has been recorded yet.';
-    const derivedAssumptions = [
-      selected.tags.length ? `The concepts ${selected.tags.slice(0, 3).join(', ')} are defined clearly enough to support this claim.` : 'This position needs explicit concepts before its scope is stable.',
-      linkedSources.length ? 'The linked sources count as relevant evidence rather than only inspiration.' : 'This position can stand provisionally without a linked source, but remains evidence-light.',
-      (selected.evidenceAgainst || []).length || tensionLinks.length ? 'The current objections represent the strongest available pressure.' : 'This position has not yet faced a serious recorded objection.',
-    ];
-    const positionAssumptions = (selected.assumptions || []).length ? selected.assumptions || [] : derivedAssumptions;
-    const dependencyItems = [
-      ...selected.tags.slice(0, 5).map((tag) => `Concept: ${tag}`),
-      ...linkedQuestions.slice(0, 3).map((question) => `Inquiry: ${question.text}`),
-      ...linkedSources.slice(0, 3).map((source) => `Source: ${source.title}`),
-    ];
-    const counterposition = strongestObjection !== 'No direct objection has been articulated yet.'
-      ? strongestObjection
-      : `The strongest opposite case has not been written yet. Ask what would make "${selected.title}" false, incomplete, or too narrow.`;
     const applicationItems = (selected.applications || []).length ? selected.applications || [] : [
       linkedPractices.length ? `${linkedPractices.length} practice(s) already test this position.` : 'No lived test is attached yet.',
       linkedDrafts.length ? `${linkedDrafts.length} work(s) express this position.` : 'No essay, note, script, or work expresses this position yet.',
@@ -709,17 +625,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       'No explicit consequences have been written yet.',
       'Ask what decisions, behaviors, writings, or practices would change if this position were true.',
     ];
-    const stressStages = buildStressStages({
-      selected,
-      assumptions: positionAssumptions,
-      strongestSupport,
-      strongestObjection,
-      counterposition,
-      linkedSources,
-      linkedPractices,
-    });
+    const stressStages = buildStressStages(selected);
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
+    const stressDraftKey = JSON.stringify([selected.id, selectedStressStage.field]);
+    const stressAnswer = stressDrafts[stressDraftKey] || '';
     const { supportCount, challengeCount, linked: linkedGrounds } = resolvePositionGrounds(selected, links);
+    const { criterion, objection, result, resultNeedsReview } = positionReviewInputs(selected, linkedPractices, linkedGrounds.against);
     const revisionCount = (selected.versionHistory || []).length;
 
     const previewSource = (source: Media) => {
@@ -975,20 +886,38 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     };
 
     */
-    const saveStressAnswer = () => {
-      if (!stressAnswer.trim()) return;
-      const stageTitle = selectedStressStage?.title || 'Stress test';
-      onUpdateEntry({
-        ...selected,
-        testingCount: (selected.testingCount || 0) + 1,
-        versionHistory: [
-          ...(selected.versionHistory || []),
-          { date: today(), eventType: 'challenged', description: `Stress test answered (${stageTitle}): ${stressAnswer.trim()}` },
-        ],
-        dateUpdated: today(),
-      });
-      setStressAnswer('');
-      toast({ title: 'Stress test recorded', description: 'The answer has been added to this position history.' });
+    const saveStressAnswer = async () => {
+      const answer = stressAnswer.trim();
+      const { field, title } = selectedStressStage;
+      if (!answer || stressSaveLock.current) return;
+      const current = selected[field];
+      if (typeof current === 'string' ? current.trim() === answer : current?.some(item => item.trim() === answer)) {
+        toast({ title: 'Already recorded' });
+        return;
+      }
+      const patch = field === 'falsification'
+        ? { falsification: answer }
+        : { [field]: [...(selected[field] || []), answer] };
+      stressSaveLock.current = true;
+      setSavingStress(true);
+      try {
+        await onUpdateEntry({
+          ...selected,
+          ...patch,
+          versionHistory: [
+            ...(selected.versionHistory || []),
+            { date: today(), eventType: field === 'evidenceAgainst' ? 'challenged' : 'refined', description: `Stress test (${title}): ${answer}` },
+          ],
+          dateUpdated: today(),
+        });
+        setStressDrafts(drafts => ({ ...drafts, [stressDraftKey]: '' }));
+        toast({ title: field === 'falsification' ? 'Saved to Calibrate' : 'Saved to Grounds' });
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Stress test not saved', description: noesisUserError(error, 'Try again to save your answer.') });
+      } finally {
+        stressSaveLock.current = false;
+        setSavingStress(false);
+      }
     };
 
     const comparisonTarget = safeEntries.find((entry) => entry.id === comparePositionId) || null;
@@ -1043,12 +972,14 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const supportItems = selected.evidenceFor || [];
     const challengeItems = selected.evidenceAgainst || [];
     let hereId: string; let guide: string;
-    if (!supportCount || !challengeCount) { hereId = 'pos-grounds'; guide = !supportCount ? 'Add what supports it.' : 'Add at least one challenge: what would count against it?'; }
-    else if (gap !== null && Math.abs(gap) > 10) { hereId = 'pos-calibrate'; guide = 'Your confidence and the grounds disagree. Move the slider if you mean to, or add grounds.'; }
-    else if (revisionCount > 1) { hereId = 'pos-revise'; guide = 'Revision recorded. Test it in practice or open an inquiry when a suggestion fits.'; }
+    if (derivePositionLifecycleStage(selected.status) === 'retired') { hereId = 'pos-revise'; guide = 'This position is retired. Its grounds and decisions are still available.'; }
+    else if (resultNeedsReview) { hereId = 'pos-calibrate'; guide = 'A linked Praxis result is ready to review. See whether it changes what you hold.'; }
+    else if (!supportCount || !challengeCount) { hereId = 'pos-grounds'; guide = !supportCount ? 'Add what supports it.' : 'Add at least one challenge: what would count against it?'; }
+    else if (gap !== null && Math.abs(gap) > 10) { hereId = 'pos-calibrate'; guide = 'Your confidence and the evidence balance differ. Review the grounds before deciding whether to change it.'; }
+    else if (revisionCount > 1) { hereId = 'pos-revise'; guide = 'A revision is recorded.'; }
     else { hereId = 'pos-revise'; guide = 'Calibrated. If your thinking changed, record a revision. Otherwise you are done.'; }
     const positionSuggestions: Suggestion[] = [];
-    challengeItems.slice(0, 2).forEach((challenge, index) => positionSuggestions.push({
+    if (!linkedQuestions.length) challengeItems.slice(0, 1).forEach((challenge, index) => positionSuggestions.push({
       id: `question-${index}`, tone: 'inquiry', title: 'A question worth asking',
       quote: `Does “${challenge}” undermine the claim, or only limit where it applies?`,
       because: 'From your challenge, which isn\'t yet answered.', actionLabel: 'Open as an inquiry',
@@ -1062,7 +993,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         finally { inquiryCreationLock.current = false; }
       },
     }));
-    if (supportItems[0]) {
+    if (!linkedPractices.length && supportItems[0]) {
       const support = supportItems[0];
       const action = `For a week, ${support.charAt(0).toLowerCase()}${support.slice(1)}: log each day whether it held.`;
       positionSuggestions.push({
@@ -1112,23 +1043,20 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         {/* ---------- Thinking tools: pressure you apply yourself ---------- */}
         <ToolsBand note="For you, not for Noesis. Each one writes what you find back into this position.">
           <Tool label="Stress test" icon={Gauge}>
-            <div className="noesis-fieldrow mb-2">{stressStages.map((stage, index) => <Pill key={stage.title} pressed={stressStageIndex === index} onClick={() => setStressStageIndex(index)}>{stage.title}</Pill>)}</div>
-            <p className="text-[.95rem] font-medium leading-6">{selectedStressStage.prompt}</p>
-            <p className="mt-1 text-sm italic text-muted-foreground">{selectedStressStage.signal}</p>
-            <Textarea value={stressAnswer} onChange={(event) => setStressAnswer(event.target.value)} className="mt-2 min-h-[96px]" placeholder="Record the pressure, the evidence that would matter, and what this should do to confidence or wording." aria-label="Answer this stage" />
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button variant="secondary" size="sm" onClick={saveStressAnswer} disabled={!stressAnswer.trim()}>Record stage answer</Button>
-              {stressStageIndex === stressStages.length - 1 && <><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'challenged', dateUpdated: today() })}>Mark challenged</Button><Button size="sm" variant="outline" onClick={() => onUpdateEntry({ ...selected, status: 'revised', versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'revised', description: 'Marked revised after stress-test outcome review.' }], dateUpdated: today() })}>Mark revised</Button></>}
-            </div>
-          </Tool>
-          <Tool label="Pressure" icon={Wind}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoPanel title="Counterposition" items={[counterposition]} empty="No counterposition recorded yet." />
-              <InfoPanel title="Hidden assumptions to pressure" items={positionAssumptions} empty="No assumptions have been written yet." />
-              <InfoPanel title="Alternative explanations" items={['Could the same evidence support a weaker, narrower, or opposite claim?', linkedSources.length ? `Review ${linkedSources.length} linked source(s) for disagreement, not just support.` : 'Add a source that disagrees before raising confidence.']} empty="No alternative explanation path yet." />
-              <InfoPanel title="Evidence still needed" items={selected.missingEvidence || []} empty="No missing-evidence review has been saved yet." />
-              <EntityListPanel title="Contradictory or challenging positions" empty="No typed challenge or contradiction links yet." items={relatedPositions.filter((entry) => typedLinks.some((link) => ['challenges', 'contradicts', 'weakens'].includes(link.type) && ((link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)))).map((entry) => ({ id: entry.id, title: entry.title, meta: 'challenge pressure', onClick: () => openEntry(entry.id) }))} />
-            </div>
+            <label className="grid gap-1 text-sm font-medium">Test this claim from one angle
+              <select aria-label="Stress test prompt" className="min-h-11 w-fit max-w-full rounded-md border border-border bg-background px-2" value={stressStageIndex} onChange={event => setStressStageIndex(Number(event.target.value))}>
+                {stressStages.map((stage, index) => <option key={stage.field} value={index}>{stage.title}</option>)}
+              </select>
+            </label>
+            <p className="mt-2 text-sm leading-6">{selectedStressStage.prompt}</p>
+            {selectedStressStage.existing && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">Recorded: {selectedStressStage.existing}</p>}
+            <Textarea value={stressAnswer} onChange={event => {
+              const answer = event.target.value;
+              setStressDrafts(drafts => ({ ...drafts, [stressDraftKey]: answer }));
+            }} disabled={savingStress} className="mt-2 min-h-[80px]" placeholder="Record one concrete point." aria-label="Stress test answer" />
+            <Button className="mt-2" variant="secondary" size="sm" onClick={() => void saveStressAnswer()} disabled={savingStress || !stressAnswer.trim()}>
+              {savingStress ? 'Saving…' : selectedStressStage.field === 'falsification' ? 'Save to Calibrate' : 'Save to Grounds'}
+            </Button>
           </Tool>
           {tensionLinks.length > 0 && (
             <Tool label={`Tensions · ${tensionLinks.length}`} icon={Zap}>
@@ -1152,9 +1080,16 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             <div>
               <Eyebrow>Why you hold it</Eyebrow>
               <p className="mt-1 whitespace-pre-wrap text-[.95rem] leading-6">{selected.rationale || selected.confidenceReasoning || <span className="text-muted-foreground">No reasoning recorded yet. Edit the position to say what presently supports it.</span>}</p>
-              {selected.falsification && <p className="mt-2 text-sm text-muted-foreground"><Eyebrow size="sm">Would change my mind</Eyebrow><br />{selected.falsification}</p>}
             </div>
           </div>
+          {selected.createdFrom === 'annotation' && selected.sourceAnnotationId && selected.description.trim()
+            && selected.description.trim() !== selected.statement.trim() && (
+            <div className="mt-4 border-l border-border pl-3 text-sm">
+              <Eyebrow>Source passage</Eyebrow>
+              <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{selected.description}</p>
+              {linkedSources.length === 1 && <Button type="button" variant="link" size="sm" className="px-0" onClick={() => previewSource(linkedSources[0])}>Open source</Button>}
+            </div>
+          )}
           {!formation.fullyFormed && <p className="mt-3 text-sm text-muted-foreground">Still missing: {formation.missing.join(', ')}.</p>}
         </RecordSection>
 
@@ -1178,11 +1113,33 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
           </div>
+          {!!selected.assumptions?.length && (
+            <details className="mt-3 border-t border-border pt-2">
+              <summary className="min-h-9 cursor-pointer py-2 text-sm text-muted-foreground">Assumptions to check ({selected.assumptions.length})</summary>
+              <ul className="list-disc space-y-1 break-words pl-5 text-sm">{selected.assumptions.map((item, index) => <li key={index}>{item}</li>)}</ul>
+            </details>
+          )}
           <PullEvidenceDialog open={pullSide !== null} onOpenChange={(open) => { if (!open) setPullSide(null); }} side={pullSide || 'for'} media={media} concepts={concepts} questions={questions} positions={entries} excludePositionId={selected.id}
             onPick={(text) => { if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...challengeItems, text], dateUpdated: today() }); else onUpdateEntry({ ...selected, evidenceFor: [...supportItems, text], dateUpdated: today() }); }} />
         </RecordSection>
 
         <RecordSection id="pos-calibrate" title="Calibrate" description="Your stated confidence beside what your grounds support, on one bar." here={hereId === 'pos-calibrate'}>
+          {(criterion || objection || result) && (
+            <dl className="mb-4 space-y-3 border-l border-border pl-3 text-sm">
+              {criterion && <div><dt className="font-medium">What would change your mind</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{criterion}</dd></div>}
+              {objection && <div><dt className="font-medium">Recorded objection</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{objection}</dd></div>}
+              {result && <div>
+                <dt className="font-medium">Latest linked Praxis result</dt>
+                <dd className="mt-1 space-y-1 break-words text-muted-foreground">
+                  <button type="button" onClick={() => previewPractice(result.practice)} className="min-h-8 text-left font-medium text-foreground underline underline-offset-2">{result.practice.title}</button>
+                  <p className="whitespace-pre-wrap">{result.observation}</p>
+                  {result.implication && <p className="whitespace-pre-wrap"><strong>What it changed:</strong> {result.implication}</p>}
+                  {result.alternative && <p className="whitespace-pre-wrap"><strong>Another explanation:</strong> {result.alternative}</p>}
+                  <p className="text-xs">A linked result does not count as evidence on its own.</p>
+                </dd>
+              </div>}
+            </dl>
+          )}
           <CalibrationBar
             stated={statedPercent}
             grounds={grounds}
@@ -1214,8 +1171,13 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           {(selected.versionHistory || []).length > 0 && (
             <ul className="noesis-hist">{[...(selected.versionHistory || [])].reverse().slice(0, 5).map((version, index) => <li key={`${version.date}-${index}`}><Eyebrow size="sm">{safePositionDate(version.date)}</Eyebrow> {version.description || version.eventType}{typeof version.confidence === 'number' ? ` · ${confidencePercent(version.confidence)}%` : ''}</li>)}</ul>
           )}
-          <SuggestionCards suggestions={positionSuggestions} />
         </RecordSection>
+
+        {derivePositionLifecycleStage(selected.status) !== 'retired' && positionSuggestions.length > 0 && (
+          <OptionalRecordActions label="Suggested from what you’ve recorded">
+            <SuggestionCards suggestions={positionSuggestions} showLabel={false} />
+          </OptionalRecordActions>
+        )}
 
         <RecordFooter>
           <FooterSection title="Connections" count={linkedSources.length + linkedQuestions.length + linkedDrafts.length + linkedPractices.length + relatedPositions.length}>
@@ -1227,27 +1189,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               { type: 'Works', tone: 'work', items: linkedDrafts.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewWork(item) })) },
               { type: 'Concepts', tone: 'concept', items: (selected.tags || []).map((tag) => ({ id: tag, label: tag })) },
             ]} />
-            <details className="noesis-fold mt-3">
-              <summary><Button asChild variant="tertiary" size="sm"><span>Through {(selected.tags || [])[0] || 'its concept'}</span></Button></summary>
-              <div className="noesis-fold__body">
-          {(() => {
-            const concept = (selected.tags || [])[0] || '';
-            const key = concept.trim().toLowerCase();
-            const has = (tags?: string[]) => Boolean(key) && (tags || []).some((tag) => tag.trim().toLowerCase() === key);
-            return (
-              <ThroughConcept concept={concept} columns={[
-                { label: 'Sources', tone: 'encounter', items: media.filter((item) => has(item.tags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined })) },
-                { label: 'Annotations', tone: 'encounter', items: media.flatMap((item) => (item.annotations || []).filter((note) => has(note.conceptTags)).map((note) => ({ id: `${item.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}…` : note.text, onOpen: onOpenSource ? () => onOpenSource(item.id) : undefined }))) },
-                { label: 'Inquiries', tone: 'examine', items: questions.filter((item) => (item.beliefIds || []).includes(selected.id) || has((item as typeof item & { conceptTags?: string[] }).conceptTags)).map((item) => ({ id: item.id, label: item.text, onOpen: onOpenQuestion ? () => onOpenQuestion(item.id) : undefined })) },
-                { label: 'Praxis', tone: 'act', items: practices.filter((item) => (item.positionIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title, onOpen: onOpenPractice ? () => onOpenPractice(item.id) : undefined })) },
-                { label: 'Works', tone: 'more', items: drafts.filter((item) => (item.beliefIds || []).includes(selected.id) || has(item.conceptTags)).map((item) => ({ id: item.id, label: item.title || 'Untitled', onOpen: onOpenWork ? () => onOpenWork(item.id) : undefined })) },
-              ]} />
-            );
-          })()}
-              </div>
-            </details>
             <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <InfoPanel title="Dependencies" items={dependencyItems} empty="No concepts, inquiries, or sources are linked yet." />
               <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
               <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences have been written yet." />
               <InfoPanel title="Linked unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />

@@ -1,17 +1,10 @@
 "use client";
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Concept } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-
-export type BoundaryZone = 'fits' | 'edge' | 'outside';
-
-const ZONES: Array<{ id: BoundaryZone; label: string; hint: string; field: 'examples' | 'edgeCases' | 'counterexamples' }> = [
-  { id: 'fits', label: 'Fits', hint: 'Clearly inside the concept', field: 'examples' },
-  { id: 'edge', label: 'Edge case', hint: 'Could go either way', field: 'edgeCases' },
-  { id: 'outside', label: "Doesn't fit", hint: 'Clearly outside it', field: 'counterexamples' },
-];
+import { CONCEPT_BOUNDARY_ZONES as ZONES, type BoundaryZone, type ConceptBoundaryFinding } from '@/lib/concept-boundary-findings';
 
 const clean = (values?: string[]) => Array.from(new Set((values || []).map((value) => value.trim()).filter(Boolean)));
 
@@ -21,9 +14,10 @@ const clean = (values?: string[]) => Array.from(new Set((values || []).map((valu
  * is checking the definition, so it asks why, once, and lets you skip. The
  * definition itself never changes here.
  */
-export function ConceptBoundaryBench({ concept, onSave, disabled }: {
+export function ConceptBoundaryBench({ concept, onSave, onReviewDefinition, disabled }: {
   concept: Concept;
-  onSave: (next: Concept) => unknown;
+  onSave: (next: Concept) => Promise<boolean>;
+  onReviewDefinition: (finding: ConceptBoundaryFinding) => void;
   disabled?: boolean;
 }) {
   const [draft, setDraft] = useState('');
@@ -32,6 +26,9 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
   const [asking, setAsking] = useState<{ text: string; from: BoundaryZone; to: BoundaryZone } | null>(null);
   const [reason, setReason] = useState('');
   const [over, setOver] = useState<BoundaryZone | null>(null);
+  const saving = useRef(false);
+  const [pending, setPending] = useState(false);
+  const locked = disabled || pending;
 
   const lists: Record<BoundaryZone, string[]> = {
     fits: clean(concept.examples),
@@ -40,21 +37,28 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
   };
   const zoneOf = (text: string) => (Object.keys(lists) as BoundaryZone[]).find((zone) => lists[zone].includes(text));
 
-  const write = (next: Record<BoundaryZone, string[]>, reasons = concept.caseReasons) => onSave({
-    ...concept,
-    examples: next.fits,
-    edgeCases: next.edge,
-    counterexamples: next.outside,
-    caseReasons: reasons,
-    philosophyStatus: concept.philosophyStatus === 'undefined' && (next.fits.length || next.outside.length) ? 'emerging' : concept.philosophyStatus,
-    dateUpdated: new Date().toISOString(),
-  });
+  const write = async (next: Record<BoundaryZone, string[]>, reasons = concept.caseReasons) => {
+    if (disabled || saving.current) return false;
+    saving.current = true;
+    setPending(true);
+    try {
+      return await onSave({
+        ...concept,
+        examples: next.fits,
+        edgeCases: next.edge,
+        counterexamples: next.outside,
+        ...(reasons ? { caseReasons: reasons } : {}),
+        philosophyStatus: concept.philosophyStatus === 'undefined' && (next.fits.length || next.outside.length) ? 'emerging' : concept.philosophyStatus,
+        dateUpdated: new Date().toISOString(),
+      });
+    } finally { saving.current = false; setPending(false); }
+  };
 
-  const move = (text: string, to: BoundaryZone) => {
+  const move = async (text: string, to: BoundaryZone) => {
     const from = zoneOf(text);
     if (!from || from === to) return;
     const next = { ...lists, [from]: lists[from].filter((item) => item !== text), [to]: [...lists[to], text] } as Record<BoundaryZone, string[]>;
-    void write(next);
+    if (!await write(next)) return;
     setMoved(text);
     window.setTimeout(() => setMoved((current) => (current === text ? null : current)), 700);
     // Crossing the edge of "Fits" is where the definition gets tested: ask why.
@@ -69,19 +73,19 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
     void write({ ...lists, [from]: lists[from].filter((item) => item !== text) }, reasons);
   };
 
-  const add = () => {
+  const add = async () => {
     const text = draft.trim();
     if (!text || zoneOf(text)) { setDraft(''); return; }
-    void write({ ...lists, [draftZone]: [...lists[draftZone], text] });
+    if (!await write({ ...lists, [draftZone]: [...lists[draftZone], text] })) return;
     setDraft('');
     setMoved(text);
   };
 
-  const saveReason = () => {
+  const saveReason = async () => {
     if (!asking) return;
-    const reasons = { ...(concept.caseReasons || {}) };
-    if (reason.trim()) reasons[asking.text] = reason.trim(); else delete reasons[asking.text];
-    void write(lists, reasons);
+    const reasons = { ...(concept.caseReasons || {}), [asking.text]: reason.trim() };
+    if (!reason.trim()) delete reasons[asking.text];
+    if (!await write(lists, reasons)) return;
     setAsking(null);
     setReason('');
   };
@@ -105,18 +109,22 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
             </div>
             <ul className="grid gap-1.5" aria-label={`${zone.label}: ${lists[zone.id].length} case${lists[zone.id].length === 1 ? '' : 's'}`}>
               {lists[zone.id].map((text) => (
-                <li key={text} className={cn('noesis-case', moved === text && 'is-moved')} draggable={!disabled} onDragStart={(event) => { event.dataTransfer.setData('text/x-noesis-case', text); event.dataTransfer.effectAllowed = 'move'; }}>
-                  <span className="min-w-0 flex-1">{text}{concept.caseReasons?.[text] && <span className="noesis-case__reason">{concept.caseReasons[text]}</span>}</span>
+                <li key={text} className={cn('noesis-case flex-wrap', moved === text && 'is-moved')} draggable={!locked} onDragStart={(event) => { event.dataTransfer.setData('text/x-noesis-case', text); event.dataTransfer.effectAllowed = 'move'; }}>
+                  <span className="min-w-0 flex-1 break-words">{text}{concept.caseReasons?.[text] && <span className="noesis-case__reason">{concept.caseReasons[text]}</span>}</span>
                   <select
                     aria-label={`Move “${text}”`}
                     value={zone.id}
-                    disabled={disabled}
-                    onChange={(event) => (event.target.value === 'remove' ? remove(text) : move(text, event.target.value as BoundaryZone))}
+                    disabled={locked}
+                    onChange={(event) => { if (event.target.value === 'remove') remove(text); else void move(text, event.target.value as BoundaryZone); }}
                     className="noesis-case__move"
                   >
                     {ZONES.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                     <option value="remove">Remove</option>
                   </select>
+                  <div className="flex w-full flex-wrap gap-x-3">
+                    <Button type="button" variant="link" size="sm" className="min-h-8 px-0" disabled={locked} onClick={() => { setAsking({ text, from: zone.id, to: zone.id }); setReason(concept.caseReasons?.[text] || ''); }}>{concept.caseReasons?.[text] ? 'Edit reason' : 'Add reason'}</Button>
+                    {concept.caseReasons?.[text]?.trim() && <Button type="button" variant="link" size="sm" className="min-h-8 px-0" disabled={locked} onClick={() => onReviewDefinition({ example: text, reason: concept.caseReasons![text].trim(), label: zone.label, zone: zone.id })}>Review definition</Button>}
+                  </div>
                 </li>
               ))}
               {!lists[zone.id].length && <li className="noesis-case noesis-case--empty">Drop a case here</li>}
@@ -127,21 +135,21 @@ export function ConceptBoundaryBench({ concept, onSave, disabled }: {
 
       {asking && (
         <div className="noesis-caliper-why" role="group" aria-label="Why did this case move?">
-          <p className="text-sm"><b>“{asking.text}”</b> moved from {zoneLabel(asking.from)} to {zoneLabel(asking.to)}. What does that say about the definition?</p>
+          <p className="text-sm"><b>“{asking.text}”</b> {asking.from === asking.to ? `is classified as ${zoneLabel(asking.to)}.` : `moved from ${zoneLabel(asking.from)} to ${zoneLabel(asking.to)}.`} What does that say about the definition?</p>
           <div className="flex flex-wrap gap-2">
-            <input autoFocus value={reason} onChange={(event) => setReason(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveReason(); if (event.key === 'Escape') setAsking(null); }} placeholder="Optional: the reason, in a sentence" aria-label="Reason for the move" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm" />
-            <Button variant="secondary" onClick={saveReason}>Save reason</Button>
-            <Button variant="outline" onClick={() => setAsking(null)}>Skip</Button>
+            <input autoFocus value={reason} disabled={locked} onChange={(event) => setReason(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void saveReason(); if (event.key === 'Escape') setAsking(null); }} placeholder="Optional: the reason, in a sentence" aria-label="Reason for this classification" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm" />
+            <Button variant="secondary" disabled={locked} onClick={saveReason}>Save reason</Button>
+            <Button variant="outline" disabled={locked} onClick={() => setAsking(null)}>Skip</Button>
           </div>
         </div>
       )}
 
       <form className="noesis-caliper-add" onSubmit={(event) => { event.preventDefault(); add(); }}>
-        <input id={`add-case-${concept.id}`} value={draft} disabled={disabled} onChange={(event) => setDraft(event.target.value)} placeholder="Add a case to test the boundary" aria-label="Add a case" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm" />
-        <select value={draftZone} onChange={(event) => setDraftZone(event.target.value as BoundaryZone)} aria-label="Where does it go?" className="noesis-case__move">
+        <input id={`add-case-${concept.id}`} value={draft} disabled={locked} onChange={(event) => setDraft(event.target.value)} placeholder="Add a case to test the boundary" aria-label="Add a case" className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm" />
+        <select value={draftZone} disabled={locked} onChange={(event) => setDraftZone(event.target.value as BoundaryZone)} aria-label="Where does it go?" className="noesis-case__move">
           {ZONES.map((zone) => <option key={zone.id} value={zone.id}>{zone.label}</option>)}
         </select>
-        <Button type="submit" variant="secondary" disabled={disabled || !draft.trim()}>Add</Button>
+        <Button type="submit" variant="secondary" disabled={locked || !draft.trim()}>Add</Button>
       </form>
     </section>
   );
