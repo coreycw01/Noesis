@@ -29,6 +29,14 @@ export interface ContextualAiPanelProps {
   buttonLabel?: string;
   promptLabel?: string;
   promptPlaceholder?: string;
+  /**
+   * The question, when the surface around the panel owns it. Context Desk and
+   * Ask Noesis put the question on the page itself, so the request can be read
+   * whole before it is sent rather than half of it living inside the dialog.
+   * Pass both to control it; leave them off and the panel keeps its own.
+   */
+  prompt?: string;
+  onPromptChange?: (value: string) => void;
   suggestedPrompts?: string[];
 }
 
@@ -127,6 +135,8 @@ export function ContextualAiPanel({
   buttonLabel = 'Assistance',
   promptLabel,
   promptPlaceholder = 'Ask a focused question about this item...',
+  prompt: controlledPrompt,
+  onPromptChange,
   suggestedPrompts = [],
 }: ContextualAiPanelProps) {
   const { toast } = useToast();
@@ -167,7 +177,11 @@ export function ContextualAiPanel({
   const [reviewItems, setReviewItems] = useState<ReviewItemState[]>([]);
   const [reviewMode, setReviewMode] = useState<ReviewWorkspaceMode>('overview');
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
-  const [userPrompt, setUserPrompt] = useState('');
+  const [ownPrompt, setOwnPrompt] = useState('');
+  // Controlled when the surface supplies both halves; its own otherwise.
+  const controlled = typeof controlledPrompt === 'string' && typeof onPromptChange === 'function';
+  const userPrompt = controlled ? controlledPrompt : ownPrompt;
+  const setUserPrompt = controlled ? onPromptChange : setOwnPrompt;
   const promptTooShort = userPrompt.trim().length === 1;
   const rawEnvelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
   const envelope = useMemo(() => rawEnvelope ? boundedAiContext(rawEnvelope) : null, [rawEnvelope]);
@@ -517,7 +531,7 @@ export function ContextualAiPanel({
                     <p className="text-xs text-muted-foreground">Remembered for {CONTEXTUAL_AI_LABELS[action]} on this device. The default is set in Settings.</p>
                   </fieldset>
 
-                  {promptLabel && (
+                  {promptLabel && !controlled && (
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground" htmlFor={promptId}>{promptLabel}</label>
                       {!!activeSuggestedPrompts.length && (

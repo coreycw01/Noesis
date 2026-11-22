@@ -130,3 +130,78 @@ export function deskComposition(onDesk: readonly DeskItem[], labelFor: (type: st
     verdict: `${kinds} kinds of record. Adding a different kind usually sharpens what comes back.`,
   };
 }
+
+/** Words a question is full of and which say nothing about which records it wants. */
+const STOPWORDS = new Set([
+  'about', 'across', 'after', 'again', 'against', 'all', 'am', 'and', 'any', 'are', 'because',
+  'been', 'being', 'between', 'both', 'but', 'can', 'could', 'did', 'does', 'doing', 'done',
+  'down', 'each', 'even', 'ever', 'every', 'for', 'from', 'get', 'has', 'have', 'having', 'here',
+  'how', 'into', 'its', 'just', 'like', 'make', 'many', 'might', 'more', 'most', 'much', 'must',
+  'my', 'not', 'now', 'off', 'one', 'only', 'other', 'our', 'out', 'over', 'own', 'really',
+  'record', 'records', 'same', 'say', 'see', 'should', 'since', 'some', 'still', 'such', 'than',
+  'that', 'the', 'their', 'them', 'then', 'there', 'these', 'they', 'thing', 'things', 'this',
+  'those', 'through', 'too', 'under', 'until', 'upon', 'very', 'was', 'way', 'well', 'were',
+  'what', 'when', 'where', 'which', 'while', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
+]);
+
+export interface QuestionProposal {
+  key: string;
+  /** Why this record answers to that question, in words you can overrule. */
+  why: string;
+}
+
+/**
+ * The records a question is asking about.
+ *
+ * This is the half of the work the Context Desk makes you do by hand. Name a
+ * concept in a question and the concept comes, along with what is open on it
+ * and what argues about it; name nothing and only plain word matches come
+ * back. Every proposal says why, because a wrong guess you can see is worth
+ * more than a right one you cannot.
+ */
+export function proposeFromQuestion(
+  question: string,
+  pool: readonly DeskItem[],
+  conceptNames: ReadonlyMap<string, string>,
+  limit = 6,
+): QuestionProposal[] {
+  const asked = ` ${question.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ')} `;
+  if (asked.trim().length < 3) return [];
+
+  // Concepts the question names outright carry the most weight.
+  const named = new Set<string>();
+  for (const [id, name] of conceptNames) {
+    const needle = name.toLowerCase().trim();
+    if (needle.length >= 3 && asked.includes(` ${needle} `)) named.add(id);
+  }
+  // A word that matches a fifth of everything is not telling you anything.
+  // Drop it rather than let it drag in records the question never meant.
+  const common = Math.max(3, Math.floor(pool.length * 0.2));
+  const terms = asked.trim().split(' ')
+    .filter((word) => word.length >= 4 && !STOPWORDS.has(word))
+    .filter((word) => pool.filter((item) => item.label.toLowerCase().includes(word)).length <= common);
+
+  const scored: Array<{ key: string; why: string; score: number; label: string }> = [];
+  for (const item of pool) {
+    const shared = item.conceptIds.find((id) => named.has(id));
+    const sharedName = shared ? conceptNames.get(shared) : undefined;
+    if (item.type === 'concept' && item.conceptIds.some((id) => named.has(id))) {
+      scored.push({ key: item.key, why: 'You named this concept', score: 100, label: item.label });
+      continue;
+    }
+    if (sharedName) {
+      if (item.type === 'inquiry' && item.open) scored.push({ key: item.key, why: `Still open on ${sharedName}`, score: 80, label: item.label });
+      else if (item.type === 'position') scored.push({ key: item.key, why: `A position about ${sharedName}`, score: 70, label: item.label });
+      else if (item.type === 'practice') scored.push({ key: item.key, why: `Tests something about ${sharedName}`, score: 60, label: item.label });
+      else scored.push({ key: item.key, why: `About ${sharedName}`, score: 50, label: item.label });
+      continue;
+    }
+    const hit = terms.find((term) => item.label.toLowerCase().includes(term));
+    if (hit) scored.push({ key: item.key, why: `Mentions “${hit}”`, score: 40, label: item.label });
+  }
+
+  return scored
+    .sort((left, right) => right.score - left.score || left.label.localeCompare(right.label))
+    .slice(0, limit)
+    .map(({ key, why }) => ({ key, why }));
+}

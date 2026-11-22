@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { aiUsageMeter, formatResetsIn } from '../../src/lib/ai-usage';
-import { deskComposition, deskSuggestions, type DeskItem } from '../../src/lib/context-desk-suggestions';
+import { deskComposition, deskSuggestions, proposeFromQuestion, type DeskItem } from '../../src/lib/context-desk-suggestions';
 import { MAX_FOLDERS, MAX_FOLDER_ITEMS, folderAdditions, readFolders, replaceFolder, toggleFolderItem, type ContextFolder } from '../../src/lib/context-folders';
 
 const item = (over: Partial<DeskItem> & Pick<DeskItem, 'key' | 'type'>): DeskItem => ({
@@ -168,4 +168,51 @@ test('a reset time is always said in words', () => {
   assert.equal(formatResetsIn(45), 'in 45 seconds');
   assert.equal(formatResetsIn(600), 'in 10 minutes');
   assert.equal(formatResetsIn(7200), 'in 2 hours');
+});
+
+test('a question brings the concept it names, and what is open or argued about it', () => {
+  const pool: DeskItem[] = [
+    { key: 'concept:attention', type: 'concept', label: 'Attention', sourceIds: [], conceptIds: ['attention'] },
+    { key: 'concept:habit', type: 'concept', label: 'Habit', sourceIds: [], conceptIds: ['habit'] },
+    { key: 'inquiry:open', type: 'inquiry', label: 'Is attention a resource?', sourceIds: [], conceptIds: ['attention'], open: true },
+    { key: 'inquiry:shut', type: 'inquiry', label: 'Settled question', sourceIds: [], conceptIds: ['attention'], open: false },
+    { key: 'position:p', type: 'position', label: 'Attention must be protected', sourceIds: [], conceptIds: ['attention'] },
+    { key: 'source:far', type: 'source', label: 'Something unrelated', sourceIds: [], conceptIds: ['habit'] },
+  ];
+  const names = new Map([['attention', 'Attention'], ['habit', 'Habit']]);
+  const found = proposeFromQuestion('Is my attention a resource or a capacity?', pool, names);
+
+  assert.equal(found[0].key, 'concept:attention');
+  assert.match(found[0].why, /named this concept/);
+  // What is open on the named concept outranks what merely asserts about it.
+  const order = found.map((item) => item.key);
+  assert.ok(order.indexOf('inquiry:open') < order.indexOf('position:p'));
+  assert.match(found[order.indexOf('inquiry:open')].why, /Still open on Attention/);
+  // Nothing about an unnamed concept arrives on its coat-tails.
+  assert.ok(!order.includes('source:far'));
+  // A closed inquiry is still about the concept, but not urged as open.
+  assert.ok(!/Still open/.test(found[order.indexOf('inquiry:shut')]?.why || ''));
+});
+
+test('a question with nothing in it proposes nothing, and filler words match nothing', () => {
+  const pool: DeskItem[] = [
+    { key: 'concept:a', type: 'concept', label: 'Attention', sourceIds: [], conceptIds: ['attention'] },
+    { key: 'source:b', type: 'source', label: 'These records should be examined', sourceIds: [], conceptIds: [] },
+  ];
+  const names = new Map([['attention', 'Attention']]);
+  assert.deepEqual(proposeFromQuestion('', pool, names), []);
+  assert.deepEqual(proposeFromQuestion('  ?  ', pool, names), []);
+  // "should", "these" and "records" are filler and must not drag a record in.
+  assert.deepEqual(proposeFromQuestion('What should these records show?', pool, names), []);
+});
+
+test('a question proposes at most the limit, best first', () => {
+  const pool: DeskItem[] = Array.from({ length: 12 }, (_, index) => ({
+    key: `position:${index}`, type: 'position', label: `Position ${index} on attention`,
+    sourceIds: [], conceptIds: ['attention'],
+  }));
+  const names = new Map([['attention', 'Attention']]);
+  const found = proposeFromQuestion('What do I hold about attention?', pool, names, 4);
+  assert.equal(found.length, 4);
+  assert.ok(found.every((item) => /A position about Attention/.test(item.why)));
 });

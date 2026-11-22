@@ -9,7 +9,7 @@ export const AI_DEPTH_PAGES: Array<{ page: AiDepthPage; label: string }> = [
   { page: 'praxis', label: 'Praxis' },
   { page: 'evolution', label: 'Evolution' },
   { page: 'profile', label: 'Profile' },
-  { page: 'context-desk', label: 'Context Desk' },
+  { page: 'context-desk', label: 'Noesis AI' },
 ];
 
 /** The reasoning depth a page starts with: its own default, else the workspace default. */
