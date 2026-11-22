@@ -12,7 +12,7 @@ import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
 import { Check, Filter, FolderOpen, GripVertical, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
-import { buildContextDeskMemory, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
+import { buildContextDeskMemory, CONTEXTUAL_AI_SUGGESTED_PROMPTS, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { contextDeskWorkDraft, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
 import { deskExperimentId, isDeskFindingTarget, type DeskExperiment, type DeskFindingTarget } from '@/lib/context-desk-handoff';
 import type { AiReviewResult } from '@/lib/contextual-ai';
@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -37,7 +38,7 @@ import { iconForNoesisView } from '@/lib/noesis-icons';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { collectAiHistory, NoesisAiHistory } from '@/components/ai/NoesisAiHistory';
-import { History, ScanSearch } from 'lucide-react';
+import { History, ScanSearch, Sparkles } from 'lucide-react';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -124,20 +125,22 @@ export function ContextDeskRoutePage({
   onNavigate,
 }: ContextDeskRoutePageProps) {
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
-  // The Desk comes first, because it is the thing you work in; History is the
-  // record of what has already been run.
-  const [surface, setSurface] = useState<'history' | 'desk'>('desk');
+  // Noesis AI holds three surfaces: a place to ask, the desk you build a
+  // request on, and the record of what has already been run.
+  const [surface, setSurface] = useState<'ask' | 'desk' | 'history'>('ask');
+  /** The question, owned here so both Ask and the Desk show the same one. */
+  const [question, setQuestion] = useState('');
   const [savingTo, setSavingTo] = useState('work');
   const [experiment, setExperiment] = useState<DeskExperiment>({ title: '', action: '', prediction: '', measure: '' });
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem('noesis:context-desk-surface');
-      if (saved === 'history' || saved === 'desk') setSurface(saved);
+      const saved = window.localStorage.getItem('noesis:ai-surface:v2');
+      if (saved === 'ask' || saved === 'history' || saved === 'desk') setSurface(saved);
     } catch { /* View preference is optional. */ }
   }, []);
-  const chooseSurface = (next: 'history' | 'desk') => {
+  const chooseSurface = (next: 'ask' | 'desk' | 'history') => {
     setSurface(next);
-    try { window.localStorage.setItem('noesis:context-desk-surface', next); } catch { /* View preference is optional. */ }
+    try { window.localStorage.setItem('noesis:ai-surface:v2', next); } catch { /* View preference is optional. */ }
   };
   const aiHistory = useMemo(() => collectAiHistory({ media, concepts, questions, positions, works, practices }), [media, concepts, questions, positions, works, practices]);
   const storageKeys = useMemo(() => workspaceKey ? contextDeskStorageKeys(workspaceKey) : null, [workspaceKey]);
@@ -439,6 +442,15 @@ export function ContextDeskRoutePage({
       });
   }, [conceptFilter, conceptNameById, dateFilter, exclusionRules, passesRefine, query, records, sortBy, sourceFilter, typeFilter]);
   const visibleRecords = filtered.slice(0, visibleLimit);
+  /** Ask offers matches when you search, and what you touched last otherwise. */
+  const askCandidates = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    const pool = normalized
+      ? records.filter((record) => record.label.toLowerCase().includes(normalized))
+      : [...records].sort((left, right) => dateValue(right.updatedAt) - dateValue(left.updatedAt));
+    return pool.slice(0, 8);
+  }, [query, records]);
+
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
@@ -555,10 +567,12 @@ export function ContextDeskRoutePage({
     <div className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain" data-noesis-scroll-region>
       <div className="noesis-gutter w-full pb-28 pt-[var(--page-top)] lg:pb-12">
       <PageHeader
-        title="Context Desk"
+        title="Noesis AI"
         description={surface === 'history'
           ? 'Past runs, and what each one actually read. Reopening a run shows you the result; running it again is a separate step.'
-          : 'Build a set of records, then choose what a single request reads. Filtering finds records; it never sends them on its own.'}
+          : surface === 'ask'
+            ? 'Ask a question and pull in what it should read. For a set you want to build carefully, use the Context Desk.'
+            : 'Build a set of records, then choose what a single request reads. Filtering finds records; it never sends them on its own.'}
         actions={surface === 'desk' && storageReady && savedDeskOwner ? (
           <Button type="button" variant="outline" onClick={() => setDrawersOpen(true)}>
             <FolderOpen size={16} aria-hidden="true" />Drawers
@@ -568,9 +582,10 @@ export function ContextDeskRoutePage({
           <WorkspaceTabs
             value={surface}
             onChange={chooseSurface}
-            label="Context Desk views"
+            label="Noesis AI views"
             items={[
-              { id: 'desk', label: 'Context Desk', icon: ScanSearch },
+              { id: 'ask', label: 'Ask Noesis', icon: Sparkles },
+              { id: 'desk', label: 'Context Desk', icon: ScanSearch, count: selectedKeys.length || undefined },
               { id: 'history', label: 'History', icon: History, count: aiHistory.length },
             ]}
           />
@@ -598,8 +613,90 @@ export function ContextDeskRoutePage({
           </SheetContent>
         </Sheet>
       )}
-      {surface === 'history' ? <NoesisAiHistory items={aiHistory} onNavigate={onNavigate} /> : (
-      <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
+      {surface === 'ask' && (
+        /* Ask Noesis: the short way in. One question, a few records pulled from
+           what you touched recently, and run. It shares the desk's selection,
+           so this is the same request seen from the other end rather than a
+           second place to keep context. */
+        <div className="mx-auto grid w-full max-w-3xl gap-5 py-6">
+          <div className="grid gap-3 rounded-[var(--card-radius)] border border-border bg-card p-5">
+            <label htmlFor="ask-noesis" className="noesis-eyebrow">Your question</label>
+            <Textarea
+              id="ask-noesis"
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              placeholder="What should Noesis examine across these records?"
+              className="min-h-24 resize-y text-base leading-7"
+            />
+            <div className="flex flex-wrap gap-2">
+              {CONTEXTUAL_AI_SUGGESTED_PROMPTS.review_selected_context.map((suggested) => (
+                <Button key={suggested} type="button" variant="outline" size="sm" className="h-auto whitespace-normal rounded-[var(--radius-pill)] py-1 text-left text-xs" onClick={() => setQuestion(suggested)}>
+                  {suggested}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-[var(--card-radius)] border border-border bg-card p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="noesis-eyebrow">What it should read</p>
+              <span className="ml-auto noesis-figure noesis-figure--sm">{selected.length} on the desk · reads {analysisRecords.length}</span>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your records" className="h-10 pl-10" aria-label="Search your records" />
+            </div>
+            <div className="grid gap-1.5">
+              <p className="text-xs leading-5 text-muted-foreground">{query.trim() ? 'Matching records' : 'Recently edited'}</p>
+              {askCandidates.map((record) => {
+                const active = selectedKeys.includes(record.key);
+                return (
+                  <button key={record.key} type="button"
+                    className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[var(--radius-panel)] border px-3 py-2 text-left',
+                      active ? 'border-[hsl(var(--revise))] bg-[hsl(var(--revise)/.1)]' : 'border-border hover:border-[hsl(var(--revise)/.6)]')}
+                    aria-pressed={active}
+                    onClick={() => toggleRecord(record)}>
+                    <span className="min-w-0">
+                      <span className="block text-label uppercase" style={{ color: `hsl(var(--kind-${record.type}))` }}>{contextTypeLabels[record.type]}</span>
+                      <span className="block truncate text-sm">{record.label}</span>
+                    </span>
+                    {active ? <Check className="size-4 text-[hsl(var(--revise))]" /> : <Plus className="size-4 text-muted-foreground" />}
+                  </button>
+                );
+              })}
+              {!askCandidates.length && <p className="py-4 text-center text-sm text-muted-foreground">Nothing matches that search.</p>}
+            </div>
+            <Button type="button" variant="ghost" size="sm" className="justify-self-start" onClick={() => chooseSurface('desk')}>
+              Build this carefully on the Context Desk →
+            </Button>
+          </div>
+
+          <div className="grid gap-3 rounded-[var(--card-radius)] border border-border bg-card p-5">
+            <AiUsageMeter owner={savedDeskOwner} refreshKey={usageKey} />
+            <ContextualAiPanel
+              actions={['review_selected_context']}
+              enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
+              showContextBeforeSending={aiSettings.showContextBeforeSending}
+              reasoningDepth={aiDepthFor(aiSettings, 'context-desk')}
+              reviewContextKey={contextDeskReviewKey(analysisRecords)}
+              buttonLabel={selected.length ? 'Ask Noesis' : 'Add something to read first'}
+              prompt={question}
+              onPromptChange={setQuestion}
+              buildEnvelope={buildEnvelope}
+              onAccept={async (result, content) => {
+                const created = await onAddDraft(contextDeskWorkDraft(result, content, analysisRecords), { result, records: analysisRecords });
+                setUsageKey((key) => key + 1);
+                onNavigate('writing', created.id);
+              }}
+            />
+            {!aiSettings.aiAssistanceEnabled && <p className="text-xs text-muted-foreground">Contextual assistance is disabled in Settings.</p>}
+          </div>
+        </div>
+      )}
+
+      {surface === 'history' && <NoesisAiHistory items={aiHistory} onNavigate={onNavigate} />}
+      {surface === 'desk' && (
+      <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         {/* The cabinet: drawers above Find because choosing one scopes
             everything, folders below because they are what you reach for while
             already working. */}
@@ -793,6 +890,20 @@ export function ContextDeskRoutePage({
               </div>
             )}
 
+            {/* The same question Ask holds, so a request reads whole here too. */}
+            <div className="grid gap-2 border-t border-border/60 pt-3">
+              <label htmlFor="desk-question" className="noesis-eyebrow noesis-eyebrow--sm">The question</label>
+              <Textarea id="desk-question" value={question} onChange={(event) => setQuestion(event.target.value)}
+                placeholder="What should Noesis examine across these records?" className="min-h-16 resize-y text-sm leading-6" />
+              <div className="flex flex-wrap gap-1.5">
+                {CONTEXTUAL_AI_SUGGESTED_PROMPTS.review_selected_context.map((suggested) => (
+                  <Button key={suggested} type="button" variant="outline" size="sm"
+                    className="h-auto whitespace-normal rounded-[var(--radius-pill)] px-2.5 py-1 text-left text-xs"
+                    onClick={() => setQuestion(suggested)}>{suggested}</Button>
+                ))}
+              </div>
+            </div>
+
             <AiUsageMeter className="border-t border-border/60 pt-3" owner={savedDeskOwner} refreshKey={usageKey} />
 
             <ContextualAiPanel
@@ -802,8 +913,8 @@ export function ContextDeskRoutePage({
               reasoningDepth={aiDepthFor(aiSettings, 'context-desk')}
               reviewContextKey={contextDeskReviewKey(analysisRecords)}
               buttonLabel={selected.length ? 'Analyze next review' : 'Select context first'}
-              promptLabel="What should Noesis examine across these records?"
-              promptPlaceholder="For example: Where do these records contradict each other, and what should I investigate next?"
+              prompt={question}
+              onPromptChange={setQuestion}
               buildEnvelope={buildEnvelope}
               acceptLabel={savingTo === 'work' ? 'Save as Work' : savingTo === 'experiment' ? 'Save experiment draft' : 'Save for review'}
               acceptDestination={<div className="mb-2 grid gap-2"><label className="grid gap-1 text-sm font-medium">
