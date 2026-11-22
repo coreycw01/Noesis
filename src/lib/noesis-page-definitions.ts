@@ -37,6 +37,12 @@ export const NOESIS_NAV_SECTION_TONE: Record<NoesisNavSection, string> = {
   More: 'more',
 };
 
+export function noesisPageTone(view: NoesisView, section: NoesisNavSection) {
+  return view === 'home' || view === 'profile' || view === 'settings'
+    ? 'theme'
+    : NOESIS_NAV_SECTION_TONE[section];
+}
+
 export interface NoesisPageDefinition {
   view: NoesisView;
   route: string;

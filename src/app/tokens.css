@@ -27,7 +27,7 @@
   --kind-inquiry: var(--stage-examine);
   --kind-position: var(--stage-claim);
   --kind-practice: var(--stage-act);
-  --kind-work: var(--stage-more);
+  --kind-work: var(--stage-integrate);
   --kind-exercise: var(--stage-act);
 
   /* Type scale. Nine steps, and nothing between them: an app with a dozen

@@ -290,7 +290,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
                 />
               </section>
             ) : (
-              <section className="noesis-philosophy-launch mb-6" data-stage-tone="integrate">
+              <section className="noesis-philosophy-launch mb-6" data-stage-tone="theme">
                 <div className="min-w-0">
                   <div className="noesis-stage-badge border-l-2 pl-2 noesis-eyebrow font-bold">Shape My Philosophy</div>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">A guided process through your workspace: survey, choose, clarify, ladder, examine, then write it in your own words. Noesis asks; you answer. It never writes your philosophy for you.</p>

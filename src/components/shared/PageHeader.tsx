@@ -4,7 +4,7 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
-import { NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import { NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, noesisPageTone } from '@/lib/noesis-page-definitions';
 import { parseNoesisRoute, type NoesisRouteTargetType, type NoesisView } from '@/lib/noesis-routes';
 import { RecentlyOpenedStrip } from '@/components/shared/RecentlyOpenedStrip';
 
@@ -37,7 +37,7 @@ export function PageHeader({ title, description, actions, meta, className, child
   const stage = pageSection && pageSection !== 'More' && pageSection !== section ? pageSection : null;
 
   return (
-    <header data-noesis-route={view} data-stage-tone={NOESIS_NAV_SECTION_TONE[pageSection]} className={cn('noesis-page-header', tabs && 'noesis-page-header--with-tabs', className)}>
+    <header data-noesis-route={view} data-stage-tone={noesisPageTone(view, pageSection)} className={cn('noesis-page-header', tabs && 'noesis-page-header--with-tabs', className)}>
       <div className="noesis-page-header__rule" aria-hidden="true" />
       {/* The title line: where the page sits in the flow reads beside the name
           rather than above it, so the header costs one row instead of two. */}

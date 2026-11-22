@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { NOESIS_ICONS, NOESIS_VIEW_ICON_KEYS } from '../../src/lib/noesis-icons';
-import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_LOOP_LABELS, NOESIS_LOOP_STAGES, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, pageNeedsData } from '../../src/lib/noesis-page-definitions';
+import { dataRequirementsForNoesisRoute, metadataForNoesisRouteState, NOESIS_LOOP_LABELS, NOESIS_LOOP_STAGES, NOESIS_NAV_SECTIONS, NOESIS_PAGE_BY_VIEW, NOESIS_PAGE_DEFINITIONS, noesisPageTone, pageNeedsData } from '../../src/lib/noesis-page-definitions';
+
+test('workspace utility pages use the chosen accent without changing collection or navigation tones', () => {
+  for (const view of ['home', 'profile', 'settings'] as const) {
+    assert.equal(noesisPageTone(view, NOESIS_PAGE_BY_VIEW[view].section), 'theme');
+  }
+  assert.equal(noesisPageTone('concepts', NOESIS_PAGE_BY_VIEW.concepts.section), 'outline');
+  assert.equal(noesisPageTone('vault', NOESIS_PAGE_BY_VIEW.vault.section), 'claim');
+  assert.equal(noesisPageTone('writing', NOESIS_PAGE_BY_VIEW.writing.section), 'integrate');
+  assert.equal(noesisPageTone('context-desk', NOESIS_PAGE_BY_VIEW['context-desk'].section), 'more');
+});
 
 test('Today loads its saved commitment visibility without visiting Settings first', () => {
   assert.ok(dataRequirementsForNoesisRoute(parseNoesisRoute('/home')).includes('goalPreferences'));
