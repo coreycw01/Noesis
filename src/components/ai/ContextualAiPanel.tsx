@@ -464,13 +464,13 @@ export function ContextualAiPanel({
         )}
       </span>
       <Dialog open={open} onOpenChange={changeOpen}>
-        {/* Opens in place, anchored under its button, as in the prototype; a bottom sheet on phones. */}
+        {/* Centred over the page. It used to open anchored under its button,
+            which meant a panel this tall landed below the fold and had to be
+            scrolled to — and being rendered in the page rather than a portal,
+            it moved with whatever was scrolling behind it. */}
         {open && <DialogContent
-          inline
           ref={inlinePanel}
           tabIndex={-1}
-          role="dialog"
-          aria-modal="false"
           onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); changeOpen(false); } }}
           className="noesis-ai-inline noesis-ai-dialog overflow-hidden p-0"
         >

@@ -474,12 +474,11 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 @media (max-width: 760px) { .noesis-concept-split { grid-template-columns: 1fr; } .noesis-concept-split__list { position: static; max-height: 40vh; } }
 /* Ask Noesis opens in place: a panel anchored under its dock, not a modal. */
 .noesis-aidock-anchor { position: relative; display: inline-flex; vertical-align: middle; }
-.noesis-ai-inline { position: absolute; z-index: 45; top: calc(100% + 8px); right: 0; width: min(980px, calc(100vw - 2rem)); height: min(78vh, 760px); text-align: left; border-radius: var(--radius-lg); border: 1.5px solid hsl(var(--revise) / .55) !important; background: hsl(var(--background)); box-shadow: 0 24px 60px -24px hsl(0 0% 0% / .7), 0 0 0 4px hsl(var(--revise) / .08); outline: none; }
+/* The assistance panel is sized and skinned here; the dialog itself handles
+   where it sits, which is the middle of the screen. */
+.noesis-ai-inline { width: min(980px, calc(100vw - 2rem)); max-width: none; height: min(78vh, 760px); text-align: left; border-radius: var(--radius-lg); border: 1.5px solid hsl(var(--revise) / .55) !important; background: hsl(var(--background)); box-shadow: 0 24px 60px -24px hsl(0 0% 0% / .7), 0 0 0 4px hsl(var(--revise) / .08); outline: none; }
 .noesis-ai-inline > div { height: 100%; }
-@media (max-width: 760px) {
-  .noesis-ai-inline, .noesis-ai-inline[data-side="left"] { position: fixed; z-index: 80; top: auto; left: 0; right: 0; bottom: 0; width: 100vw; height: 85dvh; border-radius: var(--radius-lg) 18px 0 0; }
-}
-.noesis-ai-inline[data-side="left"] { right: auto; left: 0; }
+@media (max-width: 760px) { .noesis-ai-inline { height: 85dvh; } }
 /* Concepts split: the prototype's Relations box. */
 .noesis-relations { display: grid; gap: 8px; padding: 16px 18px; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
 .noesis-relations__zone { display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--radius-panel); border: 1px dashed hsl(var(--stage) / .55); }
