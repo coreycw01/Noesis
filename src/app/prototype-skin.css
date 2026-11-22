@@ -20,9 +20,7 @@
   --border: 40 16% 85%;
   --input: 40 16% 85%;
   --surface: 0 0% 100%;
-  --accent: 33 87% 35%;
   --accent-foreground: 60 23% 97%;
-  --ring: 33 87% 35%;
   --proto-amber: 33 87% 35%;
   --card-radius: 14px;
   --button-radius: 20px;
@@ -45,11 +43,16 @@
   --border: 33 9% 19%;
   --input: 33 9% 19%;
   --surface: 30 7% 11%;
-  --accent: 35 73% 55%;
   --accent-foreground: 30 10% 8%;
-  --ring: 35 73% 55%;
   --proto-amber: 35 73% 55%;
 }
+
+/* The prototype amber is the accent only when no appearance theme is chosen.
+   These used to sit on bare :root and .dark, which load after theme.css and so
+   overwrote every theme's accent — the picker changed the surfaces around a
+   page but never the accent itself. */
+:root:not([data-theme]) { --accent: 33 87% 35%; --ring: 33 87% 35%; }
+.dark:not([data-theme]) { --accent: 35 73% 55%; --ring: 35 73% 55%; }
 
 body { background: hsl(var(--background)); font-family: "Spectral", Georgia, serif; }
 
@@ -117,7 +120,12 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
 .noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--stage-act); }
 .noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--stage-integrate); }
-.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--stage-more); }
+/* More follows the chosen appearance theme rather than holding one fixed
+   colour, because it is a place to go, not a stage of the Loop. It reads
+   --nav-accent, resolved once on :root, because pages rewrite --accent to
+   their own stage tone and More would otherwise change on every navigation. */
+:root { --nav-accent: var(--accent); }
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--nav-accent); }
 .noesis-loop__divider { background: hsl(var(--border)); }
 .noesis-loop__link { background: hsl(var(--border)); }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }
@@ -347,10 +355,12 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 /* The interface shape setting wins over the skin's defaults. */
 :root[data-interface-shape="square"] { --card-radius: 6px; --button-radius: 4px; }
 :root[data-interface-shape="pills"] { --card-radius: 14px; --button-radius: 20px; }
-/* AI assistance, as in the prototype: a dashed dock in the "revise" violet. */
+/* AI assistance in the "revise" violet. The dock is a grouping only: the
+   button carries its own outline, so a dashed box around it was a second
+   border saying the same thing. */
 :root { --revise: 270 30% 43%; }
 .dark { --revise: 276 28% 71%; }
-.noesis-aidock { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border: 1px dashed hsl(var(--revise) / .5); border-radius: var(--radius-panel); background: hsl(var(--revise) / .05); }
+.noesis-aidock { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .noesis-ai-trigger { border: 1.5px solid hsl(var(--revise)) !important; box-shadow: 0 0 0 3px hsl(var(--revise) / .15); background: hsl(var(--revise) / .1) !important; color: hsl(var(--revise)) !important; font-weight: 600; }
 .noesis-ai-trigger:hover { box-shadow: 0 0 0 5px hsl(var(--revise) / .22); background: hsl(var(--revise) / .18) !important; }
 .noesis-aidock__depth { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--revise)); border: 1px dotted hsl(var(--revise) / .6); border-radius: var(--radius-pill); padding: 2px 8px; }
@@ -567,3 +577,42 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-praxis-instrument .noesis-praxis-checkin { padding-top: 0; }
 .noesis-answers__remove { margin-left: 4px; width: 28px; height: 28px; flex: none; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); font-size: var(--text-lg); line-height: 1; }
 .noesis-answers__remove:hover:not(:disabled) { border-color: hsl(var(--stage-claim)); color: hsl(var(--stage-claim)); }
+
+/* ---------- Context Desk: a surface with slips laid out on it ---------- */
+/* Records on the desk are objects you move, not rows in a table. The cut is
+   drawn across the surface because where a request stops reading is a fact
+   about the pile, not a note about it. */
+.noesis-desk {
+  background:
+    linear-gradient(hsl(var(--muted) / .5), hsl(var(--muted) / .5)),
+    repeating-linear-gradient(103deg, transparent 0 7px, hsl(var(--foreground) / .012) 7px 8px);
+  box-shadow: inset 0 1px 0 hsl(var(--foreground) / .05);
+}
+.noesis-desk__slip {
+  position: relative;
+  border-bottom: 1px solid hsl(var(--border) / .55);
+  transition: background .12s ease, opacity .12s ease;
+}
+.noesis-desk__slip:last-child { border-bottom: 0; }
+/* The slips a request actually reads sit on paper; the rest wait on the wood. */
+.noesis-desk__slip[data-reads] { background: hsl(var(--card) / .72); }
+.noesis-desk__slip[data-reads]::before {
+  content: ""; position: absolute; inset: 0 auto 0 -.75rem; width: 2px;
+  background: hsl(var(--revise) / .55);
+}
+.noesis-desk__slip[data-dragging] { opacity: .4; }
+.noesis-desk__slip[data-over] { background: hsl(var(--revise) / .14); }
+.noesis-desk__slip[data-over]::after {
+  content: ""; position: absolute; inset: -1px auto auto -.75rem; right: -.75rem; height: 2px;
+  background: hsl(var(--revise));
+}
+.noesis-desk__cut {
+  display: flex; align-items: center; gap: .6rem;
+  margin: 0 -.75rem; padding: .35rem .75rem;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase;
+  color: hsl(var(--revise));
+  background: hsl(var(--revise) / .07);
+  border-block: 1px dashed hsl(var(--revise) / .45);
+}
+.noesis-desk__cut::after { content: ""; flex: 1; border-top: 1px dashed hsl(var(--revise) / .45); }

@@ -1,12 +1,14 @@
 "use client";
 
 import { ContextDrawers } from '@/components/ai/ContextDrawers';
+import { AiUsageMeter } from '@/components/ai/AiUsageMeter';
+import { deskComposition, deskSuggestions, type DeskItem } from '@/lib/context-desk-suggestions';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
-import { Check, Filter, FolderOpen, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, Filter, FolderOpen, GripVertical, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { buildContextDeskMemory, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { contextDeskWorkDraft, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
@@ -20,7 +22,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -342,6 +343,26 @@ export function ContextDeskRoutePage({
   const [memberLimit, setMemberLimit] = useState(40);
   // Drawers live behind a panel so the Desk itself keeps the room it needs.
   const [drawersOpen, setDrawersOpen] = useState(false);
+  /** Bumped after a review, so the usage meter re-reads rather than going stale. */
+  const [usageKey, setUsageKey] = useState(0);
+  // Which slip is in hand, and which one it is hovering over.
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  /**
+   * Put one slip where another sits. Order is not decoration here: the first
+   * records on the desk are the ones a request reads, so moving a slip up the
+   * pile is how you decide what goes in.
+   */
+  const moveSelected = (from: string, to: string) => {
+    if (from === to) return;
+    setSelectedKeys((keys) => {
+      const target = keys.indexOf(to);
+      if (target < 0 || !keys.includes(from)) return keys;
+      const next = keys.filter((key) => key !== from);
+      next.splice(keys.indexOf(from) < target ? target : target, 0, from);
+      return next;
+    });
+  };
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const dateWindow = dateFilter === 'all' ? 0 : ({ '7d': 7, '30d': 30, '90d': 90, year: 365 } as const)[dateFilter];
@@ -363,6 +384,35 @@ export function ContextDeskRoutePage({
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
+  /** An inquiry is worth suggesting only while it is still open. */
+  const inquiryStatusByKey = useMemo(
+    () => new Map(questions.map((item) => [`inquiry:${item.id}`, String(item.status || 'open')])),
+    [questions],
+  );
+  // What the desk is made of, and what is missing from it. Both read links
+  // the workspace already stores; neither calls a model.
+  const deskItems = useMemo<DeskItem[]>(() => selected.map((record) => ({
+    key: record.key, type: record.type, label: record.label,
+    sourceIds: record.sourceIds, conceptIds: record.conceptIds,
+  })), [selected]);
+  const poolItems = useMemo<DeskItem[]>(() => records.map((record) => ({
+    key: record.key, type: record.type, label: record.label,
+    sourceIds: record.sourceIds, conceptIds: record.conceptIds,
+    open: record.type === 'inquiry'
+      ? !/resolved|converted|no_longer_meaningful|archived/i.test(inquiryStatusByKey.get(record.key) || 'open')
+      : undefined,
+  })), [records, inquiryStatusByKey]);
+  const composition = useMemo(
+    () => deskComposition(deskItems, (type) => contextTypeLabels[type as ContextRecordType] || type),
+    [deskItems],
+  );
+  const bringIn = useMemo(
+    () => deskSuggestions(deskItems, poolItems, (id) => conceptNameById.get(id) || id)
+      .map((hit) => ({ ...hit, record: recordsByKey.get(hit.key) }))
+      .filter((hit): hit is typeof hit & { record: ContextRecord } => Boolean(hit.record)),
+    [conceptNameById, deskItems, poolItems, recordsByKey],
+  );
+
   const selectedGroups = useMemo(() => (Object.keys(contextTypeLabels) as ContextRecordType[]).map((type) => ({
     type,
     records: analysisRecords.filter((record) => record.type === type),
@@ -641,59 +691,62 @@ export function ContextDeskRoutePage({
         </section>
 
         <section aria-labelledby="selected-context-heading" className="min-w-0 border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 id="selected-context-heading" className="text-lg font-semibold">Selected context</h2>
-              <p className="mt-1 text-sm text-muted-foreground">This exact set is sent for review.</p>
-            </div>
-            {selected.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys([])}>Clear</Button>}
-          </div>
-
-          <div className="mt-4 min-h-36 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25 px-3">
-            {selected.slice(0, memberLimit).map((record, index) => {
-              const Icon = iconForNoesisView(viewForType[record.type]);
-              return (
-                <div key={record.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)_2.5rem] items-start gap-2 py-3">
-                  <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
-                  <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
-                    <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
-                    <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
-                    <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{index < MAX_CONTEXT_ITEMS ? 'Next review: ' : 'On desk: '}{record.summary}</span>
-                  </button>
-                  <div className="grid justify-items-end">
-                  {index >= MAX_CONTEXT_ITEMS && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Prioritize ${record.label} for the next review`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
-                  <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Remove ${record.label} from context`}><X className="size-4" /></Button>
-                  </div>
-                </div>
-              );
-            })}
-            {selected.length > memberLimit && <Button type="button" variant="outline" onClick={() => setMemberLimit(limit => limit + 40)}>Show more desk items</Button>}
-            {!selected.length && <div className="flex min-h-36 items-center justify-center px-5 text-center text-sm leading-6 text-muted-foreground">Select at least one record to begin. Two or more records are best for comparison and contradiction checks.</div>}
-          </div>
-
-          {staleSelectionCount > 0 && (
-            <div className="mt-3 flex items-center justify-between gap-3 border-l-2 border-destructive/60 pl-3 text-xs leading-5 text-muted-foreground">
-              <span>{staleSelectionCount} previously selected {staleSelectionCount === 1 ? 'record is' : 'records are'} no longer available and will not be sent.</span>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys(keys => keys.filter(key => recordsByKey.has(key)))}>Remove stale</Button>
-            </div>
-          )}
-          {selectedKeys.length >= MAX_DESK_ITEMS && (
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">Selection limit reached. Remove an item before adding another; no unselected records will be included.</p>
-          )}
-
-          <Separator className="my-5" />
-          <div className="sticky bottom-3 z-10 space-y-3 rounded-[var(--card-radius)] border border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88">
+          {/* What will be sent, what to check, and the run — kept at the top
+              and still. As a sticky footer this panel slid under the cursor
+              every time the selection changed length. */}
+          <div className="space-y-3 rounded-[var(--card-radius)] border border-border bg-card/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
-                <p className="mt-1 text-xs text-muted-foreground">The next review uses excerpts from the first {analysisRecords.length} of {selected.length} available desk items.</p>
+              <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
+              <Button ref={reviewButton} type="button" variant="secondary" tone="ai" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
+            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              This request reads {analysisRecords.length} of {selected.length}. You choose where the finding lands when you accept it — the records themselves are never changed.
+            </p>
+
+            {/* What the desk is made of. A set drawn from one page rarely turns
+                up a tension, and the count of kinds is what says so. */}
+            {selected.length > 0 && (
+              <div className="grid gap-1.5 border-t border-border/60 pt-3">
+                <div className="flex h-1.5 overflow-hidden rounded-[var(--radius-pill)] bg-muted" aria-hidden="true">
+                  {composition.counts.map(({ type, count }) => (
+                    <span key={type} style={{ width: `${(count / composition.total) * 100}%`, background: `hsl(var(--kind-${type}))` }} />
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {composition.counts.map(({ type, count }) => (
+                    <span key={type} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <i className="size-1.5 rounded-[2px]" style={{ background: `hsl(var(--kind-${type}))` }} aria-hidden="true" />
+                      {contextTypeLabels[type as ContextRecordType]} {count}
+                    </span>
+                  ))}
+                </div>
+                <p className={cn('text-xs leading-5', composition.tone === 'thin' ? 'text-[hsl(var(--caution))]' : 'text-muted-foreground')}>
+                  {composition.verdict}
+                </p>
               </div>
-              <Button ref={reviewButton} type="button" variant="outline" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold">Review destination</h3>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Approved findings become a new editable Work. The selected records remain unchanged.</p>
-            </div>
+            )}
+
+            {/* What is missing, from links the workspace already holds. */}
+            {bringIn.length > 0 && (
+              <div className="grid gap-2 border-t border-border/60 pt-3">
+                <p className="noesis-eyebrow noesis-eyebrow--sm">Bring in?</p>
+                {bringIn.map((hit) => (
+                  <div key={hit.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-[var(--radius-panel)] border border-dashed border-[hsl(var(--revise)/.5)] bg-[hsl(var(--revise)/.07)] px-3 py-2">
+                    <i className="mt-1.5 size-1.5 rounded-full" style={{ background: `hsl(var(--kind-${hit.record.type}))` }} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-5">{hit.record.label}</p>
+                      <p className="text-xs leading-5 text-muted-foreground">{hit.why}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Bring ${hit.record.label} onto the desk`} onClick={() => toggleRecord(hit.record)}>
+                      <Plus className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <AiUsageMeter className="border-t border-border/60 pt-3" owner={savedDeskOwner} refreshKey={usageKey} />
+
             <ContextualAiPanel
               actions={['review_selected_context']}
               enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
@@ -737,11 +790,75 @@ export function ContextDeskRoutePage({
                   return;
                 }
                 const created = await onAddDraft(contextDeskWorkDraft(result, content, analysisRecords), { result, records: analysisRecords });
+                setUsageKey((key) => key + 1);
                 onNavigate('writing', created.id);
               }}
             />
             {!aiSettings.aiAssistanceEnabled && <p className="text-xs text-muted-foreground">Contextual assistance is disabled in Settings.</p>}
           </div>
+
+          <div className="mt-6 flex items-end justify-between gap-3">
+            <h2 id="selected-context-heading" className="text-lg font-semibold">Selected context</h2>
+            {selected.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys([])}>Clear</Button>}
+          </div>
+
+          {/* The desk itself. Records are slips laid out on it, and the cut —
+              where this request stops reading — is a line drawn across the
+              surface rather than a sentence about one. Drag a slip over the
+              line to put it in the request; the Plus button does the same
+              thing from the keyboard. */}
+          <div className="noesis-desk mt-4 min-h-36 overflow-hidden rounded-[var(--card-radius)] border border-border px-3">
+            {selected.slice(0, memberLimit).map((record, index) => {
+              const Icon = iconForNoesisView(viewForType[record.type]);
+              const reads = index < MAX_CONTEXT_ITEMS;
+              return (
+                <Fragment key={record.key}>
+                  {index === MAX_CONTEXT_ITEMS && (
+                    <div className="noesis-desk__cut" role="separator" aria-label={`This request stops after ${MAX_CONTEXT_ITEMS} records`}>
+                      <span>reads to here · {MAX_CONTEXT_ITEMS}</span>
+                    </div>
+                  )}
+                  <div
+                    draggable
+                    onDragStart={(event) => { setDragKey(record.key); event.dataTransfer.effectAllowed = 'move'; }}
+                    onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                    onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setOverKey(record.key); }}
+                    onDragLeave={() => setOverKey((key) => key === record.key ? null : key)}
+                    onDrop={(event) => { event.preventDefault(); if (dragKey) moveSelected(dragKey, record.key); setDragKey(null); setOverKey(null); }}
+                    data-reads={reads || undefined}
+                    data-dragging={dragKey === record.key || undefined}
+                    data-over={overKey === record.key && dragKey !== record.key || undefined}
+                    className="noesis-desk__slip grid grid-cols-[1.25rem_1.5rem_minmax(0,1fr)_auto] items-start gap-2 py-3"
+                  >
+                    <GripVertical className="mt-1 size-4 cursor-grab text-muted-foreground/50 active:cursor-grabbing" aria-hidden="true" />
+                    <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
+                    <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
+                      <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
+                      <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
+                      <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
+                    </button>
+                    <div className="flex items-start justify-end">
+                    {!reads && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Move ${record.label} into this request`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
+                    <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Take ${record.label} off the desk`}><X className="size-4" /></Button>
+                    </div>
+                  </div>
+                </Fragment>
+              );
+            })}
+            {selected.length > memberLimit && <Button type="button" variant="outline" className="my-3" onClick={() => setMemberLimit(limit => limit + 40)}>Show more desk items</Button>}
+            {!selected.length && <div className="flex min-h-36 items-center justify-center px-5 text-center text-sm leading-6 text-muted-foreground">The desk is clear. Add records from the left, then drag them into the order you want them read.</div>}
+          </div>
+
+          {staleSelectionCount > 0 && (
+            <div className="mt-3 flex items-center justify-between gap-3 border-l-2 border-destructive/60 pl-3 text-xs leading-5 text-muted-foreground">
+              <span>{staleSelectionCount} previously selected {staleSelectionCount === 1 ? 'record is' : 'records are'} no longer available and will not be sent.</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys(keys => keys.filter(key => recordsByKey.has(key)))}>Remove stale</Button>
+            </div>
+          )}
+          {selectedKeys.length >= MAX_DESK_ITEMS && (
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">Selection limit reached. Remove an item before adding another; no unselected records will be included.</p>
+          )}
+
         </section>
       </div>
       )}

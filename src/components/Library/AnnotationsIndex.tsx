@@ -251,10 +251,6 @@ export function AnnotationsIndex({
       || annotation.createdPositionId
     );
   };
-  const missingSourceContext = (annotation: FlatAnnotation) => {
-    const status = annotationStatus(annotation);
-    return !['archived', 'dismissed'].includes(status) && !annotation.context?.trim();
-  };
   const needsSupportDirection = (annotation: FlatAnnotation) => {
     const status = annotationStatus(annotation);
     if (['archived', 'reference_only', 'used_in_position'].includes(status)) return false;
@@ -1171,9 +1167,11 @@ export function AnnotationsIndex({
         {viewMode !== 'table' && filtered.map((annotation) => {
           const selectedEffect = selectedEffectForAnnotation(annotation);
           const relatedInquiry = linkedInquiriesFor(annotation)[0];
+          // What the annotation turned into. A linked inquiry is not listed
+          // here: the footer button already reads "Open inquiry", so saying it
+          // twice only made the card taller.
           const relationLabels: Array<{ label: string; tone: BadgeTone }> = [
             ...(annotation.createdPositionId ? [{ label: 'Formed position', tone: 'position' as const }] : []),
-            ...(relatedInquiry ? [{ label: 'Linked inquiry', tone: 'inquiry' as const }] : []),
             ...((annotation.linkedPositionIds || []).length ? [{ label: `${(annotation.linkedPositionIds || []).length} linked position${(annotation.linkedPositionIds || []).length === 1 ? '' : 's'}`, tone: 'position' as const }] : []),
             ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [{ label: `Clarifies ${annotationTags(annotation)[0]}`, tone: 'concept' as const }] : []),
           ];
@@ -1195,18 +1193,17 @@ export function AnnotationsIndex({
                   aria-label={`Select annotation from ${annotation.source.title}`}
                 />
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
                   <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-foreground">
                     {annotationLabel(annotationType(annotation))}
                   </span>
                   <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm font-bold">
                     {annotationLabel(annotationStatus(annotation))}
                   </Badge>
-                  {missingSourceContext(annotation) && (
-                    <Badge tone="caution">add context</Badge>
-                  )}
                   {normalizeConceptTags(annotation.conceptTags || annotation.source.tags).slice(0, 3).map((tag) => (
                     <Badge key={tag} tone="concept">{tag}</Badge>
+                  ))}
+                  {relationLabels.map((relation) => (
+                    <Badge key={relation.label} tone={relation.tone}>{relation.label}</Badge>
                   ))}
                 </div>
               </div>
@@ -1229,34 +1226,31 @@ export function AnnotationsIndex({
               {annotation.context?.trim() && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context}</p>}
             </button>
 
-            <div className="flex flex-wrap items-center gap-2 border-t border-border/30 px-4 py-3">
-              {relationLabels.map((relation) => (
-                <Badge key={relation.label} tone={relation.tone}>{relation.label}</Badge>
-              ))}
-              <span className="flex-1" />
-              <Button
-                type="button"
-                variant={relatedInquiry || annotation.createdPositionId ? 'secondary' : 'outline'}
-                tone={relatedInquiry ? 'inquiry' : annotation.createdPositionId ? 'position' : undefined}
-                size="sm"
-                onClick={() => {
-                  if (relatedInquiry) onNavigate?.('questions', relatedInquiry.id);
-                  else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
-                  else openAnnotationDetail(annotation);
-                }}
-              >
-                {relatedInquiry ? 'Open inquiry' : annotation.createdPositionId ? 'Open position' : 'Review impact'}
-              </Button>
-            </div>
-
-            <div className="flex min-w-0 items-center gap-2 border-t border-border/40 px-4 py-3">
+            {/* Where it came from on the left, where it leads on the right. The
+                two used to be separate rows, which made every card a line
+                taller than it needed to be. */}
+            <div className="flex min-w-0 items-center gap-3 border-t border-border/40 px-4 py-3">
                 <div className="flex size-5 shrink-0 items-center justify-center rounded bg-muted/40">
                   <BookOpen className="size-3 text-muted-foreground/60" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium leading-tight text-muted-foreground">{annotation.source.title}</p>
                   <p className="mt-0.5 truncate noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{annotation.source.creator || MEDIA_LABELS[annotation.source.type]}</p>
                 </div>
+                <Button
+                  type="button"
+                  className="shrink-0"
+                  variant={relatedInquiry || annotation.createdPositionId ? 'secondary' : 'outline'}
+                  tone={relatedInquiry ? 'inquiry' : annotation.createdPositionId ? 'position' : undefined}
+                  size="sm"
+                  onClick={() => {
+                    if (relatedInquiry) onNavigate?.('questions', relatedInquiry.id);
+                    else if (annotation.createdPositionId) onNavigate?.('vault', annotation.createdPositionId);
+                    else openAnnotationDetail(annotation);
+                  }}
+                >
+                  {relatedInquiry ? 'Open inquiry' : annotation.createdPositionId ? 'Open position' : 'Review impact'}
+                </Button>
             </div>
           </Card>
           );

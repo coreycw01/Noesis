@@ -867,6 +867,20 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
         });
       }
 
+      // At the closest distance the definition owns the middle of its island.
+      // Claim that ground before any landmark is labelled, so a long title
+      // steps aside for it instead of printing straight through it.
+      if (deepA > 0.01) {
+        visibleConcepts.forEach((concept) => {
+          if (!concept.definition) return;
+          const [x, y] = toScreen(concept.wx, concept.wy);
+          const span = Math.min(190, 46 * k);
+          ctx.font = `italic ${Math.min(17, 3.4 * k)}px "Playfair Display", Georgia, serif`;
+          const lines = Math.max(1, Math.ceil(ctx.measureText(concept.definition).width / span));
+          placed.push([x - span / 2 - 6, y - 26, span + 12, lines * 19 + 44]);
+        });
+      }
+
       // ---------- near: the landmarks on the island ----------
       if (recordA > 0.01) {
         world.records.forEach((record) => {
@@ -882,7 +896,13 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           if (selected?.kind === 'record' && selected.record.id === record.id) {
             ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, s * 2.2, 0, 7); ctx.stroke();
           }
-          if (recordA > 0.45) label(record.label.length > 30 ? `${record.label.slice(0, 28)}…` : record.label, x, y + s * 2.4, '13px Spectral, Georgia, serif', alpha(ink, 0.92));
+          // A name grows with the zoom. Far out, where a screen holds many
+          // islands, it is cut so the ground stays readable; once you are in
+          // close on one island there is room, and the title is given whole.
+          // Nothing collides: label() drops any name that would overlap one
+          // already drawn.
+          const room = k >= 3 ? Infinity : Math.round(18 + 9 * k);
+          if (recordA > 0.45) label(record.label.length > room ? `${record.label.slice(0, room - 1)}…` : record.label, x, y + s * 2.4, '13px Spectral, Georgia, serif', alpha(ink, 0.92));
           ctx.globalAlpha = 1;
         });
       }
