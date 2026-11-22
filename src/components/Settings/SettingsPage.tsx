@@ -1442,7 +1442,7 @@ const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string
   { key: 'claim', stage: 'Stand', pages: 'Positions, Works' },
   { key: 'act', stage: 'Implement', pages: 'Praxis, Exercises, Commitments' },
   { key: 'integrate', stage: 'Survey', pages: 'Atlas, Evolution' },
-  { key: 'more', stage: 'More', pages: 'Profile, Settings, Noesis AI' },
+  { key: 'more', stage: 'More', pages: 'Profile, Settings, Context Desk' },
 ];
 
 /* Colours a person picks for their own pages. These are data, not design

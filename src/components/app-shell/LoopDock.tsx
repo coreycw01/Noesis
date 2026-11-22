@@ -45,7 +45,7 @@ const LOOP_STAGES: NoesisNavSection[] = [...NOESIS_LOOP_STAGES];
 /**
  * The Loop: a floating dock that lays navigation out as the thinking cycle.
  * Each stage is a ring; opening one shows its pages. Today sits on the left,
- * More (Works, Noesis AI, Settings, Profile, Find) on the right, and the
+ * More (Works, Context Desk, Settings, Profile, Find) on the right, and the
  * whole dock folds down to a single pill when it is in the way.
  */
 export function LoopDock({ items, activeView, attention, onNavigate, onFind, onOpenProfile }: {
@@ -185,7 +185,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
       {aiItem && (
         <button type="button" className="noesis-loop__ask" aria-current={activeView === 'context-desk' ? 'page' : undefined} onClick={() => go('context-desk')}>
           <NoesisAiMark className="size-5" />
-          <span>Noesis AI</span>
+          <span>Context Desk</span>
         </button>
       )}
       {stageButton('More')}

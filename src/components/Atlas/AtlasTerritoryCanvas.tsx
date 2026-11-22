@@ -55,9 +55,15 @@ export type AtlasCanvasSelection =
 /** Three reading distances. Zoom runs smoothly between and past them. */
 const LEVELS: Array<[string, number]> = [['Regions', 0.13], ['Concepts', 0.8], ['Records', 2.4]];
 
+/**
+ * A landmark takes the colour of its own kind, read from the same `--kind-*`
+ * tokens the rest of the app reads. The map used to name the stage colours
+ * directly and had drifted: works were drawn in the Integrate purple while
+ * every other surface drew them in the works colour.
+ */
 const RECORD_TONE: Record<RecordType, string> = {
-  position: '--stage-claim', inquiry: '--stage-examine', source: '--stage-encounter',
-  practice: '--stage-act', work: '--stage-integrate', annotation: '--stage-encounter',
+  position: '--kind-position', inquiry: '--kind-inquiry', source: '--kind-source',
+  practice: '--kind-practice', work: '--kind-work', annotation: '--kind-annotation',
 };
 /** Each record wears the glyph its own tab wears. */
 const GLYPH_FOR: Record<RecordType, NoesisGlyphKey> = {
@@ -95,12 +101,111 @@ export function elevationRings(involvement: number) {
 }
 
 /**
+ * The clear air a landmark needs around its centre, in world units.
+ *
+ * A landmark's glyph spans about 17 world units at the Records distance, so a
+ * seat of 26 leaves air on every side at the zoom where landmarks are read.
+ * Spacing is a constant, not a proportion: a landmark does not become easier
+ * to tell apart because it sits on a bigger island.
+ */
+const SEAT = 26;
+/** Islands are drawn flattened, so a seat needs more room north–south. */
+const ISLAND_SQUASH = 0.85;
+/** The first ring stands off the summit, where the elevation mark sits. */
+const FIRST_RING = SEAT * 0.95;
+/** Shore left between the outermost landmark and the coastline. */
+const SHORE = SEAT * 0.8;
+
+/** The radial step between rings, widened because the island is flattened. */
+const RADIAL = SEAT / ISLAND_SQUASH;
+
+/** How many seats fit on one ring before they start to crowd. */
+function ringCapacity(reach: number) {
+  return Math.max(1, Math.floor((Math.PI * 2 * reach * ISLAND_SQUASH) / SEAT));
+}
+
+/**
+ * Where a concept's landmarks stand, and how big its island has to be to hold
+ * them without crowding.
+ *
+ * Landmarks sit on concentric rings. Every seat clears its neighbours by at
+ * least one `SEAT` — along a ring because the ring's capacity is worked out
+ * from its own circumference, and between rings because the rings never step
+ * closer than `RADIAL`. That is the whole guarantee: **the count decides the
+ * size**, and a concept can never end up with more landmarks than its ground
+ * can seat.
+ *
+ * Called with a count alone, it packs as tightly as it legibly can and reports
+ * the smallest island that works — which is what floors `islandRadius`. Called
+ * with the island it is actually seating, it opens the rings out across the
+ * ground available, so a worked-over concept's records are spread over its
+ * island rather than huddled on the summit of a large empty one.
+ *
+ * Seats come back ordered from the summit outward, which is what gives sources
+ * the coast: they are seated last, so they take the outermost ring.
+ */
+export function islandSeating(count: number, island?: number) {
+  const seats: Array<{ reach: number; angle: number }> = [];
+  // Nothing rests on it, so nothing has to fit: an untouched concept is left
+  // to whatever size the growth curve gives it.
+  if (count <= 0) return { radius: 0, seats };
+
+  // The tightest legible packing, which sets the smallest island that works.
+  let tight = FIRST_RING;
+  let held = 0;
+  let needed = 1;
+  while (held + ringCapacity(tight) < count) { held += ringCapacity(tight); tight += RADIAL; needed += 1; }
+  const radius = tight + SHORE;
+
+  // Then spread over the ground the island actually has.
+  const edge = Math.max(FIRST_RING, Math.max(island ?? radius, radius) - SHORE);
+  const rings = Math.max(needed, Math.min(Math.floor((edge - FIRST_RING) / RADIAL) + 1, count));
+  const step = rings > 1 ? (edge - FIRST_RING) / (rings - 1) : 0;
+  const reaches = Array.from({ length: rings }, (_, ring) => FIRST_RING + ring * step);
+  const caps = reaches.map(ringCapacity);
+
+  // Share the landmarks out by how much room each ring has, never leaving a
+  // ring bare and never pushing one past what it can hold.
+  const room = caps.reduce((sum, cap) => sum + cap, 0);
+  const take = caps.map((cap) => Math.max(1, Math.min(cap, Math.floor((count * cap) / room))));
+  const spare = () => take.reduce((sum, value) => sum + value, 0);
+  while (spare() < count) {
+    let best = 0;
+    for (let ring = 1; ring < rings; ring += 1) if (caps[ring] - take[ring] > caps[best] - take[best]) best = ring;
+    take[best] += 1;
+  }
+  while (spare() > count) {
+    let best = 0;
+    for (let ring = 0; ring < rings; ring += 1) if (take[ring] > take[best]) best = ring;
+    if (take[best] <= 1) break;
+    take[best] -= 1;
+  }
+
+  reaches.forEach((reach, ring) => {
+    // Each ring is turned by a share of its own step so the rings do not line
+    // up into spokes running down the hillside.
+    const turn = ring * 2.399;
+    for (let seat = 0; seat < take[ring]; seat += 1) {
+      seats.push({ reach, angle: turn + (seat / take[ring]) * Math.PI * 2 });
+    }
+  });
+  return { radius, seats };
+}
+
+/**
  * An island grows with what rests on it, and the growth diminishes: doubling
  * the work adds the same small step each time, so a busy concept never eats
  * its neighbours' water. Confidence and repeated edits do not enter into it.
+ *
+ * Whatever that curve says, the island is never smaller than the room its own
+ * landmarks need: `landmarks` sets a floor, so a crowded concept grows until
+ * its records have space rather than stacking them on top of each other.
  */
-export function islandRadius(involvement: number, clarity: number) {
-  return Math.round(30 + 21 * Math.log2(1 + Math.max(0, involvement)) + 6 * Math.max(0, clarity));
+export function islandRadius(involvement: number, clarity: number, landmarks = 0) {
+  const grown = 30 + 21 * Math.log2(1 + Math.max(0, involvement)) + 6 * Math.max(0, clarity);
+  // The seating floor rounds up, never down: rounding an island a fraction
+  // smaller than its own seats need would put a landmark in the water.
+  return Math.max(Math.round(grown), Math.ceil(islandSeating(landmarks).radius));
 }
 
 /**
@@ -163,35 +268,108 @@ export function orderRegionConcepts(concepts: Array<Pick<Concept, 'id' | 'name' 
   return [...chain.slice(seam), ...chain.slice(0, seam)].map((concept) => concept.id);
 }
 
-export function buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works, commitments }: {
+/**
+ * A small deterministic generator, seeded from a stable string.
+ *
+ * Seeded from the region's **id**, never its index, so adding or removing a
+ * region leaves every other constellation exactly as it was.
+ */
+function seeded(id: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) { hash ^= id.charCodeAt(index); hash = Math.imul(hash, 16777619); }
+  return () => {
+    hash += 0x6d2b79f5;
+    let t = hash;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Open water left between two coastlines. */
+const WATER = 46;
+
+/**
+ * The shape of one region's constellation.
+ *
+ * A regular ring would give every region with the same number of concepts the
+ * same outline, so five four-concept regions would be five identical squares.
+ * Each region instead draws its own figure from its id: its own rotation, how
+ * flattened it is, which way it leans, how wide each concept's wedge of sky
+ * is, and a slow swell in and out of the centre.
+ *
+ * Two things are deliberately held fixed. The **order** around the ring is
+ * left exactly as `orderRegionConcepts` worked it out — each concept is
+ * jittered only within its own wedge, so concepts marked easy to confuse stay
+ * neighbours. And the figure is sized by scaling it **whole**: the shape the
+ * seed drew is kept, and grown until every pair of coastlines clears open
+ * water. Nudging stars apart one at a time would pull every constellation back
+ * toward a circle, which is the thing being fixed.
+ *
+ * Because the clearance is read from the islands' own radii, a region of
+ * worked-over concepts opens out to make room for them.
+ */
+export function constellationShape(seed: string, radii: number[]) {
+  const count = radii.length;
+  if (count === 0) return [];
+  if (count === 1) return [{ dx: 0, dy: 0 }];
+  const random = seeded(seed);
+  const turn = random() * Math.PI * 2;
+  const squash = 0.62 + random() * 0.38;
+  const lean = (random() - 0.5) * 0.6;
+  // How far the figure is allowed to depart from a plain ring. A small region
+  // has sky to spare, so it can be pulled about freely; a crowded one is held
+  // closer to the ring, because the scale that clears its coastlines is set by
+  // its tightest pair and wild shapes would push every region apart.
+  const licence = 0.22 + 1.8 / count;
+  const swell = { amount: Math.min(0.46, 0.08 + random() * licence), pace: 1 + Math.floor(random() * 3), phase: random() * Math.PI * 2 };
+  // Every concept gets a wedge of sky. The widths vary but sum to a full turn,
+  // so the ring stays closed and no two wedges overlap.
+  const widths = radii.map(() => 1 - licence / 2 + random() * licence);
+  const total = widths.reduce((sum, width) => sum + width, 0);
+  let swept = 0;
+  const points = radii.map((_, slot) => {
+    const width = (widths[slot] / total) * Math.PI * 2;
+    const angle = turn + swept + width / 2;
+    swept += width;
+    const out = 1 + swell.amount * Math.sin(slot * swell.pace + swell.phase);
+    const x = Math.cos(angle) * out;
+    const y = Math.sin(angle) * out * squash;
+    return { x: x + y * lean, y };
+  });
+  const mid = points.reduce((sum, point) => ({ x: sum.x + point.x / count, y: sum.y + point.y / count }), { x: 0, y: 0 });
+  const centred = points.map((point) => ({ x: point.x - mid.x, y: point.y - mid.y }));
+  let scale = 1;
+  for (let a = 0; a < count; a += 1) {
+    for (let b = a + 1; b < count; b += 1) {
+      const apart = Math.hypot(centred[a].x - centred[b].x, centred[a].y - centred[b].y);
+      if (apart > 1e-6) scale = Math.max(scale, (radii[a] + radii[b] + WATER) / apart);
+    }
+  }
+  return centred.map((point) => ({ dx: point.x * scale, dy: point.y * scale }));
+}
+
+export function buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works, commitments, links }: {
   regions: MapRegion[]; concepts: Concept[]; positions: VaultEntry[]; inquiries: Question[]; sources: Media[]; practices: Practice[]; works?: Draft[];
   /** Commitments ride with the position they promise to live out. */
   commitments?: GoalItem[];
+  /** Counted into how much rests on a concept, which sets its height. */
+  links?: PhilosophicalLink[];
 }) {
   const byKey = new Map(concepts.map((concept) => [conceptKey(concept.name), concept]));
   const regionOf = new Map<string, number>();
   regions.forEach((region, index) => region.conceptIds.forEach((id) => { if (!regionOf.has(id)) regionOf.set(id, index); }));
-  const placed = concepts.filter((concept) => regionOf.has(concept.id));
   const loose = concepts.filter((concept) => !regionOf.has(concept.id));
   const allRegions: MapRegion[] = loose.length ? [...regions, { id: 'loose', name: 'Unmapped', conceptIds: loose.map((concept) => concept.id) }] : regions;
   loose.forEach((concept) => regionOf.set(concept.id, allRegions.length - 1));
   const conceptById = new Map(concepts.map((concept) => [concept.id, concept]));
 
-  // How big each island will be, worked out before placement so the ring can
-  // be opened wide enough to keep water between them.
-  const weight = new Map<string, number>(concepts.map((concept) => [concept.id, 0]));
-  const bump = (id?: string) => { if (id && weight.has(id)) weight.set(id, (weight.get(id) || 0) + 1); };
   const conceptIdForTags = (tags: string[], ids: string[] = []) => {
     const direct = ids.find((id) => conceptById.has(id));
     if (direct) return direct;
     for (const tag of tags) { const match = byKey.get(conceptKey(tag)); if (match) return match.id; }
     return undefined;
   };
-  positions.forEach((item) => bump(conceptIdForTags(item.tags || [])));
-  inquiries.forEach((item) => bump(conceptIdForTags((item as Question & { conceptTags?: string[] }).conceptTags || [], (item as Question & { conceptIds?: string[] }).conceptIds || [])));
-  sources.forEach((item) => bump(conceptIdForTags(item.tags || [], item.conceptIds || [])));
-  practices.forEach((item) => bump(conceptIdForTags(item.conceptTags || [])));
-  (works || []).forEach((item) => bump(conceptIdForTags(item.conceptTags || [])));
   // A commitment has no concept of its own: it is a promise about a position,
   // so it belongs on whatever island that position stands on. One without a
   // linked position has nothing to anchor it, and gets no landmark.
@@ -203,21 +381,53 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
     }
     return undefined;
   };
-  (commitments || []).forEach((item) => bump(conceptForCommitment(item)));
+
+  // Which landmarks each island will carry, gathered before anything is
+  // placed. The island has to be sized to seat exactly these, so this list is
+  // the one source of truth: anything counted here gets a seat, and nothing
+  // gets a seat that was not counted.
+  type Landmark = Omit<WorldRecord, 'wx' | 'wy'>;
+  const landmarks: Landmark[] = [];
+  const claim = (type: RecordType, id: string, label: string, born: string | undefined, conceptId: string | undefined, extra: Partial<WorldRecord> = {}) => {
+    if (!conceptId || !conceptById.has(conceptId) || !label?.trim()) return;
+    landmarks.push({ id: `${type}:${id}`, type, label, conceptId, born: time(born), ...extra });
+  };
+  positions.filter((p) => !['abandoned', 'rejected', 'replaced'].includes(p.status)).forEach((p) =>
+    claim('position', p.id, p.title, p.dateCreated, conceptIdForTags(p.tags || []), { confidence: typeof p.confidence === 'number' ? Math.max(0, Math.min(100, p.confidence)) : undefined, detail: p.statement }));
+  inquiries.forEach((q) =>
+    claim('inquiry', q.id, q.text, q.dateCreated, conceptIdForTags((q as Question & { conceptTags?: string[] }).conceptTags || [], (q as Question & { conceptIds?: string[] }).conceptIds || []), { fog: inquiryFog(q.status), detail: q.status?.replace(/_/g, ' ') }));
+  practices.forEach((x) => claim('practice', x.id, x.title, x.startDate || x.dateCreated, conceptIdForTags(x.conceptTags || []), { detail: (x.type || 'practice').replace(/_/g, ' ') }));
+  (works || []).forEach((w) => claim('work', w.id, w.title, w.dateCreated, conceptIdForTags(w.conceptTags || []), { detail: (w.type || 'work').replace(/_/g, ' ') }));
+  (commitments || []).filter((item) => !['completed', 'abandoned'].includes(item.status)).forEach((item) =>
+    claim('practice', item.id, item.title, item.createdAt, conceptForCommitment(item), { detail: 'commitment' }));
+  sources.forEach((source) => (source.annotations || []).forEach((note) =>
+    claim('annotation', note.id || `${source.id}:${note.text.slice(0, 12)}`, note.text, note.date || source.dateAdded, conceptIdForTags(note.conceptTags || [], []), { detail: source.title })));
+  sources.forEach((s) => claim('source', s.id, s.title, s.dateAdded, conceptIdForTags(s.tags || [], s.conceptIds || []), { detail: s.creator }));
+
+  const seatCount = new Map<string, number>(concepts.map((concept) => [concept.id, 0]));
+  landmarks.forEach((landmark) => seatCount.set(landmark.conceptId, (seatCount.get(landmark.conceptId) || 0) + 1));
+
+  // How much rests on each concept — the one number behind both its height in
+  // contour rings and how far its coast reaches. Annotations are handed over
+  // as the notes, separately from the rest, so a note is counted once.
+  const involvement = conceptInvolvement({
+    concepts,
+    records: landmarks.filter((landmark) => landmark.type !== 'annotation'),
+    notes: landmarks.filter((landmark) => landmark.type === 'annotation'),
+  }, links || []);
 
   const clarityOf = (concept: Concept) => [concept.description?.trim(), (concept.examples || []).length, (concept.aliases || []).length || (concept.notSameAs || []).length, (concept.counterexamples || []).length].filter(Boolean).length;
-  const radiusOf = (concept: Concept) => islandRadius(weight.get(concept.id) || 0, clarityOf(concept));
+  const radiusOf = (concept: Concept) => islandRadius(involvement.get(concept.id) || 0, clarityOf(concept), seatCount.get(concept.id) || 0);
 
-  // Each region's own ring: wide enough that its islands never touch.
+  // Each region draws its own figure, sized so its islands never touch.
   const regionPlans = allRegions.map((region, index) => {
     const members = region.conceptIds.map((id) => conceptById.get(id)).filter((concept): concept is Concept => Boolean(concept) && regionOf.get(concept!.id) === index);
     const order = orderRegionConcepts(members);
     const sorted = order.map((id) => members.find((concept) => concept.id === id)!).filter(Boolean);
     const radii = sorted.map(radiusOf);
-    const needed = radii.reduce((sum, radius) => sum + radius * 2.7, 0);
-    const ring = sorted.length <= 1 ? 0 : Math.max(210, needed / (Math.PI * 2));
-    const reach = ring + (radii.length ? Math.max(...radii) : 60) * 1.9 + 70;
-    return { members: sorted, radii, ring, reach };
+    const shape = constellationShape(region.id, radii);
+    const reach = Math.max(210, ...shape.map((point, slot) => Math.hypot(point.dx, point.dy) + radii[slot])) + 70;
+    return { members: sorted, radii, shape, reach };
   });
 
   const span = Math.max(430, ...regionPlans.map((plan) => plan.reach));
@@ -235,50 +445,40 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   const worldConcepts: WorldConcept[] = [];
   regionPlans.forEach((plan, region) => {
     plan.members.forEach((concept, slot) => {
-      const angle = (slot / Math.max(1, plan.members.length)) * Math.PI * 2 - Math.PI / 2 + region * 0.4;
-      const ring = plan.ring;
       worldConcepts.push({
         id: concept.id, name: concept.name, definition: concept.description || '', status: concept.philosophyStatus,
         clarity: clarityOf(concept), born: time(concept.dateCreated), region, island: plan.radii[slot],
-        wx: regionCenters[region].wx + Math.cos(angle) * ring,
-        wy: regionCenters[region].wy + Math.sin(angle) * ring * 0.82,
+        wx: regionCenters[region].wx + plan.shape[slot].dx,
+        wy: regionCenters[region].wy + plan.shape[slot].dy,
       });
     });
   });
 
-  const conceptFor = (tags: string[], ids: string[] = []) => {
-    const id = conceptIdForTags(tags, ids);
-    return id ? worldConcepts.find((concept) => concept.id === id) : undefined;
-  };
-  const records: WorldRecord[] = [];
-  const orbit = new Map<string, number>();
-  const add = (type: RecordType, id: string, label: string, born: string | undefined, concept: WorldConcept | undefined, extra: Partial<WorldRecord> = {}) => {
-    if (!concept || !label?.trim()) return;
-    const n = orbit.get(concept.id) || 0;
-    orbit.set(concept.id, n + 1);
-    // Landmarks sit on the island; sources take the shoreline, where a dock belongs.
-    const angle = n * 2.399 - Math.PI / 3;
-    const reach = type === 'source' ? concept.island * 0.95 : concept.island * (0.34 + (n % 3) * 0.18);
-    records.push({
-      id: `${type}:${id}`, type, label, conceptId: concept.id, born: time(born),
-      wx: concept.wx + Math.cos(angle) * reach, wy: concept.wy + Math.sin(angle) * reach * 0.85, ...extra,
-    });
-  };
-  positions.filter((p) => !['abandoned', 'rejected', 'replaced'].includes(p.status)).forEach((p) =>
-    add('position', p.id, p.title, p.dateCreated, conceptFor(p.tags || []), { confidence: typeof p.confidence === 'number' ? Math.max(0, Math.min(100, p.confidence)) : undefined, detail: p.statement }));
-  inquiries.forEach((q) =>
-    add('inquiry', q.id, q.text, q.dateCreated, conceptFor((q as Question & { conceptTags?: string[] }).conceptTags || [], (q as Question & { conceptIds?: string[] }).conceptIds || []), { fog: inquiryFog(q.status), detail: q.status?.replace(/_/g, ' ') }));
-  sources.forEach((s) => add('source', s.id, s.title, s.dateAdded, conceptFor(s.tags || [], s.conceptIds || []), { detail: s.creator }));
-  practices.forEach((x) => add('practice', x.id, x.title, x.startDate || x.dateCreated, conceptFor(x.conceptTags || []), { detail: (x.type || 'practice').replace(/_/g, ' ') }));
-  (works || []).forEach((w) => add('work', w.id, w.title, w.dateCreated, conceptFor(w.conceptTags || []), { detail: (w.type || 'work').replace(/_/g, ' ') }));
-  (commitments || []).filter((item) => !['completed', 'abandoned'].includes(item.status)).forEach((item) => {
-    const id = conceptForCommitment(item);
-    add('practice', item.id, item.title, item.createdAt, id ? worldConcepts.find((concept) => concept.id === id) : undefined, { detail: 'commitment' });
+  // Seat the landmarks each island was sized for. Sources are seated last so
+  // they take the outermost ring: a source docks at the shore.
+  const conceptPlace = new Map(worldConcepts.map((concept) => [concept.id, concept]));
+  const perIsland = new Map<string, Landmark[]>();
+  landmarks.forEach((landmark) => {
+    const list = perIsland.get(landmark.conceptId) || [];
+    list.push(landmark);
+    perIsland.set(landmark.conceptId, list);
   });
-  sources.forEach((source) => (source.annotations || []).forEach((note) => {
-    const concept = conceptFor(note.conceptTags || [], []);
-    add('annotation', note.id || `${source.id}:${note.text.slice(0, 12)}`, note.text, note.date || source.dateAdded, concept, { detail: source.title });
-  }));
+  const records: WorldRecord[] = [];
+  perIsland.forEach((list, conceptId) => {
+    const concept = conceptPlace.get(conceptId);
+    if (!concept) return;
+    const ordered = [...list.filter((item) => item.type !== 'source'), ...list.filter((item) => item.type === 'source')];
+    // Seated against this island, so the rings use the ground it actually has.
+    const { seats } = islandSeating(ordered.length, concept.island);
+    ordered.forEach((landmark, index) => {
+      const seat = seats[index];
+      records.push({
+        ...landmark,
+        wx: concept.wx + Math.cos(seat.angle) * seat.reach,
+        wy: concept.wy + Math.sin(seat.angle) * seat.reach * ISLAND_SQUASH,
+      });
+    });
+  });
 
   // Boats ride the water just off each shore, one for each boundary recorded.
   const boundaries: WorldBoundary[] = [];
@@ -296,7 +496,7 @@ export function buildAtlasWorld({ regions, concepts, positions, inquiries, sourc
   });
 
   const notes = records.filter((record) => record.type === 'annotation').map((record) => ({ text: record.label, kind: 'note', conceptId: record.conceptId }));
-  return { regions: allRegions, regionCenters, regionPlans, concepts: worldConcepts, records, boundaries, notes };
+  return { regions: allRegions, regionCenters, regionPlans, concepts: worldConcepts, records, boundaries, notes, involvement };
 }
 
 export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, sources, practices, works, commitments, links, asOf, from, onOpen, onOpenRegion, focus, fullScreen, onToggleFullScreen }: {
@@ -308,7 +508,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
   onOpenRegion?: (id: string) => void;
   onOpen: (target: { type: 'concept' | RecordType; id: string }) => void;
 }) {
-  const world = useMemo(() => buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works, commitments }), [regions, concepts, positions, inquiries, sources, practices, works, commitments]);
+  const world = useMemo(() => buildAtlasWorld({ regions, concepts, positions, inquiries, sources, practices, works, commitments, links }), [regions, concepts, positions, inquiries, sources, practices, works, commitments, links]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const view = useRef({ x: 0, y: 0, k: LEVELS[0][1], tx: 0, ty: 0, tk: LEVELS[0][1] });
   const [level, setLevel] = useState(0);
@@ -501,7 +701,9 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
 
     const conceptById = new Map(world.concepts.map((concept) => [concept.id, concept]));
     const conceptLinks = links.filter((link) => link.fromType === 'concept' && link.toType === 'concept' && conceptById.has(link.fromId) && conceptById.has(link.toId));
-    const involvement = conceptInvolvement(world, links);
+    // Worked out alongside the island sizes, so a concept's height and the
+    // reach of its coast can never tell different stories.
+    const involvement = world.involvement;
 
     const calm = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const started = performance.now();

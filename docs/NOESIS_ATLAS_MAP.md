@@ -55,20 +55,47 @@ third silhouette at sixteen pixels.
   selecting a boat says which kind of boundary it is and quotes the reason if
   one was written.
 - **The island's size is how much rests on the concept**, and so is the number
-  of contour rings. Both read from the same count — its records, notes and
-  links — so a worked concept is a visibly bigger island carrying more lines
-  than an untouched one: across the demo workspace the spread runs 36px to
-  137px, near enough four to one. The rings step at a fixed height rather than
-  being spread to fit, so they crowd toward the summit the way they do on a
-  real topographic map, and the concepts carrying the most get a summit mark.
-- **Contour rings are how much rests on the concept**, counted from its
-  records, notes and links. The island grows with that count and the growth
-  diminishes — doubling the work adds the same small step each time — so a busy
-  concept never swells across its neighbours' water. Confidence and repeated
-  edits do not enter into it.
+  of contour rings. Both read one number — its records, its notes and its
+  concept links, each counted once — so a worked concept is a visibly bigger
+  island carrying more lines than an untouched one: across the demo workspace
+  the spread runs 57px to 123px. The island grows with that count and the
+  growth diminishes — doubling the work adds the same small step each time — so
+  a busy concept never swells across its neighbours' water. Confidence and
+  repeated edits do not enter into it. The rings step at a fixed height rather
+  than being spread to fit, so they crowd toward the summit the way they do on
+  a real topographic map, and the concepts carrying the most get a summit mark.
+- **No island is ever too small for its own landmarks.** Landmarks are seated
+  on concentric rings, and the rings are worked out from each one's own
+  circumference, so every landmark clears its neighbours by a fixed distance —
+  about 25 world units against a glyph of roughly 17 — whether a concept
+  carries three records or a hundred. That spacing is a constant, not a
+  proportion: a landmark does not become easier to tell apart because it sits
+  on a bigger island. Whatever the growth curve says, the island is then grown
+  until its own landmarks fit with a shore outside them, so **the count can
+  set the size** and crowding cannot happen by arithmetic.
+- **The rings open out to the ground the island has.** An island is usually
+  larger than the tightest packing needs, because what rests on a concept also
+  counts its links. Rather than huddling everything on the summit, the rings
+  spread across the island, which is also what puts sources on the coast: they
+  are seated last, so they take the outermost ring. Spreading only ever adds
+  room, so nothing it touches can start to crowd.
 - **A constellation groups a region. It asserts nothing.** The segments are a
   reading aid, drawn only within one region; two adjacent stars are not thereby
   related, and no line is ever drawn between groups.
+- **Every region draws its own figure.** A plain ring would give every region
+  of the same size the same outline — five four-concept regions as five
+  identical squares — so each region draws from its own id: its rotation, how
+  flattened it is, which way it leans, how wide each concept's wedge of sky is,
+  and a slow swell in and out of the centre. A small region has sky to spare
+  and is pulled about freely; a crowded one is held closer to the ring. The
+  seed is the region's **id**, never its position in the list, so adding or
+  removing a region leaves every other constellation exactly as it was.
+  Two-concept regions are the one case with nothing to vary: two stars make a
+  line, and only its angle and length can differ.
+  The figure is then sized by scaling it **whole** until every pair of
+  coastlines clears open water — so a region of worked-over concepts opens out
+  to make room for them — rather than nudging stars apart one at a time, which
+  would pull every constellation back toward the circle this replaces.
 
 ## Where concepts sit
 

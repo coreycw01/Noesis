@@ -60,18 +60,23 @@
   /* Thinking-loop stage colors. Pages, nav groups, and badges take their tone
      from the stage they belong to, so the loop reads at a glance. */
   --stage-encounter: 33 87% 35%;
-  --stage-examine: 184 32% 34%;
+  /* Examine is a question, and a question is blue leaning into purple. Works
+     take the blue-green it used to hold, which keeps every record kind a
+     clear step from its neighbours: 12, 33, 95, 187, 252. */
+  --stage-examine: 252 38% 46%;
   --stage-claim: 12 62% 43%;
   --stage-act: 95 41% 33%;
-  --stage-integrate: 270 29% 43%;
-  --stage-more: 225 41% 42%;
+  /* Review moves on round to a warm violet: with Question now a blue-purple,
+     a plain purple here left the two reading as one colour. */
+  --stage-integrate: 308 30% 45%;
+  --stage-more: 187 40% 33%;
   /* The sidebar is always dark, so it keeps the bright stage set in both themes. */
   --sidebar-stage-encounter: 35 73% 55%;
-  --sidebar-stage-examine: 182 21% 63%;
+  --sidebar-stage-examine: 250 44% 72%;
   --sidebar-stage-claim: 15 65% 61%;
   --sidebar-stage-act: 87 30% 63%;
-  --sidebar-stage-integrate: 275 28% 71%;
-  --sidebar-stage-more: 223 45% 71%;
+  --sidebar-stage-integrate: 306 30% 72%;
+  --sidebar-stage-more: 185 32% 62%;
   --sidebar-ring: 262 73% 46%;
 }
 
@@ -94,11 +99,11 @@
   --sidebar-foreground: 45 18% 84%;
   --sidebar-border: 30 5% 15%;
   --stage-encounter: 35 73% 55%;
-  --stage-examine: 182 21% 63%;
+  --stage-examine: 250 44% 72%;
   --stage-claim: 15 65% 61%;
   --stage-act: 87 30% 63%;
-  --stage-integrate: 275 28% 71%;
-  --stage-more: 223 45% 71%;
+  --stage-integrate: 306 30% 72%;
+  --stage-more: 185 32% 62%;
 }
 
 .high-contrast {

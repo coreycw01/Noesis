@@ -1,18 +1,19 @@
 "use client";
 
-import { SavedContextDesks } from '@/components/ai/SavedContextDesks';
+import { ContextDrawers } from '@/components/ai/ContextDrawers';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
-import { Check, Filter, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, Filter, FolderOpen, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { buildContextDeskMemory, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { contextDeskWorkDraft, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
 import { EntityPicker } from '@/components/search/EntityPicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -116,17 +117,18 @@ export function ContextDeskRoutePage({
   onNavigate,
 }: ContextDeskRoutePageProps) {
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
-  // Noesis AI holds two surfaces: the history of every kept result, and the desk.
+  // The Desk comes first, because it is the thing you work in; History is the
+  // record of what has already been run.
   const [surface, setSurface] = useState<'history' | 'desk'>('desk');
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem('noesis:ai-surface');
+      const saved = window.localStorage.getItem('noesis:context-desk-surface');
       if (saved === 'history' || saved === 'desk') setSurface(saved);
     } catch { /* View preference is optional. */ }
   }, []);
   const chooseSurface = (next: 'history' | 'desk') => {
     setSurface(next);
-    try { window.localStorage.setItem('noesis:ai-surface', next); } catch { /* View preference is optional. */ }
+    try { window.localStorage.setItem('noesis:context-desk-surface', next); } catch { /* View preference is optional. */ }
   };
   const aiHistory = useMemo(() => collectAiHistory({ media, concepts, questions, positions, works, practices }), [media, concepts, questions, positions, works, practices]);
   const storageKeys = useMemo(() => workspaceKey ? contextDeskStorageKeys(workspaceKey) : null, [workspaceKey]);
@@ -332,6 +334,8 @@ export function ContextDeskRoutePage({
     [exclusionRules, recordsByKey, selectedKeys],
   );
   const [memberLimit, setMemberLimit] = useState(40);
+  // Drawers live behind a panel so the Desk itself keeps the room it needs.
+  const [drawersOpen, setDrawersOpen] = useState(false);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const dateWindow = dateFilter === 'all' ? 0 : ({ '7d': 7, '30d': 30, '90d': 90, year: 365 } as const)[dateFilter];
@@ -437,29 +441,49 @@ export function ContextDeskRoutePage({
     <div className="noesis-context-desk min-h-0 flex-1 overflow-y-auto overscroll-contain" data-noesis-scroll-region>
       <div className="noesis-gutter w-full pb-28 pt-[var(--page-top)] lg:pb-12">
       <PageHeader
-        title="Noesis AI"
+        title="Context Desk"
         description={surface === 'history'
-          ? 'Everything the assistant produced that you chose to keep, gathered from every page.'
-          : 'Choose the records Noesis may consider. Nothing else in your workspace is included, and no result is saved until you review it.'}
+          ? 'Past runs, and what each one actually read. Reopening a run shows you the result; running it again is a separate step.'
+          : 'Build a set of records, then choose what a single request reads. Filtering finds records; it never sends them on its own.'}
+        actions={surface === 'desk' && storageReady && savedDeskOwner ? (
+          <Button type="button" variant="outline" onClick={() => setDrawersOpen(true)}>
+            <FolderOpen size={16} aria-hidden="true" />Drawers
+          </Button>
+        ) : undefined}
         tabs={(
           <WorkspaceTabs
             value={surface}
             onChange={chooseSurface}
-            label="Noesis AI views"
+            label="Context Desk views"
             items={[
-              { id: 'history', label: 'History', icon: History, count: aiHistory.length },
               { id: 'desk', label: 'Context Desk', icon: ScanSearch },
+              { id: 'history', label: 'History', icon: History, count: aiHistory.length },
             ]}
           />
         )}
       />
 
-      {surface === 'desk' && storageReady && savedDeskOwner && <SavedContextDesks uid={savedDeskOwner}
-        membership={{ selected: selectedKeys, keys: excludedKeys, types: excludedTypes, sourceIds: excludedSourceIds }}
-        onOpen={desk => {
-          setSelectedKeys(desk.selected); setExcludedKeys(desk.keys); setExcludedTypes(desk.types); setExcludedSourceIds(desk.sourceIds); setMemberLimit(40);
-        }}
-      />}
+      {/* Drawers open as a panel from the right: on a wide screen it sits
+          beside the Desk, on a phone it fills the sheet. One implementation,
+          so the controls and the wording cannot drift apart. */}
+      {storageReady && savedDeskOwner && (
+        <Sheet open={drawersOpen} onOpenChange={setDrawersOpen}>
+          <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+            <SheetHeader>
+              <SheetTitle>Drawers</SheetTitle>
+              <SheetDescription>A Drawer is a set you built here and named, so you can pick the thread back up later.</SheetDescription>
+            </SheetHeader>
+            <div className="mt-5">
+              <ContextDrawers uid={savedDeskOwner}
+                membership={{ selected: selectedKeys, keys: excludedKeys, types: excludedTypes, sourceIds: excludedSourceIds }}
+                onOpen={drawer => {
+                  setSelectedKeys(drawer.selected); setExcludedKeys(drawer.keys); setExcludedTypes(drawer.types); setExcludedSourceIds(drawer.sourceIds); setMemberLimit(40);
+                }}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
       {surface === 'history' ? <NoesisAiHistory items={aiHistory} onNavigate={onNavigate} /> : (
       <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
         <section aria-labelledby="context-library-heading" className="min-w-0">
@@ -698,7 +722,14 @@ export function ContextDeskRoutePage({
           </DialogHeader>
           <div className="grid gap-5 sm:grid-cols-2">
             <section aria-labelledby="included-context-summary">
-              <h3 id="included-context-summary" className="text-sm font-semibold">Included in next review · {analysisRecords.length} of {selected.length}</h3>
+              <h3 id="included-context-summary" className="text-sm font-semibold">This request reads · {analysisRecords.length} of {selected.length}</h3>
+              {/* What a Drawer holds and what one request reads are different
+                  numbers. Say so here, and say which rule left the rest out. */}
+              {selected.length > analysisRecords.length && (
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  One request reads at most {MAX_CONTEXT_ITEMS} records. The {selected.length - analysisRecords.length} below the cut stay on the Desk and in any Drawer you save — reorder or deselect to change which ones go in.
+                </p>
+              )}
               <div className="mt-2 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border px-3">
                 {selectedGroups.map(({ type, records: group }) => (
                   <div key={type} className="py-2 text-sm">
