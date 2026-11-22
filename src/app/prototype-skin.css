@@ -616,3 +616,53 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   border-block: 1px dashed hsl(var(--revise) / .45);
 }
 .noesis-desk__cut::after { content: ""; flex: 1; border-top: 1px dashed hsl(var(--revise) / .45); }
+
+/* ---------- Context Desk cabinet: drawers above Find, folders below ---------- */
+/* A drawer is a whole saved desk, so it is drawn as a drawer front you pull
+   out. A folder is a few staples you carry between drawers, so it is drawn as
+   a folder you lift off a stack. The shapes carry the difference. */
+.noesis-cabinet { display: flex; flex-direction: column; }
+.noesis-drawer {
+  display: flex; align-items: center; gap: var(--space-3);
+  width: 100%; min-height: 36px; margin-top: -1px;
+  padding: var(--space-2) var(--space-3);
+  text-align: left; font-size: var(--text-sm);
+  border: 1px solid hsl(var(--border)); border-radius: var(--radius-sm);
+  background: linear-gradient(hsl(var(--muted) / .6), hsl(var(--background)));
+  color: hsl(var(--foreground));
+  transition: transform .14s ease, box-shadow .14s ease;
+}
+.noesis-drawer::before { content: ""; width: 20px; height: 3px; border-radius: 2px; background: currentColor; opacity: .32; flex: none; }
+.noesis-drawer:hover, .noesis-drawer:focus-visible { transform: translateX(6px); box-shadow: -3px 0 10px hsl(var(--foreground) / .08); position: relative; z-index: 2; }
+.noesis-drawer[data-on] { border-color: hsl(var(--revise)); background: hsl(var(--revise) / .12); color: hsl(var(--revise)); font-weight: 600; transform: translateX(10px); position: relative; z-index: 3; }
+
+.noesis-folders { display: flex; flex-direction: column; padding-top: var(--space-2); }
+.noesis-folder {
+  position: relative; display: flex; align-items: center; gap: var(--space-2);
+  width: 100%; min-height: 34px; margin-top: -7px;
+  padding: var(--space-2) var(--space-3);
+  text-align: left; font-size: var(--text-sm);
+  border: 1px solid hsl(var(--kind-concept)); border-radius: 0 var(--radius-panel) var(--radius-panel) var(--radius-panel);
+  background: hsl(var(--card)); color: hsl(var(--foreground));
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.noesis-folder::before {
+  content: ""; position: absolute; top: -8px; left: -1px; width: 44%; height: 9px;
+  border: 1px solid hsl(var(--kind-concept)); border-bottom: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: inherit;
+}
+.noesis-folder:first-child { margin-top: var(--space-2); }
+.noesis-folder:hover:not(:disabled), .noesis-folder:focus-visible { transform: translateX(8px) translateY(-4px); box-shadow: 0 7px 16px hsl(var(--foreground) / .18); z-index: 4; }
+.noesis-folder[data-in] { background: hsl(var(--kind-concept) / .14); }
+.noesis-folder:disabled { opacity: .5; }
+.noesis-folder__mark { color: hsl(var(--kind-concept)); font-weight: 600; flex: none; }
+
+/* Refine: the relationships worth narrowing by depend on the kind you chose. */
+.noesis-refine { display: grid; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-panel); border: 1px dashed hsl(var(--border)); background: hsl(var(--background)); }
+.noesis-chip { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); padding: 2px 4px 2px 10px; border-radius: var(--radius-pill); border: 1px solid currentColor; }
+.noesis-chip[data-mode="only"] { color: hsl(var(--revise)); background: hsl(var(--revise) / .12); }
+.noesis-chip[data-mode="not"] { color: hsl(var(--kind-position)); border-style: dashed; }
+.noesis-chip button { font: inherit; font-size: var(--text-xs); cursor: pointer; border: 0; background: none; color: inherit; padding: 0 3px; border-radius: 4px; }
+.noesis-chip button:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
+/* A slip a folder carried in keeps the folder's colour down its edge. */
+.noesis-desk__slip[data-carried] { box-shadow: inset 3px 0 0 hsl(var(--kind-concept)); }
