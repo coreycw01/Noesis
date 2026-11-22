@@ -648,7 +648,11 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: inherit;
 }
 .noesis-folder:first-child { margin-top: var(--space-2); }
-.noesis-folder:hover:not(:disabled), .noesis-folder:focus-visible { transform: translateX(8px) translateY(-4px); box-shadow: 0 7px 16px hsl(var(--foreground) / .18); z-index: 4; }
+.noesis-folder { flex-wrap: wrap; }
+/* An open folder stays put: lifting one you are reading from makes the list
+   it just revealed move under the cursor. */
+.noesis-folder:not([data-open]):hover:not(:disabled), .noesis-folder:not([data-open]):focus-within { transform: translateX(8px) translateY(-4px); box-shadow: 0 7px 16px hsl(var(--foreground) / .18); z-index: 4; }
+.noesis-folder[data-open] { z-index: 5; box-shadow: 0 7px 16px hsl(var(--foreground) / .18); }
 .noesis-folder[data-in] { background: hsl(var(--kind-concept) / .14); }
 .noesis-folder:disabled { opacity: .5; }
 .noesis-folder__mark { color: hsl(var(--kind-concept)); font-weight: 600; flex: none; }

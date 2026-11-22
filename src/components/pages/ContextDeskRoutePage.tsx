@@ -877,6 +877,7 @@ export function ContextDeskRoutePage({
             <ContextFolderStack
               uid={savedDeskOwner}
               onDesk={selectedKeys}
+              labelFor={(key) => recordsByKey.get(key)?.label}
               filing={filingKey}
               onFiled={() => setFilingKey(null)}
               onAdd={(keys) => { setSelectedKeys((current) => [...current, ...keys.filter((key) => !current.includes(key))]); setCarriedIn((current) => new Set([...current, ...keys])); }}
