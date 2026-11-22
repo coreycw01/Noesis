@@ -4,7 +4,7 @@ import { ContextDrawers } from '@/components/ai/ContextDrawers';
 import { AiUsageMeter } from '@/components/ai/AiUsageMeter';
 import { ContextDrawerStack } from '@/components/ai/ContextDrawerStack';
 import { ContextFolderStack } from '@/components/ai/ContextFolderStack';
-import { deskComposition, deskSuggestions, type DeskItem } from '@/lib/context-desk-suggestions';
+import { deskComposition, deskSuggestions, proposeFromQuestion, type DeskItem } from '@/lib/context-desk-suggestions';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -465,13 +465,35 @@ export function ContextDeskRoutePage({
     key: record.key, type: record.type, label: record.label,
     sourceIds: record.sourceIds, conceptIds: record.conceptIds,
   })), [selected]);
+  /** Records link to concepts by id or by tag; the rules need one of those. */
+  const conceptIdByName = useMemo(
+    () => new Map(concepts.map((concept) => [concept.name.toLowerCase(), concept.id])),
+    [concepts],
+  );
   const poolItems = useMemo<DeskItem[]>(() => records.map((record) => ({
     key: record.key, type: record.type, label: record.label,
-    sourceIds: record.sourceIds, conceptIds: record.conceptIds,
+    sourceIds: record.sourceIds,
+    conceptIds: [...new Set([
+      ...record.conceptIds,
+      ...record.conceptTags.map((tag) => conceptIdByName.get(tag.toLowerCase())).filter((id): id is string => Boolean(id)),
+    ])],
     open: record.type === 'inquiry'
       ? !/resolved|converted|no_longer_meaningful|archived/i.test(inquiryStatusByKey.get(record.key) || 'open')
       : undefined,
-  })), [records, inquiryStatusByKey]);
+  })), [conceptIdByName, records, inquiryStatusByKey]);
+  /**
+   * What the question itself is asking for. This is the half of the work the
+   * Desk makes you do by hand: name a concept and its open inquiries and the
+   * positions arguing about it arrive with it, each saying why.
+   */
+  const proposed = useMemo(() => {
+    const names = new Map(concepts.map((concept) => [concept.id, concept.name]));
+    return proposeFromQuestion(question, poolItems, names)
+      .map((hit) => ({ ...hit, record: recordsByKey.get(hit.key) }))
+      .filter((hit): hit is typeof hit & { record: ContextRecord } => Boolean(hit.record))
+      .filter((hit) => !selectedKeys.includes(hit.key));
+  }, [concepts, poolItems, question, recordsByKey, selectedKeys]);
+
   const composition = useMemo(
     () => deskComposition(deskItems, (type) => contextTypeLabels[type as ContextRecordType] || type),
     [deskItems],
@@ -639,15 +661,43 @@ export function ContextDeskRoutePage({
 
           <div className="grid gap-3 rounded-[var(--card-radius)] border border-border bg-card p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="noesis-eyebrow">What it should read</p>
+              <p className="noesis-eyebrow">{question.trim() ? 'What it should read' : 'What it should read · ask something and Noesis will suggest'}</p>
               <span className="ml-auto noesis-figure noesis-figure--sm">{selected.length} on the desk · reads {analysisRecords.length}</span>
             </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your records" className="h-10 pl-10" aria-label="Search your records" />
             </div>
+            {/* What the question asks for comes first, each saying why. Recents
+                are the fallback for a question that names nothing yet. */}
+            {proposed.length > 0 && (
+              <div className="grid gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="noesis-eyebrow noesis-eyebrow--sm">Noesis suggests</p>
+                  <Button type="button" variant="ghost" size="sm" className="ml-auto h-7 px-2 text-xs"
+                    onClick={() => setSelectedKeys((current) => [...current, ...proposed.map((hit) => hit.key).filter((key) => !current.includes(key))])}>
+                    Add all {proposed.length}
+                  </Button>
+                </div>
+                {proposed.map((hit) => (
+                  <div key={hit.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-[var(--radius-panel)] border border-dashed border-[hsl(var(--revise)/.5)] bg-[hsl(var(--revise)/.07)] px-3 py-2">
+                    <i className="mt-1.5 size-1.5 shrink-0 rounded-full" style={{ background: `hsl(var(--kind-${hit.record.type}))` }} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-5">{hit.record.label}</p>
+                      <p className="text-xs leading-5 text-muted-foreground">{hit.why}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Add ${hit.record.label}`} onClick={() => toggleRecord(hit.record)}>
+                      <Plus className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="grid gap-1.5">
-              <p className="text-xs leading-5 text-muted-foreground">{query.trim() ? 'Matching records' : 'Recently edited'}</p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {query.trim() ? 'Matching records' : proposed.length ? 'Or pick from recent' : 'Recently edited'}
+              </p>
               {askCandidates.map((record) => {
                 const active = selectedKeys.includes(record.key);
                 return (
