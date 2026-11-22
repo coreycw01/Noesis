@@ -729,7 +729,7 @@ export function ContextDeskRoutePage({
                     aria-pressed={active}
                     onClick={() => toggleRecord(record)}>
                     <span className="min-w-0">
-                      <span className="block text-label uppercase" style={{ color: `hsl(var(--kind-${record.type}))` }}>{contextTypeLabels[record.type]}</span>
+                      <span className="noesis-kind-mark text-label uppercase" data-kind={record.type}>{contextTypeLabels[record.type]}</span>
                       <span className="block truncate text-sm">{record.label}</span>
                     </span>
                     {active ? <Check className="size-4 text-[hsl(var(--revise))]" /> : <Plus className="size-4 text-muted-foreground" />}
@@ -873,7 +873,7 @@ export function ContextDeskRoutePage({
                   return (
                     <div key={record.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 py-2.5">
                       <div className="min-w-0">
-                        <p className="text-label uppercase" style={{ color: `hsl(var(--kind-${record.type}))` }}>{contextTypeLabels[record.type]}</p>
+                        <p className="noesis-kind-mark text-label uppercase" data-kind={record.type}>{contextTypeLabels[record.type]}</p>
                         <p className="text-sm leading-5">{record.label}</p>
                       </div>
                       <Button type="button" variant="ghost" size="icon" className="size-8" disabled={!active && selectedKeys.length >= MAX_DESK_ITEMS}
@@ -1106,7 +1106,7 @@ export function ContextDeskRoutePage({
                     <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
                     <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
                       <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
-                      <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
+                      <span className="noesis-kind-mark mt-0.5 inline-block text-label uppercase" data-kind={record.type}>{contextTypeLabels[record.type]}</span>
                       <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
                     </button>
                     <div className="flex items-start justify-end">

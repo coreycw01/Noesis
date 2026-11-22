@@ -692,11 +692,22 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
    wash with ordinary ink on top, which is what a marked passage looks like. */
 :root { --kind-annotation-wash: 52 94% 74%; --kind-annotation-ink: 48 90% 16%; }
 .dark { --kind-annotation-wash: 52 64% 30%; --kind-annotation-ink: 52 92% 82%; }
-[data-tone="annotation"],
-[data-stage-tone="annotation"] .noesis-kind-mark {
-  background: hsl(var(--kind-annotation-wash)) !important;
-  color: hsl(var(--kind-annotation-ink)) !important;
-  border-color: hsl(var(--kind-annotation-wash)) !important;
+/* The kind mark on a record: its name, in its own colour. Annotations get the
+   wash instead, so a highlight looks like one wherever a record is listed. */
+.noesis-kind-mark { color: hsl(var(--kind-source)); }
+.noesis-kind-mark[data-kind="source"] { color: hsl(var(--kind-source)); }
+.noesis-kind-mark[data-kind="concept"] { color: hsl(var(--kind-concept)); }
+.noesis-kind-mark[data-kind="inquiry"] { color: hsl(var(--kind-inquiry)); }
+.noesis-kind-mark[data-kind="position"] { color: hsl(var(--kind-position)); }
+.noesis-kind-mark[data-kind="practice"] { color: hsl(var(--kind-practice)); }
+.noesis-kind-mark[data-kind="work"] { color: hsl(var(--kind-work)); }
+.noesis-kind-mark[data-kind="annotation"] {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: hsl(var(--kind-annotation-wash));
+  color: hsl(var(--kind-annotation-ink));
+  box-decoration-break: clone;
 }
 
 /* The handle between the shelf and the desk. It is the column border as well,
