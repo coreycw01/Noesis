@@ -867,6 +867,20 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
         });
       }
 
+      // At the closest distance the definition owns the middle of its island.
+      // Claim that ground before any landmark is labelled, so a long title
+      // steps aside for it instead of printing straight through it.
+      if (deepA > 0.01) {
+        visibleConcepts.forEach((concept) => {
+          if (!concept.definition) return;
+          const [x, y] = toScreen(concept.wx, concept.wy);
+          const span = Math.min(190, 46 * k);
+          ctx.font = `italic ${Math.min(17, 3.4 * k)}px "Playfair Display", Georgia, serif`;
+          const lines = Math.max(1, Math.ceil(ctx.measureText(concept.definition).width / span));
+          placed.push([x - span / 2 - 6, y - 26, span + 12, lines * 19 + 44]);
+        });
+      }
+
       // ---------- near: the landmarks on the island ----------
       if (recordA > 0.01) {
         world.records.forEach((record) => {
