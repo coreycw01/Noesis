@@ -2,10 +2,12 @@
 
 import { ContextDrawers } from '@/components/ai/ContextDrawers';
 import { AiUsageMeter } from '@/components/ai/AiUsageMeter';
+import { ContextDrawerStack } from '@/components/ai/ContextDrawerStack';
+import { ContextFolderStack } from '@/components/ai/ContextFolderStack';
 import { deskComposition, deskSuggestions, type DeskItem } from '@/lib/context-desk-suggestions';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
-import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
 import { Check, Filter, FolderOpen, GripVertical, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
@@ -341,10 +343,65 @@ export function ContextDeskRoutePage({
     [exclusionRules, recordsByKey, selectedKeys],
   );
   const [memberLimit, setMemberLimit] = useState(40);
+  /**
+   * Narrowing the shelf by what a record is linked to. Only concepts and
+   * positions: browsing by source is what the Library is for.
+   */
+  const [refine, setRefine] = useState<Array<{ relation: 'concept' | 'position'; value: string; mode: 'only' | 'not' }>>([]);
+  useEffect(() => {
+    // Changing the kind can retire a relationship; its chips go with it.
+    setRefine((current) => current.filter((item) => (
+      typeFilter === 'concept' ? false
+        : item.relation === 'concept' || typeFilter === 'annotation' || typeFilter === 'practice'
+    )));
+  }, [typeFilter]);
+  /**
+   * Which relationships a kind can be narrowed by. An annotation fed a
+   * position and a work did not, so the strip offers only what applies.
+   */
+  const refineRelations = useMemo<Array<'concept' | 'position'>>(() => {
+    if (typeFilter === 'concept') return [];
+    if (typeFilter === 'annotation' || typeFilter === 'practice') return ['concept', 'position'];
+    return ['concept'];
+  }, [typeFilter]);
+  const positionTitleById = useMemo(() => new Map(positions.map((item) => [item.id, item.title])), [positions]);
+  const refineLabel = (item: { relation: 'concept' | 'position'; value: string }) => {
+    const name = item.relation === 'concept' ? conceptNameById.get(item.value) : positionTitleById.get(item.value);
+    return (name || item.value).slice(0, 28);
+  };
+  /** Positions a record is tied to, for the "linked position" filter. */
+  const positionsByRecordKey = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const position of positions) {
+      const tags = (position.tags || []).map((tag) => tag.toLowerCase());
+      for (const record of records) {
+        if (record.type === 'position') { if (record.id === position.id) map.set(record.key, [position.id]); continue; }
+        const shares = record.conceptTags.some((tag) => tags.includes(tag.toLowerCase()))
+          || record.conceptIds.some((id) => tags.includes((conceptNameById.get(id) || '').toLowerCase()));
+        if (shares) map.set(record.key, [...(map.get(record.key) || []), position.id]);
+      }
+    }
+    return map;
+  }, [conceptNameById, positions, records]);
+  /** Does a record survive every refine chip? */
+  const passesRefine = useCallback((record: ContextRecord) => refine.every((item) => {
+    const linked = item.relation === 'concept'
+      ? record.conceptIds.includes(item.value)
+        || record.conceptTags.some((tag) => tag.toLowerCase() === (conceptNameById.get(item.value) || '').toLowerCase())
+      : (positionsByRecordKey.get(record.key) || []).includes(item.value);
+    return item.mode === 'only' ? linked : !linked;
+  }), [conceptNameById, positionsByRecordKey, refine]);
+
+
   // Drawers live behind a panel so the Desk itself keeps the room it needs.
   const [drawersOpen, setDrawersOpen] = useState(false);
   /** Bumped after a review, so the usage meter re-reads rather than going stale. */
   const [usageKey, setUsageKey] = useState(0);
+  /** Which drawer the desk came from, and what a folder carried in. */
+  const [openDrawerId, setOpenDrawerId] = useState<string | null>(null);
+  const [carriedIn, setCarriedIn] = useState<Set<string>>(new Set());
+  /** A record waiting to be put in a folder, chosen from its slip. */
+  const [filingKey, setFilingKey] = useState<string | null>(null);
   // Which slip is in hand, and which one it is hovering over.
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
@@ -369,6 +426,7 @@ export function ContextDeskRoutePage({
     const cutoff = dateWindow ? Date.now() - dateWindow * 24 * 60 * 60 * 1000 : 0;
     return records
       .filter((record) => !contextDeskRecordIsExcluded(record, exclusionRules))
+      .filter(passesRefine)
       .filter((record) => typeFilter === 'all' || record.type === typeFilter)
       .filter((record) => sourceFilter === 'all' || record.sourceIds.includes(sourceFilter))
       .filter((record) => conceptFilter === 'all' || record.conceptIds.includes(conceptFilter) || record.conceptTags.some((tag) => tag.toLowerCase() === conceptNameById.get(conceptFilter)?.toLowerCase()))
@@ -379,7 +437,7 @@ export function ContextDeskRoutePage({
         if (sortBy === 'created') return dateValue(right.createdAt) - dateValue(left.createdAt);
         return dateValue(right.updatedAt) - dateValue(left.updatedAt);
       });
-  }, [conceptFilter, conceptNameById, dateFilter, exclusionRules, query, records, sortBy, sourceFilter, typeFilter]);
+  }, [conceptFilter, conceptNameById, dateFilter, exclusionRules, passesRefine, query, records, sortBy, sourceFilter, typeFilter]);
   const visibleRecords = filtered.slice(0, visibleLimit);
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
@@ -542,152 +600,142 @@ export function ContextDeskRoutePage({
       )}
       {surface === 'history' ? <NoesisAiHistory items={aiHistory} onNavigate={onNavigate} /> : (
       <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.72fr)]">
-        <section aria-labelledby="context-library-heading" className="min-w-0">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 id="context-library-heading" className="text-lg font-semibold">Choose context</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Search your records, then add only what this review needs.</p>
+        {/* The cabinet: drawers above Find because choosing one scopes
+            everything, folders below because they are what you reach for while
+            already working. */}
+        <section aria-labelledby="context-library-heading" className="min-w-0 space-y-5">
+          <h2 id="context-library-heading" className="sr-only">Find records</h2>
+
+          {/* Drawers and folders live in the account, so a review workspace sees
+              the shelf they would sit on and the reason it is empty. */}
+          {!savedDeskOwner && (
+            <div className="grid gap-2">
+              <p className="noesis-eyebrow">Drawers</p>
+              <p className="text-xs leading-5 text-muted-foreground">Sign in to keep a desk as a drawer you can open again.</p>
             </div>
-            <span className="font-code text-xs text-muted-foreground">{selectedKeys.length}/{MAX_DESK_ITEMS}</span>
-          </div>
-          <div className="relative mt-4">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a source, concept, inquiry, position, work, or practice" className="h-11 pl-10" aria-label="Search workspace records" />
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          )}
+          {storageReady && savedDeskOwner && (
+            <ContextDrawerStack
+              uid={savedDeskOwner}
+              openId={openDrawerId}
+              membership={{ selected: selectedKeys, keys: excludedKeys, types: excludedTypes, sourceIds: excludedSourceIds }}
+              onOpened={setOpenDrawerId}
+              onOpen={(drawer) => {
+                setSelectedKeys(drawer.selected); setExcludedKeys(drawer.keys);
+                setExcludedTypes(drawer.types); setExcludedSourceIds(drawer.sourceIds);
+                setMemberLimit(40); setCarriedIn(new Set());
+              }}
+            />
+          )}
+
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2">
+              <p className="noesis-eyebrow">Find</p>
+              <span className="ml-auto noesis-figure noesis-figure--sm">{selectedKeys.length}/{MAX_DESK_ITEMS} on the desk</span>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your records" className="h-10 pl-10" aria-label="Search workspace records" />
+            </div>
             <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as ContextRecordType | 'all')}>
-              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by item type"><SelectValue placeholder="Item type" /></SelectTrigger>
+              <SelectTrigger className="h-10 rounded-[var(--radius-panel)] bg-card text-sm" aria-label="Filter by item type"><SelectValue placeholder="All kinds" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All item types</SelectItem>
+                <SelectItem value="all">All kinds</SelectItem>
                 {(Object.entries(contextTypeLabels) as Array<[ContextRecordType, string]>).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by related source"><SelectValue placeholder="Related source" /></SelectTrigger>
-              <SelectContent className="max-h-80">
-                <SelectItem value="all">All related sources</SelectItem>
-                {media.map((source) => <SelectItem key={source.id} value={source.id}>{source.title}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={conceptFilter} onValueChange={setConceptFilter}>
-              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by concept or tag"><SelectValue placeholder="Concept or tag" /></SelectTrigger>
-              <SelectContent className="max-h-80">
-                <SelectItem value="all">All concepts and tags</SelectItem>
-                {concepts.map((concept) => <SelectItem key={concept.id} value={concept.id}>{concept.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={dateFilter} onValueChange={(value) => setDateFilter(value as ContextDateFilter)}>
-              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Filter by creation date"><SelectValue placeholder="Date created" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Created anytime</SelectItem>
-                <SelectItem value="7d">Created in last 7 days</SelectItem>
-                <SelectItem value="30d">Created in last 30 days</SelectItem>
-                <SelectItem value="90d">Created in last 90 days</SelectItem>
-                <SelectItem value="year">Created in last year</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as ContextSort)}>
-              <SelectTrigger className="h-10 min-w-0 rounded-md bg-card text-xs" aria-label="Sort context records"><SelectValue placeholder="Sort records" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="updated">Latest edited</SelectItem>
-                <SelectItem value="created">Newest created</SelectItem>
-                <SelectItem value="title">Title A-Z</SelectItem>
-              </SelectContent>
-            </Select>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" className="min-w-0 justify-between text-xs font-normal">
-                  <span className="flex min-w-0 items-center gap-2"><SlidersHorizontal className="size-4 shrink-0" aria-hidden="true" /><span className="truncate">Exclusions{exclusionCount ? ` (${exclusionCount})` : ''}</span></span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" scrollable className="w-72 [--noesis-menu-max-height:min(70dvh,32rem)]">
-                <DropdownMenuLabel>Exclude item types</DropdownMenuLabel>
-                {(Object.entries(contextTypeLabels) as Array<[ContextRecordType, string]>).map(([type, label]) => (
-                  <DropdownMenuCheckboxItem key={type} checked={excludedTypes.includes(type)} onSelect={(event) => event.preventDefault()} onCheckedChange={() => toggleExcludedType(type)}>{label}</DropdownMenuCheckboxItem>
-                ))}
-                <DropdownMenuSeparator />
-                {excludedKeys.length > 0 && <>
-                  <DropdownMenuLabel>Individually excluded</DropdownMenuLabel>
-                  {excludedKeys.map((key) => {
-                    const record = records.find((candidate) => candidate.key === key);
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={key}
-                        checked
-                        onCheckedChange={() => setExcludedKeys((current) => current.filter((value) => value !== key))}
-                      >
-                        {record?.label || 'Unavailable record'}
-                      </DropdownMenuCheckboxItem>
-                    );
-                  })}
-                </>}
-                {exclusionCount > 0 && <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => { setExcludedKeys([]); setExcludedTypes([]); setExcludedSourceIds([]); }}>Clear all exclusions</DropdownMenuItem>
-                </>}
-              </DropdownMenuContent>
-            </DropdownMenu>
+
+            {/* Narrow by what a record is linked to. Which relationships are on
+                offer depends on the kind: an annotation fed a position, a work
+                did not. Browsing by source is the Library's job, not the desk's. */}
+            <div className="noesis-refine">
+              <p className="noesis-eyebrow noesis-eyebrow--sm">
+                {refineRelations.length
+                  ? typeFilter === 'all' ? 'Refine by' : `Refine these ${contextTypeLabels[typeFilter].toLowerCase()} by`
+                  : 'Nothing to refine by here'}
+              </p>
+              {refineRelations.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {refineRelations.map((relation) => (
+                    <Select key={relation} value="" onValueChange={(value) => { if (value) setRefine((current) => [...current, { relation, value, mode: 'only' }]); }}>
+                      <SelectTrigger className="h-9 min-w-0 flex-1 basis-32 rounded-[var(--radius-panel)] bg-card text-xs" aria-label={relation === 'concept' ? 'On concept' : 'Linked position'}>
+                        <SelectValue placeholder={relation === 'concept' ? 'On concept…' : 'Linked position…'} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-80">
+                        {(relation === 'concept' ? concepts.map((item) => ({ id: item.id, name: item.name })) : positions.map((item) => ({ id: item.id, name: item.title })))
+                          .filter((option) => !refine.some((item) => item.relation === relation && item.value === option.id))
+                          .map((option) => <SelectItem key={option.id} value={option.id}>{option.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ))}
+                </div>
+              )}
+              {refine.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {refine.map((item, index) => (
+                    <span key={`${item.relation}:${item.value}`} className="noesis-chip" data-mode={item.mode}>
+                      <span>{item.mode === 'only' ? 'only' : 'not'} {refineLabel(item)}</span>
+                      <button type="button" aria-label={`Switch to ${item.mode === 'only' ? 'excluding' : 'including'} ${refineLabel(item)}`}
+                        onClick={() => setRefine((current) => current.map((entry, at) => at === index ? { ...entry, mode: entry.mode === 'only' ? 'not' : 'only' } : entry))}>
+                        {item.mode === 'only' ? '↔ not' : '↔ only'}
+                      </button>
+                      <button type="button" aria-label="Remove this filter"
+                        onClick={() => setRefine((current) => current.filter((_, at) => at !== index))}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {refineRelations.length > 0 && !refine.length && (
+                <p className="text-xs leading-5 text-muted-foreground">Pick one above, then flip it between only and not.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="noesis-figure noesis-figure--sm">
+                {filtered.length} of {records.length} records{refine.length ? ` · ${refine.length} filter${refine.length === 1 ? '' : 's'}` : ''}
+              </span>
+              <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={addVisibleRecords} disabled={!filtered.length || selectedKeys.length >= MAX_DESK_ITEMS}>Add visible</Button>
+            </div>
+
+            <ScrollArea className="h-[min(42vh,26rem)] overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25">
+              <div className="divide-y divide-border/70 px-3">
+                {visibleRecords.map((record) => {
+                  const active = selectedKeys.includes(record.key);
+                  return (
+                    <div key={record.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-label uppercase" style={{ color: `hsl(var(--kind-${record.type}))` }}>{contextTypeLabels[record.type]}</p>
+                        <p className="text-sm leading-5">{record.label}</p>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="size-8" disabled={!active && selectedKeys.length >= MAX_DESK_ITEMS}
+                        aria-label={active ? `Take ${record.label} off the desk` : `Add ${record.label} to the desk`}
+                        onClick={() => toggleRecord(record)}>
+                        {active ? <Check className="size-4" /> : <Plus className="size-4" />}
+                      </Button>
+                    </div>
+                  );
+                })}
+                {!visibleRecords.length && <p className="py-6 text-center text-sm text-muted-foreground">Nothing matches. Loosen a filter or flip one back to only.</p>}
+              </div>
+            </ScrollArea>
           </div>
-          <div className="mt-3 rounded-[var(--card-radius)] border border-border/60 bg-card/35 p-3">
-            <EntityPicker
-              items={sourceExclusionItems}
-              selectedIds={excludedSourceIds}
-              onToggle={toggleExcludedSource}
-              label="Excluded sources"
-              triggerLabel="Exclude sources"
-              searchPlaceholder="Search title, author, type, or tag"
-              emptySelectedLabel="No sources excluded."
-              compact
+
+          {!savedDeskOwner && (
+            <div className="grid gap-2">
+              <p className="noesis-eyebrow">Folders</p>
+              <p className="text-xs leading-5 text-muted-foreground">Sign in to keep the handful of records you always reach for.</p>
+            </div>
+          )}
+          {storageReady && savedDeskOwner && (
+            <ContextFolderStack
+              uid={savedDeskOwner}
+              onDesk={selectedKeys}
+              filing={filingKey}
+              onFiled={() => setFilingKey(null)}
+              onAdd={(keys) => { setSelectedKeys((current) => [...current, ...keys.filter((key) => !current.includes(key))]); setCarriedIn((current) => new Set([...current, ...keys])); }}
+              onRemove={(keys) => { setSelectedKeys((current) => current.filter((key) => !keys.includes(key))); setCarriedIn((current) => { const next = new Set(current); keys.forEach((key) => next.delete(key)); return next; }); }}
             />
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">Excluding a source also excludes its annotations and any selected record directly tied to it.</p>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--card-radius)] border border-border/60 bg-card/35 px-3 py-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Filter className="size-4 shrink-0" aria-hidden="true" />
-              <span>Showing {visibleRecords.length} of {filtered.length} matching record{filtered.length === 1 ? '' : 's'}</span>
-              {activeSource && <Badge variant="outline" className="max-w-56 truncate">Source: {activeSource.title}</Badge>}
-              {activeConcept && <Badge variant="outline">Concept: {activeConcept.name}</Badge>}
-              {exclusionCount > 0 && <Badge variant="outline">{exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</Badge>}
-            </div>
-            <div className="flex items-center gap-1">
-              {(activeFilterCount > 0 || query) && <Button type="button" variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
-              <Button type="button" variant="outline" size="sm" onClick={addVisibleRecords} disabled={!filtered.length || selectedKeys.length >= MAX_DESK_ITEMS}>Add visible</Button>
-            </div>
-          </div>
-          <ScrollArea className="mt-3 h-[min(52vh,34rem)] overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25">
-            <div className="divide-y divide-border">
-              {visibleRecords.map((record) => {
-                const active = selectedKeys.includes(record.key);
-                const Icon = iconForNoesisView(viewForType[record.type]);
-                return (
-                  <div key={record.key} className={cn('grid grid-cols-[minmax(0,1fr)_2.5rem] items-stretch transition-colors', active && 'bg-accent/8')}>
-                    <button
-                      type="button"
-                      onClick={() => toggleRecord(record)}
-                      disabled={!active && selectedKeys.length >= MAX_DESK_ITEMS}
-                      className="grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-start gap-3 px-2 py-3 text-left transition-colors hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:opacity-45"
-                      aria-pressed={active}
-                    >
-                      <span className="flex size-9 items-center justify-center text-muted-foreground"><Icon className="size-[18px]" aria-hidden="true" /></span>
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{record.label}</span><Badge variant="outline" className="text-label-sm uppercase">{record.type}</Badge></span>
-                        <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
-                        {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt) && (
-                          <span className="mt-1 block noesis-eyebrow text-muted-foreground">
-                            {sortBy === 'created' ? 'Created' : 'Edited'} {formatRecordDate(sortBy === 'created' ? record.createdAt : record.updatedAt)}
-                          </span>
-                        )}
-                      </span>
-                      <span className={cn('mt-1 flex size-8 items-center justify-center rounded-[var(--button-radius)] border', active ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground')} aria-hidden="true">{active ? <Check className="size-4" /> : <Plus className="size-4" />}</span>
-                    </button>
-                    <Button type="button" variant="ghost" size="icon" className="my-2 size-9 self-start text-muted-foreground hover:text-destructive" onClick={() => excludeRecord(record)} aria-label={`Exclude ${record.label} from Context Desk`} title="Exclude from Context Desk"><X className="size-4" /></Button>
-                  </div>
-                );
-              })}
-              {!filtered.length && <p className="px-3 py-10 text-center text-sm text-muted-foreground">No records match that search.</p>}
-              {visibleRecords.length < filtered.length && <div className="p-3"><Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => setVisibleLimit((limit) => limit + 100)}>Show more records</Button></div>}
-            </div>
-          </ScrollArea>
+          )}
         </section>
 
         <section aria-labelledby="selected-context-heading" className="min-w-0 border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
@@ -826,6 +874,7 @@ export function ContextDeskRoutePage({
                     onDragLeave={() => setOverKey((key) => key === record.key ? null : key)}
                     onDrop={(event) => { event.preventDefault(); if (dragKey) moveSelected(dragKey, record.key); setDragKey(null); setOverKey(null); }}
                     data-reads={reads || undefined}
+                    data-carried={carriedIn.has(record.key) || undefined}
                     data-dragging={dragKey === record.key || undefined}
                     data-over={overKey === record.key && dragKey !== record.key || undefined}
                     className="noesis-desk__slip grid grid-cols-[1.25rem_1.5rem_minmax(0,1fr)_auto] items-start gap-2 py-3"
@@ -839,6 +888,11 @@ export function ContextDeskRoutePage({
                     </button>
                     <div className="flex items-start justify-end">
                     {!reads && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Move ${record.label} into this request`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
+                    <Button type="button" variant="ghost" size="icon" className="size-9" aria-pressed={filingKey === record.key}
+                      title={`Keep ${record.label} in a folder`} aria-label={`Keep ${record.label} in a folder`}
+                      onClick={() => setFilingKey((current) => current === record.key ? null : record.key)}>
+                      <FolderOpen className={cn('size-4', filingKey === record.key && 'text-[hsl(var(--kind-concept))]')} />
+                    </Button>
                     <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Take ${record.label} off the desk`}><X className="size-4" /></Button>
                     </div>
                   </div>
