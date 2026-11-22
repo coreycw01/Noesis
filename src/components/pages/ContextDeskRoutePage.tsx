@@ -1,6 +1,8 @@
 "use client";
 
 import { ContextDrawers } from '@/components/ai/ContextDrawers';
+import { AiUsageMeter } from '@/components/ai/AiUsageMeter';
+import { deskComposition, deskSuggestions, type DeskItem } from '@/lib/context-desk-suggestions';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -341,6 +343,8 @@ export function ContextDeskRoutePage({
   const [memberLimit, setMemberLimit] = useState(40);
   // Drawers live behind a panel so the Desk itself keeps the room it needs.
   const [drawersOpen, setDrawersOpen] = useState(false);
+  /** Bumped after a review, so the usage meter re-reads rather than going stale. */
+  const [usageKey, setUsageKey] = useState(0);
   // Which slip is in hand, and which one it is hovering over.
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
@@ -380,6 +384,35 @@ export function ContextDeskRoutePage({
 
   const activeFilterCount = [typeFilter !== 'all', sourceFilter !== 'all', conceptFilter !== 'all', dateFilter !== 'all'].filter(Boolean).length;
   const exclusionCount = excludedKeys.length + excludedTypes.length + excludedSourceIds.length;
+  /** An inquiry is worth suggesting only while it is still open. */
+  const inquiryStatusByKey = useMemo(
+    () => new Map(questions.map((item) => [`inquiry:${item.id}`, String(item.status || 'open')])),
+    [questions],
+  );
+  // What the desk is made of, and what is missing from it. Both read links
+  // the workspace already stores; neither calls a model.
+  const deskItems = useMemo<DeskItem[]>(() => selected.map((record) => ({
+    key: record.key, type: record.type, label: record.label,
+    sourceIds: record.sourceIds, conceptIds: record.conceptIds,
+  })), [selected]);
+  const poolItems = useMemo<DeskItem[]>(() => records.map((record) => ({
+    key: record.key, type: record.type, label: record.label,
+    sourceIds: record.sourceIds, conceptIds: record.conceptIds,
+    open: record.type === 'inquiry'
+      ? !/resolved|converted|no_longer_meaningful|archived/i.test(inquiryStatusByKey.get(record.key) || 'open')
+      : undefined,
+  })), [records, inquiryStatusByKey]);
+  const composition = useMemo(
+    () => deskComposition(deskItems, (type) => contextTypeLabels[type as ContextRecordType] || type),
+    [deskItems],
+  );
+  const bringIn = useMemo(
+    () => deskSuggestions(deskItems, poolItems, (id) => conceptNameById.get(id) || id)
+      .map((hit) => ({ ...hit, record: recordsByKey.get(hit.key) }))
+      .filter((hit): hit is typeof hit & { record: ContextRecord } => Boolean(hit.record)),
+    [conceptNameById, deskItems, poolItems, recordsByKey],
+  );
+
   const selectedGroups = useMemo(() => (Object.keys(contextTypeLabels) as ContextRecordType[]).map((type) => ({
     type,
     records: analysisRecords.filter((record) => record.type === type),
@@ -669,6 +702,51 @@ export function ContextDeskRoutePage({
             <p className="text-xs leading-5 text-muted-foreground">
               This request reads {analysisRecords.length} of {selected.length}. You choose where the finding lands when you accept it — the records themselves are never changed.
             </p>
+
+            {/* What the desk is made of. A set drawn from one page rarely turns
+                up a tension, and the count of kinds is what says so. */}
+            {selected.length > 0 && (
+              <div className="grid gap-1.5 border-t border-border/60 pt-3">
+                <div className="flex h-1.5 overflow-hidden rounded-[var(--radius-pill)] bg-muted" aria-hidden="true">
+                  {composition.counts.map(({ type, count }) => (
+                    <span key={type} style={{ width: `${(count / composition.total) * 100}%`, background: `hsl(var(--kind-${type}))` }} />
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1">
+                  {composition.counts.map(({ type, count }) => (
+                    <span key={type} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <i className="size-1.5 rounded-[2px]" style={{ background: `hsl(var(--kind-${type}))` }} aria-hidden="true" />
+                      {contextTypeLabels[type as ContextRecordType]} {count}
+                    </span>
+                  ))}
+                </div>
+                <p className={cn('text-xs leading-5', composition.tone === 'thin' ? 'text-[hsl(var(--caution))]' : 'text-muted-foreground')}>
+                  {composition.verdict}
+                </p>
+              </div>
+            )}
+
+            {/* What is missing, from links the workspace already holds. */}
+            {bringIn.length > 0 && (
+              <div className="grid gap-2 border-t border-border/60 pt-3">
+                <p className="noesis-eyebrow noesis-eyebrow--sm">Bring in?</p>
+                {bringIn.map((hit) => (
+                  <div key={hit.key} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-[var(--radius-panel)] border border-dashed border-[hsl(var(--revise)/.5)] bg-[hsl(var(--revise)/.07)] px-3 py-2">
+                    <i className="mt-1.5 size-1.5 rounded-full" style={{ background: `hsl(var(--kind-${hit.record.type}))` }} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-5">{hit.record.label}</p>
+                      <p className="text-xs leading-5 text-muted-foreground">{hit.why}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="size-8" aria-label={`Bring ${hit.record.label} onto the desk`} onClick={() => toggleRecord(hit.record)}>
+                      <Plus className="size-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <AiUsageMeter className="border-t border-border/60 pt-3" owner={savedDeskOwner} refreshKey={usageKey} />
+
             <ContextualAiPanel
               actions={['review_selected_context']}
               enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
@@ -712,6 +790,7 @@ export function ContextDeskRoutePage({
                   return;
                 }
                 const created = await onAddDraft(contextDeskWorkDraft(result, content, analysisRecords), { result, records: analysisRecords });
+                setUsageKey((key) => key + 1);
                 onNavigate('writing', created.id);
               }}
             />

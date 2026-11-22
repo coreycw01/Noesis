@@ -64,6 +64,32 @@ export async function enforceUsageLimit(
   });
 }
 
+/**
+ * The same counters, read without spending one.
+ *
+ * The browser cannot see `apiUsage` — the rules refuse it outright — so a meter
+ * on the page has to come through here. Reading is deliberately not a
+ * transaction: a count a second out of date is fine for a bar, and a review
+ * that would exceed the limit is still refused by `enforceUsageLimit`.
+ */
+export async function readUsage(uid: string, action: UsageAction, options: { tester?: boolean } = {}) {
+  const windows = apiUsageWindows(new Date());
+  const limits = DEFAULT_LIMITS[action];
+  const db = adminFirestore();
+  const [minuteSnap, daySnap] = await Promise.all([
+    db.doc(`apiUsage/${safePart(uid)}_${action}_m_${windows.minute}`).get(),
+    db.doc(`apiUsage/${safePart(uid)}_${action}_d_${windows.day}`).get(),
+  ]);
+  return {
+    day: Number(daySnap.data()?.count || 0),
+    minute: Number(minuteSnap.data()?.count || 0),
+    dayLimit: options.tester && action === 'ai' ? 200 : limits.daily,
+    minuteLimit: limits.minute,
+    dayResetsIn: windows.dayRetryAfter,
+    minuteResetsIn: windows.minuteRetryAfter,
+  };
+}
+
 export async function withUserAiConcurrency<T>(uid: string, operation: () => Promise<T>) {
   const release = await reserveAiSlot(adminFirestore(), uid);
   if (!release) throw new ApiError(429, 'Two assistance requests are already running.', 'concurrency_limit', 5);
