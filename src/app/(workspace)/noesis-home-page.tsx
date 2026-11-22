@@ -1622,6 +1622,38 @@ export function ReadexWorkspace({
     }, { rethrow: true });
   };
 
+  const saveContextDeskFinding: import('@/components/pages/NoesisRouteContent').NoesisRouteContentProps['saveContextDeskFinding'] = async (target, result, content, records, experiment) => {
+    if (!user || isOfflineReviewPreview) throw new Error('Sign in to save this finding.');
+    const { prepareDeskFinding } = await import('@/lib/context-desk-handoff');
+    const { runTransaction } = await import('firebase/firestore');
+    const { finding, origin, practice } = await prepareDeskFinding(effectiveUid, target, result, content, records, serverTimestamp(), experiment);
+    const targetRef = doc(target.type === 'position' ? refs.vault : target.type === 'inquiry' ? refs.questions : refs.practices, target.id);
+    const originRef = doc(refs.user, 'aiProvenance', finding.id);
+    const { eventRef, payload } = makeThinkingEventPayload({
+      collection: refs.thinkingEvents, userId: effectiveUid, entityId: target.id, entityType: target.type,
+      eventType: 'suggestion_accepted', summary: 'Saved a Context Desk finding for review', origin: 'ai-assisted',
+      idempotencyKey: finding.id, sourceActionId: finding.id,
+      metadata: { provenanceId: finding.id, fieldPath: 'contextDeskFindings.content', contextualAiAction: result.action },
+    });
+    await runTransaction(db, async tx => {
+      const [record, existing] = await Promise.all([tx.get(targetRef), tx.get(originRef)]);
+      if (existing.exists()) {
+        if (record.exists() && existing.data().acceptedTextHash === origin.acceptedTextHash) return;
+        throw new Error('A different finding from this review is already saved to this record.');
+      }
+      if (practice) {
+        if (record.exists()) throw new Error('An experiment from this review already exists.');
+        tx.set(targetRef, practice);
+      } else {
+        if (!record.exists()) throw new Error('This record is no longer available.');
+        if ((record.data().contextDeskFindings?.length || 0) >= 40) throw new Error('This record already holds 40 Desk findings. Save this review to Works instead.');
+        tx.update(targetRef, { contextDeskFindings: arrayUnion(finding) });
+      }
+      tx.set(originRef, origin);
+      tx.set(eventRef, { ...payload, createdAt: serverTimestamp() });
+    });
+  };
+
   const updateMedia = async (item: Media, base?: Pick<Partial<Media>, 'dateUpdated'>, approval?: SourceReviewApproval) => {
     const { conceptIds, createIfMissing } = prepareTagConcepts(item.tags || []);
     const mediaRef = doc(refs.media, item.id);
@@ -1958,8 +1990,9 @@ export function ReadexWorkspace({
     const { conceptIds, createIfMissing } = prepareTagConcepts(entry.tags || []);
     const previous = vault.find((item) => item.id === entry.id);
     const confidenceChanged = Boolean(previous && previous.confidence !== entry.confidence);
+    const { contextDeskFindings: _deskFindings, ...editableEntry } = entry;
     const nextEntry = {
-      ...entry,
+      ...editableEntry,
       conceptIds,
       dateUpdated: today(),
       versionHistory: boundedPositionVersionHistory(positionRevisionHistory(previous, entry, today())),
@@ -2264,7 +2297,8 @@ export function ReadexWorkspace({
     const questionRef = doc(refs.questions, question.id);
     const previous = questions.find((item) => item.id === question.id);
     if (!previous || question.dateUpdated !== previous.dateUpdated) throw new WorkspaceRecordChangedError();
-    const nextQuestion = { ...question, dateUpdated: today() };
+    const { contextDeskFindings: _deskFindings, ...editableQuestion } = question;
+    const nextQuestion = { ...editableQuestion, dateUpdated: today() };
     const resolved = question.status === 'resolved' || question.status === 'answered';
     const reviewNotes = (item?: Question) => item?.investigationNotes?.filter((note) => note.origin === 'ai-assisted')
       .map(({ id }) => ({ id, action: 'socratic_inquiry_challenge' }));
@@ -2718,8 +2752,9 @@ export function ReadexWorkspace({
     }
     const { conceptIds, createIfMissing } = prepareTagConcepts(practice.conceptTags || []);
     const previous = practices.find((item) => item.id === practice.id);
+    const { contextDeskFindings: _deskFindings, ...editablePractice } = practice;
     const nextPractice = {
-      ...practice,
+      ...editablePractice,
       conceptIds,
       logs: boundedNestedPracticeLogs(practice.logs || []),
       status: normalizePracticeStatusForSave(practice),
@@ -3566,6 +3601,7 @@ export function ReadexWorkspace({
         addDraft={addDraft}
         linkInquiryItem={linkInquiryItem}
         saveInquiryAiReview={saveInquiryAiReview}
+        saveContextDeskFinding={saveContextDeskFinding}
         updateDraft={updateDraft}
         markDraftOpened={markDraftOpened}
         deleteDraft={deleteDraft}

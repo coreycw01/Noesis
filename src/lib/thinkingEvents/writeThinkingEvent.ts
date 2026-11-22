@@ -35,9 +35,11 @@ export interface WriteThinkingEventInput {
   metadata?: Record<string, any>;
 }
 
-function sanitizeEventSnapshot<T>(value: T): T | null {
+function sanitizeEventSnapshot(value: WriteThinkingEventInput['before'], keepDeskFindings = false) {
   if (value == null) return null;
-  return JSON.parse(JSON.stringify(value));
+  if (keepDeskFindings) return JSON.parse(JSON.stringify(value));
+  const { contextDeskFindings: _deskFindings, ...snapshot } = value;
+  return JSON.parse(JSON.stringify(snapshot));
 }
 
 function buildObjectDiff(before?: Record<string, any> | null, after?: Record<string, any> | null) {
@@ -81,7 +83,8 @@ export function makeThinkingEventPayload(input: WriteThinkingEventInput) {
 
   const eventId = input.idempotencyKey || uid();
   const eventRef = doc(input.collection, eventId);
-  const before = sanitizeEventSnapshot(input.before);
+  // Findings have their own acceptance event. Keep their text only in deletion recovery snapshots.
+  const before = sanitizeEventSnapshot(input.before, input.eventType === 'deleted');
   const after = sanitizeEventSnapshot(input.eventType === 'restored' && input.after
     ? restoredItemHistorySnapshot(input.after) : input.after);
   // Deletions keep a recovery snapshot; don't duplicate it in the event diff.

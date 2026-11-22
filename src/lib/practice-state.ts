@@ -1,4 +1,4 @@
-import type { Practice } from './types';
+import type { Practice, Question, VaultEntry } from './types';
 import { localDateKey, previousCalendarDay, recordDateKey } from './calendar';
 import { normalizePracticeStatusForSave } from './workflow-integrity';
 
@@ -9,7 +9,7 @@ export function isPracticeConcluded(practice: Partial<Practice>) {
 export function completedPracticeResult(practice: Practice) {
   if (practice.status === 'abandoned' || !isPracticeConcluded(practice)) return null;
   const observation = practice.conclusion?.whatHappened?.trim() || practice.observedOutcome?.trim();
-  if (!observation) return null;
+  if (!observation || /^(kept|missed)$/i.test(observation)) return null;
   return {
     practice,
     observation,
@@ -23,6 +23,14 @@ export function latestCompletedPracticeResult(practices: readonly Practice[]) {
     (Date.parse(b.practice.dateUpdated) || 0) - (Date.parse(a.practice.dateUpdated) || 0)
     || a.practice.id.localeCompare(b.practice.id),
   )[0];
+}
+
+export function practiceReviewDestination(practice: Practice, questions: readonly Question[], positions: readonly VaultEntry[]) {
+  if (!completedPracticeResult(practice)) return null;
+  const question = questions.find(item => practice.questionIds?.includes(item.id) || item.practiceIds?.includes(practice.id));
+  if (question) return { view: 'questions' as const, targetId: question.id, label: question.text };
+  const position = positions.find(item => practice.positionIds?.includes(item.id));
+  return position ? { view: 'vault' as const, targetId: position.id, label: position.title } : null;
 }
 
 export function practiceNeedsOutcome(practice: Practice) {

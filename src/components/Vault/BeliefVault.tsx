@@ -8,6 +8,7 @@ import { BenchBand, Connections, Tool, ToolsBand } from '@/components/shared/rec
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
+import { DeskFindings } from '@/components/ai/DeskFindings';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
 import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
@@ -1094,6 +1095,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </RecordSection>
 
         <RecordSection id="pos-grounds" title="Grounds" description="What supports it, and what pushes against it. Add as you find them." here={hereId === 'pos-grounds'}>
+          <DeskFindings type="position" id={selected.id} findings={selected.contextDeskFindings} />
           <div className="noesis-step__cols noesis-step__cols--even">
             <div data-tone="practice">
               <Eyebrow tone="practice">Support</Eyebrow>

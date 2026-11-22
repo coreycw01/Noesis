@@ -18,7 +18,9 @@ import type { Concept, Draft, Media, PhilosophicalLink, Practice, PracticeLog, P
 import { allQuestions, normalizeConceptTags, PRACTICE_LABELS, today, uid } from '@/lib/readex';
 import { appendPracticeObservation } from '@/lib/practice-observations';
 import { localDateKey as dateKey } from '@/lib/calendar';
-import { isPracticeConcluded, practiceCalendarDate, practiceLogDates, practiceNeedsConsequence, practiceNeedsLog, practiceNeedsOutcome, practiceRecentlyConcluded, practiceScheduleState } from '@/lib/practice-state';
+import { completedPracticeResult, isPracticeConcluded, practiceCalendarDate, practiceLogDates, practiceNeedsConsequence, practiceNeedsLog, practiceNeedsOutcome, practiceRecentlyConcluded, practiceReviewDestination, practiceScheduleState } from '@/lib/practice-state';
+import { DeskFindings } from '@/components/ai/DeskFindings';
+import { ToastAction } from '@/components/ui/toast';
 import { LabeledField } from '@/components/shared/LabeledField';
 import { cn } from '@/lib/utils';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
@@ -145,7 +147,7 @@ function practiceExperimentShape(practice: Practice, linkedQuestions: Question[]
   return { hypothesis, observation, nextStep, needsOutcome, needsConsequence, designGaps, readinessScore, hasBasis, logCount };
 }
 
-export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practices, concepts, media, questions, positions, drafts, links, onAddPractice, onUpdatePractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute, onNavigateTarget, onAddQuestion }: PracticesWorkspaceProps) {
+export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practices, concepts, media, questions, positions, drafts, links, onAddPractice, onUpdatePractice: persistPractice, onDeletePractice, onAddConcept, onCreateLink, focusedPracticeId, onOpenPracticeRoute, onNavigateTarget, onAddQuestion }: PracticesWorkspaceProps) {
   const localDay = useLocalDay();
   const { toast } = useToast();
   const savingRef = React.useRef(false);
@@ -157,6 +159,19 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
   const [deleteTarget, setDeleteTarget] = useState<Practice | null>(null);
   const [draft, setDraft] = useState<Partial<Practice>>({ title: '', description: '', type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', conceptTags: [] });
   const questionList = useMemo(() => allQuestions(media, questions), [media, questions]);
+  const onUpdatePractice: PracticesWorkspaceProps['onUpdatePractice'] = async (next, approval) => {
+    const previous = practices.find(practice => practice.id === next.id);
+    const result = await persistPractice(next, approval);
+    if (!approval && previous && !completedPracticeResult(previous)) {
+      const target = practiceReviewDestination(next, questions, positions);
+      if (target) {
+        const label = target.view === 'questions' ? 'Review in Inquiry' : 'Review in Position';
+        toast({ title: 'Praxis result ready to review', description: target.label,
+          action: <ToastAction altText={`${label}: ${target.label}`} onClick={() => onNavigateTarget(target)}>{label}</ToastAction> });
+      }
+    }
+    return result;
+  };
   const isExperiment = labTool === 'experiments';
   const noun = isExperiment ? 'experiment' : 'practice';
   const practiceState = useMemo(() => {
@@ -218,7 +233,7 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
       onOpenPracticeRoute(practice.id);
       return;
     }
-    setDraft(practice ? { ...practice, type: normalizePracticeType(practice.type), status: normalizePracticeStatus(practice.status) } : {
+    setDraft(practice ? { ...practice } : {
       title: '',
       description: '',
       type: newType === 'experiment' ? 'experiment' : 'habit',
@@ -243,7 +258,7 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
     const focused = practices.find((practice) => practice.id === focusedPracticeId);
     if (focused) {
       openedPracticeId.current = focusedPracticeId;
-      setDraft({ ...focused, type: normalizePracticeType(focused.type), status: normalizePracticeStatus(focused.status) });
+      setDraft({ ...focused });
       setEditorOpen(true);
     }
   }, [focusedPracticeId, practices]);
@@ -258,12 +273,12 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
     } finally { savingRef.current = false; setSavingPractice(false); }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (conclude = false) => {
     if (savingRef.current) return;
     if (!draft.title?.trim()) return;
     const payload = {
       ...draft,
-      status: normalizePracticeStatusForSave(draft),
+      status: conclude ? 'concluded' as const : normalizePracticeStatusForSave(draft),
       conceptTags: normalizeConceptTags(draft.conceptTags),
     };
     savingRef.current = true;
@@ -436,7 +451,8 @@ export function PracticesWorkspace({ labTool, onPickMethod, aiSettings, practice
           const patch = { aiReviewHistory, dateUpdated: new Date().toISOString() };
           await persistEditedPractice({ ...saved, ...patch }, patch);
         }}
-        onSave={handleSave}
+        onSave={() => void handleSave()}
+        onConclude={() => void handleSave(true)}
       />
       <ConfirmActionDialog
         open={Boolean(deleteTarget)}
@@ -589,7 +605,7 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   };
   // One-tap check-in, as in the prototype: today's log, kept or missed.
   const quickCheckIn = async (kept: boolean) => {
-    const nextLog: PracticeLog = { id: uid(), date: todayKey, actionCompleted: kept, context: '', outcome: kept ? 'Kept' : 'Missed', observations: '', unexpectedResult: '', confidence: 3, mediaIds: [] };
+    const nextLog: PracticeLog = { id: uid(), date: todayKey, actionCompleted: kept };
     if (await onUpdatePractice(appendPracticeObservation(practice, nextLog, today()))) toast({ title: kept ? 'Checked in: kept' : 'Checked in: missed', description: 'Add an observation any time from the card.' });
   };
   const saveConclusionReview = async (status: PracticeStatus = 'completed') => {
@@ -772,7 +788,8 @@ function PracticeCard({ practice, questions, positions, onEdit, onDelete, onUpda
   );
 }
 
-function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, busy, onOpenPosition, onAddQuestion, onOpenWorks }: {
+function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, concepts, media, questions, positions, drafts, onAddConcept, onRecordLog, onSaveAiOutcome, onSaveAiHistory, onSave, onConclude, busy, onOpenPosition, onAddQuestion, onOpenWorks }: {
+  onConclude: () => void;
   onOpenPosition?: (id: string) => void;
   onAddQuestion?: (data: Partial<Question>) => unknown;
   onOpenWorks?: () => void;
@@ -885,7 +902,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
       {draft.id && (() => {
         const checkIn = async (kept: boolean) => {
           try {
-            await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: kept, outcome: kept ? 'Kept' : 'Missed' });
+            await onRecordLog({ id: uid(), date: dateKey(), actionCompleted: kept });
             toast({ title: kept ? 'Checked in' : 'Recorded as missed' });
           } catch {
             toast({ title: 'Check-in not saved', description: 'Please retry.', variant: 'destructive' });
@@ -937,7 +954,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
           <Field label="STATUS">
             <Select value={draft.status || 'planned'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as PracticeStatus }))}>
               <SelectTrigger className="rounded-full bg-card border-border/60 shadow-sm noesis-eyebrow h-11"><SelectValue /></SelectTrigger>
-              <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{status}</SelectItem>)}</SelectContent>
+              <SelectContent>{[...new Set([...statuses, ...(draft.status ? [draft.status] : [])])].map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{status.replaceAll('_', ' ')}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
           <Field label="DURATION MODE">
@@ -976,6 +993,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
         </section>
       </RecordSection>
       <RecordSection id="prx-review" title="Review" description="What you expected, beside what happened. Kept apart so the two can be compared." headingLevel="h3">
+        {draft.id && <DeskFindings type="practice" id={draft.id} findings={draft.contextDeskFindings} />}
         <Dictation label="Dictate the review" hint="Dictates into the box you last typed in: what you expected, or what happened.">
           <div className="noesis-pair">
             <Field label="WHAT YOU EXPECTED"><Textarea value={draft.expectedOutcome || ''} onChange={(event) => setDraft((prev) => ({ ...prev, expectedOutcome: event.target.value }))} className="min-h-[110px] italic text-base" placeholder="Before you began: what did you think would happen?" /></Field>
@@ -986,6 +1004,7 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, setDraft, conce
             <Field label="ALTERNATIVE EXPLANATION"><Textarea value={draft.alternativeExplanation || ''} onChange={(event) => setDraft((prev) => ({ ...prev, alternativeExplanation: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What else could explain the result?" /></Field>
             <Field label="EFFECT ON POSITION"><Textarea value={draft.effectOnPosition || ''} onChange={(event) => setDraft((prev) => ({ ...prev, effectOnPosition: event.target.value }))} className="min-h-[90px] italic text-base" placeholder="What position, inquiry, or concept should change because of this?" /></Field>
           </div>
+          {draft.id && !isPracticeConcluded(draft) && <Button type="button" variant="secondary" disabled={busy || !draft.title?.trim() || !draft.observedOutcome?.trim()} onClick={onConclude}>Save and conclude</Button>}
           {savedReviews.length > 0 && (
             <div className="mt-5">
               <AiAssistedHistory

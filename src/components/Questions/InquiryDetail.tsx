@@ -17,6 +17,7 @@ import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { EntityMeta } from '@/components/shared/IntellectualStructures';
 import { FooterSection, OptionalRecordActions, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { DeskFindings } from '@/components/ai/DeskFindings';
 import { BenchBand, Connections, History, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { InquiryScale, answerWeight, inquiryLead, letter } from '@/components/Questions/InquiryScale';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -573,6 +574,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
 
       {/* ---------- Conclude ---------- */}
       <RecordSection id="inq-conclude" title="Conclude" description="Your best answer for now. You can reopen it any time." here={hereId === 'inq-conclude'}>
+        <DeskFindings type="inquiry" id={question.id} findings={question.contextDeskFindings} />
         {frameFilled && <details className="mb-3 border-l border-border pl-3 text-sm">
           <summary className="min-h-8 cursor-pointer font-medium">Compare with your starting point</summary>
           <dl className="space-y-2 pb-2 text-muted-foreground">

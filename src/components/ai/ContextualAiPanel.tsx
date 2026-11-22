@@ -23,6 +23,8 @@ export interface ContextualAiPanelProps {
   showContextBeforeSending?: boolean;
   reasoningDepth?: 'light' | 'standard' | 'deep';
   onAccept?: (result: AiReviewResult, editedContent: string) => void | Promise<void>;
+  acceptDestination?: ReactNode;
+  acceptLabel?: string;
   reviewContextKey?: string;
   buttonLabel?: string;
   promptLabel?: string;
@@ -119,6 +121,8 @@ export function ContextualAiPanel({
   showContextBeforeSending = true,
   reasoningDepth = 'standard',
   onAccept,
+  acceptDestination,
+  acceptLabel,
   reviewContextKey,
   buttonLabel = 'Assistance',
   promptLabel,
@@ -649,13 +653,14 @@ export function ContextualAiPanel({
                 </div>
 
                 <div className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
+                  {acceptDestination}
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:[@media(max-height:600px)]:flex-row max-sm:[@media(max-height:600px)]:flex-wrap max-sm:[@media(max-height:600px)]:justify-between">
                     <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); setReviewItems([]); setFocusedItemId(null); setReviewMode('overview'); }} className="min-h-11 sm:w-auto">
                       <X className="mr-2 size-4" /> Dismiss review
                     </Button>
                     {onAccept ? (
                       <Button onClick={accept} disabled={reviewIsStale || accepting || selectedReviewCount === 0} className="min-h-11 sm:w-auto">
-                        {accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />} Save {selectedReviewCount} {reviewItemLabel}{selectedReviewCount === 1 ? '' : 's'}
+                        {accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />} {acceptLabel || `Save ${selectedReviewCount} ${reviewItemLabel}${selectedReviewCount === 1 ? '' : 's'}`}
                       </Button>
                     ) : (
                       <Button onClick={copyResult} disabled={!selectedReviewCount} className="min-h-11 sm:w-auto">
@@ -682,10 +687,11 @@ export function ContextualAiPanel({
                   ) : (
                     <ContextualAiDocument content={editedContent} />
                   )}
+                  {acceptDestination}
                   <div className="sticky bottom-0 flex flex-col-reverse gap-2 bg-background py-3 sm:flex-row sm:justify-end">
                     <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); }} className="min-h-11"><X className="mr-2 size-4" />Dismiss review</Button>
                     {onAccept ? (
-                      <Button onClick={accept} disabled={reviewIsStale || accepting || !editedContent.trim()} className="min-h-11">{accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Check className="mr-2 size-4" />}Apply reviewed text</Button>
+                      <Button onClick={accept} disabled={reviewIsStale || accepting || !editedContent.trim()} className="min-h-11">{accepting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Check className="mr-2 size-4" />}{acceptLabel || 'Apply reviewed text'}</Button>
                     ) : (
                       <Button onClick={copyResult} disabled={!editedContent.trim()} className="min-h-11"><ClipboardCopy className="mr-2 size-4" />Copy text</Button>
                     )}
