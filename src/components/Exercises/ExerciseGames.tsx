@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Shuffle } from 'lucide-react';
+import { Check, Settings2, Shuffle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Panel } from '@/components/ui/panel';
@@ -258,6 +258,7 @@ export function ExerciseGames({ concepts, inquiries, positions, practices, seed,
 }) {
   const inRotation = GAMES.filter((game) => !rotation?.length || rotation.includes(game.id));
   const [open, setOpen] = useState<(typeof GAMES)[number]['id']>(inRotation[0]?.id || 'match');
+  const [picking, setPicking] = useState(false);
   const current = inRotation.find((game) => game.id === open) || inRotation[0];
   // Deal: a game you are not already on, from the ones you chose. With one
   // game chosen it re-deals the same one rather than pretending to shuffle.
@@ -273,38 +274,49 @@ export function ExerciseGames({ concepts, inquiries, positions, practices, seed,
   };
   return (
     <section aria-label="Exercises">
+      {/* One row to choose a game. The rotation used to be a second control on
+          a line of its own, listing the same five games a second time, and the
+          game then announced its own title a third time in a panel heading
+          directly under the tab already carrying it. The row is the only place
+          you pick a game; the rotation opens from the end of it; and the game
+          keeps the one line that is not a repeat — how to play it. */}
       <div className="noesis-game__tabs" role="tablist" aria-label="Choose an exercise">
         {inRotation.map((game) => (
           <button key={game.id} role="tab" type="button" aria-selected={open === game.id} className="noesis-pill" onClick={() => setOpen(game.id)}>{game.title}</button>
         ))}
         <span className="flex-1" />
+        {onRotationChange && (
+          <Button variant="ghost" size="sm" aria-pressed={picking} aria-expanded={picking}
+            title={picking ? 'Done' : `Choose which games Deal me one draws from \u00b7 ${inRotation.length} of ${GAMES.length}`}
+            onClick={() => setPicking((shown) => !shown)}>
+            {picking ? <Check className="size-3.5" aria-hidden="true" /> : <Settings2 className="size-3.5" aria-hidden="true" />}
+            {picking ? 'Done' : `${inRotation.length} of ${GAMES.length}`}
+          </Button>
+        )}
         <Button variant="secondary" size="sm" onClick={deal}><Shuffle className="size-3.5" aria-hidden="true" /> Deal me one</Button>
       </div>
 
-      {onRotationChange && (
-        <details className="noesis-fold mt-2">
-          <summary><Button asChild variant="tertiary" size="sm"><span>Which games are in the rotation · {inRotation.length} of {GAMES.length}</span></Button></summary>
-          <div className="noesis-fold__body">
-            <p className="noesis-fold__hint">Deal me one picks from the games you tick here. Untick the ones you are tired of; they come back whenever you want them.</p>
-            <ul className="grid gap-1.5 sm:grid-cols-2">
-              {GAMES.map((game) => {
-                const on = !rotation?.length || rotation.includes(game.id);
-                return (
-                  <li key={game.id}>
-                    <label className="noesis-check">
-                      <input type="checkbox" checked={on} disabled={on && inRotation.length === 1} onChange={() => toggle(game.id)} />
-                      <span><b>{game.title}</b><small className="block text-muted-foreground">{game.hint}</small></span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </details>
+      {onRotationChange && picking && (
+        <div className="noesis-fold__body mt-2">
+          <p className="noesis-fold__hint">Deal me one picks from the games you tick here. Untick the ones you are tired of; they come back whenever you want them.</p>
+          <ul className="grid gap-1.5 sm:grid-cols-2">
+            {GAMES.map((game) => {
+              const on = !rotation?.length || rotation.includes(game.id);
+              return (
+                <li key={game.id}>
+                  <label className="noesis-check">
+                    <input type="checkbox" checked={on} disabled={on && inRotation.length === 1} onChange={() => toggle(game.id)} />
+                    <span><b>{game.title}</b><small className="block text-muted-foreground">{game.hint}</small></span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
 
       {current && (
-        <Panel key={current.id} size="lg" className="mt-3" title={current.title} description={current.hint} headingLevel="h2">
+        <Panel key={current.id} size="lg" className="mt-3" description={current.hint}>
           {current.id === 'match' && <MatchGame concepts={concepts} seed={seed} />}
           {current.id === 'blanks' && <BlanksGame concepts={concepts} seed={seed} />}
           {current.id === 'sort' && <SortGame concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={seed} />}
