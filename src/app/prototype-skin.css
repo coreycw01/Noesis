@@ -662,3 +662,19 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-chip button:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
 /* A slip a folder carried in keeps the folder's colour down its edge. */
 .noesis-desk__slip[data-carried] { box-shadow: inset 3px 0 0 hsl(var(--kind-concept)); }
+
+/* ---------- Noesis AI wears the assistant, not a stage ---------- */
+/* Every other page takes its accent from the Loop stage it belongs to, which
+   is how a page says what it is. Noesis AI is not a stage — it was borrowing
+   the "More" blue-green for no reason. Its tab marks are the assistant's
+   violet, and its accent is whatever appearance theme the person chose, which
+   is otherwise only visible in small corners of the app. */
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label,
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label__section { color: hsl(var(--nav-accent)); }
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label::before { background: hsl(var(--nav-accent)); }
+[data-noesis-route="context-desk"] [role="tab"] svg { color: hsl(var(--revise)); }
+[data-noesis-route="context-desk"] [role="tab"][aria-selected="false"] svg { opacity: .6; }
+[data-noesis-route="context-desk"] [role="tab"][aria-selected="true"] {
+  border: 1px solid hsl(var(--revise) / .45);
+  box-shadow: 0 0 0 2px hsl(var(--revise) / .12);
+}
