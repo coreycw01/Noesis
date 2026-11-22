@@ -20,7 +20,7 @@
   --border: 40 16% 85%;
   --input: 40 16% 85%;
   --surface: 0 0% 100%;
-  --accent-foreground: 60 23% 97%;
+  --workspace-accent: var(--accent);
   --proto-amber: 33 87% 35%;
   --card-radius: 14px;
   --button-radius: 20px;
@@ -43,27 +43,27 @@
   --border: 33 9% 19%;
   --input: 33 9% 19%;
   --surface: 30 7% 11%;
-  --accent-foreground: 30 10% 8%;
   --proto-amber: 35 73% 55%;
 }
 
-/* The prototype amber is the accent only when no appearance theme is chosen.
-   These used to sit on bare :root and .dark, which load after theme.css and so
-   overwrote every theme's accent — the picker changed the surfaces around a
-   page but never the accent itself. */
-:root:not([data-theme]) { --accent: 33 87% 35%; --ring: 33 87% 35%; }
-.dark:not([data-theme]) { --accent: 35 73% 55%; --ring: 35 73% 55%; }
+/* Keep prototype amber as a fallback without overriding named themes. */
+:root:not([data-theme]) {
+  --accent: var(--proto-amber);
+  --accent-foreground: var(--background);
+  --ring: var(--accent);
+}
 
 body { background: hsl(var(--background)); font-family: "Spectral", Georgia, serif; }
 
 /* Each page takes its stage color as its accent: buttons, tabs, focus, links. */
 main[data-stage-tone="encounter"] { --accent: var(--stage-encounter); --ring: var(--stage-encounter); }
+main[data-stage-tone="outline"] { --accent: var(--stage-outline); --ring: var(--stage-outline); }
 main[data-stage-tone="examine"] { --accent: var(--stage-examine); --ring: var(--stage-examine); }
 main[data-stage-tone="claim"] { --accent: var(--stage-claim); --ring: var(--stage-claim); }
 main[data-stage-tone="act"] { --accent: var(--stage-act); --ring: var(--stage-act); }
 main[data-stage-tone="integrate"] { --accent: var(--stage-integrate); --ring: var(--stage-integrate); }
 main[data-stage-tone="more"] { --accent: var(--stage-more); --ring: var(--stage-more); }
-main[data-stage-tone="today"] { --accent: var(--proto-amber); --ring: var(--proto-amber); }
+[data-stage-tone="theme"] { --stage: var(--workspace-accent); }
 
 /* Page header: centered, stage eyebrow, large italic title, actions underneath. */
 /* Page header, as in the prototype: centred eyebrow, title and one line of
@@ -114,18 +114,14 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-app-main--loop { padding-top: 48px; }
 
 /* The Loop dock in the prototype's light card style. */
-.noesis-loop { --dock-bg: hsl(var(--card) / .92); background: var(--dock-bg); color: hsl(var(--foreground)); border-color: hsl(var(--accent) / .65); box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .35); }
+.noesis-loop { --dock-bg: hsl(var(--card) / .92); background: var(--dock-bg); color: hsl(var(--foreground)); border-color: hsl(var(--workspace-accent) / .65); box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .35); }
 .noesis-loop [data-stage], .noesis-loop[data-stage] { --nav-stage: var(--stage-encounter); }
 .noesis-loop [data-stage="examine"], .noesis-loop[data-stage="examine"] { --nav-stage: var(--stage-examine); }
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
 .noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--stage-act); }
 .noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--stage-integrate); }
-/* More follows the chosen appearance theme rather than holding one fixed
-   colour, because it is a place to go, not a stage of the Loop. It reads
-   --nav-accent, resolved once on :root, because pages rewrite --accent to
-   their own stage tone and More would otherwise change on every navigation. */
-:root { --nav-accent: var(--accent); }
-.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--nav-accent); }
+/* More follows the workspace theme rather than the current page's stage. */
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--workspace-accent); }
 .noesis-loop__divider { background: hsl(var(--border)); }
 .noesis-loop__link { background: hsl(var(--border)); }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }

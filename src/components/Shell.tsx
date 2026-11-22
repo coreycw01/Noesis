@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { NOESIS_NAV_SECTIONS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import { NOESIS_NAV_SECTIONS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, noesisPageTone } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
@@ -947,7 +947,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           id="noesis-main-content"
           tabIndex={-1}
           className={cn("noesis-app-main relative flex min-w-0 flex-1 flex-col overflow-hidden pb-32 pt-14 md:pb-0 md:pt-0", loopNav && "noesis-app-main--loop")}
-          data-stage-tone={activePage.section === 'Today' ? 'today' : NOESIS_NAV_SECTION_TONE[activePage.section]}
+          data-stage-tone={noesisPageTone(activePage.view, activePage.section)}
           aria-busy={Boolean(pendingPath)}
           onTouchStart={handleMobileTouchStart}
           onTouchMove={handleMobileTouchMove}

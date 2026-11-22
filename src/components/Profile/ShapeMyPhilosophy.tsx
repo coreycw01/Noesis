@@ -79,7 +79,7 @@ export function ShapeMyPhilosophy({ positions, concepts, inquiries, practices, l
 
   const step = state.step;
   return (
-    <div className="noesis-philosophy-process space-y-5" data-stage-tone="integrate">
+    <div className="noesis-philosophy-process space-y-5" data-stage-tone="theme">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="noesis-stage-badge border-l-2 pl-2 noesis-eyebrow font-bold">Shape My Philosophy · a guided process</div>
         <div className="flex gap-2">
