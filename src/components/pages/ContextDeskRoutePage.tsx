@@ -20,7 +20,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -641,59 +640,17 @@ export function ContextDeskRoutePage({
         </section>
 
         <section aria-labelledby="selected-context-heading" className="min-w-0 border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 id="selected-context-heading" className="text-lg font-semibold">Selected context</h2>
-              <p className="mt-1 text-sm text-muted-foreground">This exact set is sent for review.</p>
-            </div>
-            {selected.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys([])}>Clear</Button>}
-          </div>
-
-          <div className="mt-4 min-h-36 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25 px-3">
-            {selected.slice(0, memberLimit).map((record, index) => {
-              const Icon = iconForNoesisView(viewForType[record.type]);
-              return (
-                <div key={record.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)_2.5rem] items-start gap-2 py-3">
-                  <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
-                  <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
-                    <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
-                    <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
-                    <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{index < MAX_CONTEXT_ITEMS ? 'Next review: ' : 'On desk: '}{record.summary}</span>
-                  </button>
-                  <div className="grid justify-items-end">
-                  {index >= MAX_CONTEXT_ITEMS && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Prioritize ${record.label} for the next review`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
-                  <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Remove ${record.label} from context`}><X className="size-4" /></Button>
-                  </div>
-                </div>
-              );
-            })}
-            {selected.length > memberLimit && <Button type="button" variant="outline" onClick={() => setMemberLimit(limit => limit + 40)}>Show more desk items</Button>}
-            {!selected.length && <div className="flex min-h-36 items-center justify-center px-5 text-center text-sm leading-6 text-muted-foreground">Select at least one record to begin. Two or more records are best for comparison and contradiction checks.</div>}
-          </div>
-
-          {staleSelectionCount > 0 && (
-            <div className="mt-3 flex items-center justify-between gap-3 border-l-2 border-destructive/60 pl-3 text-xs leading-5 text-muted-foreground">
-              <span>{staleSelectionCount} previously selected {staleSelectionCount === 1 ? 'record is' : 'records are'} no longer available and will not be sent.</span>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys(keys => keys.filter(key => recordsByKey.has(key)))}>Remove stale</Button>
-            </div>
-          )}
-          {selectedKeys.length >= MAX_DESK_ITEMS && (
-            <p className="mt-3 text-xs leading-5 text-muted-foreground">Selection limit reached. Remove an item before adding another; no unselected records will be included.</p>
-          )}
-
-          <Separator className="my-5" />
-          <div className="sticky bottom-3 z-10 space-y-3 rounded-[var(--card-radius)] border border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/88">
+          {/* What will be sent, what to check, and the run — kept at the top
+              and still. As a sticky footer this panel slid under the cursor
+              every time the selection changed length. */}
+          <div className="space-y-3 rounded-[var(--card-radius)] border border-border bg-card/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
-                <p className="mt-1 text-xs text-muted-foreground">The next review uses excerpts from the first {analysisRecords.length} of {selected.length} available desk items.</p>
-              </div>
-              <Button ref={reviewButton} type="button" variant="outline" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
+              <p className="text-sm font-semibold">{selected.length} selected · {exclusionCount} exclusion{exclusionCount === 1 ? '' : 's'}</p>
+              <Button ref={reviewButton} type="button" variant="secondary" tone="ai" size="sm" onClick={() => setReviewOpen(true)}>Review Context</Button>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold">Review destination</h3>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">Approved findings become a new editable Work. The selected records remain unchanged.</p>
-            </div>
+            <p className="text-xs leading-5 text-muted-foreground">
+              This request reads {analysisRecords.length} of {selected.length}. You choose where the finding lands when you accept it — the records themselves are never changed.
+            </p>
             <ContextualAiPanel
               actions={['review_selected_context']}
               enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
@@ -742,6 +699,44 @@ export function ContextDeskRoutePage({
             />
             {!aiSettings.aiAssistanceEnabled && <p className="text-xs text-muted-foreground">Contextual assistance is disabled in Settings.</p>}
           </div>
+
+          <div className="mt-6 flex items-end justify-between gap-3">
+            <h2 id="selected-context-heading" className="text-lg font-semibold">Selected context</h2>
+            {selected.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys([])}>Clear</Button>}
+          </div>
+
+          <div className="mt-4 min-h-36 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25 px-3">
+            {selected.slice(0, memberLimit).map((record, index) => {
+              const Icon = iconForNoesisView(viewForType[record.type]);
+              return (
+                <div key={record.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)_2.5rem] items-start gap-2 py-3">
+                  <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
+                  <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
+                    <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
+                    <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
+                    <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{index < MAX_CONTEXT_ITEMS ? 'Next review: ' : 'On desk: '}{record.summary}</span>
+                  </button>
+                  <div className="grid justify-items-end">
+                  {index >= MAX_CONTEXT_ITEMS && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Prioritize ${record.label} for the next review`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
+                  <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Remove ${record.label} from context`}><X className="size-4" /></Button>
+                  </div>
+                </div>
+              );
+            })}
+            {selected.length > memberLimit && <Button type="button" variant="outline" onClick={() => setMemberLimit(limit => limit + 40)}>Show more desk items</Button>}
+            {!selected.length && <div className="flex min-h-36 items-center justify-center px-5 text-center text-sm leading-6 text-muted-foreground">Select at least one record to begin. Two or more records are best for comparison and contradiction checks.</div>}
+          </div>
+
+          {staleSelectionCount > 0 && (
+            <div className="mt-3 flex items-center justify-between gap-3 border-l-2 border-destructive/60 pl-3 text-xs leading-5 text-muted-foreground">
+              <span>{staleSelectionCount} previously selected {staleSelectionCount === 1 ? 'record is' : 'records are'} no longer available and will not be sent.</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys(keys => keys.filter(key => recordsByKey.has(key)))}>Remove stale</Button>
+            </div>
+          )}
+          {selectedKeys.length >= MAX_DESK_ITEMS && (
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">Selection limit reached. Remove an item before adding another; no unselected records will be included.</p>
+          )}
+
         </section>
       </div>
       )}

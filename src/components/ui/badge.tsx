@@ -6,6 +6,7 @@ export type BadgeTone =
   | "neutral" | "ok" | "caution" | "problem" | "info"
   | "stage" | "accent"
   | "source" | "annotation" | "concept" | "inquiry" | "position" | "practice" | "work" | "exercise"
+  | "ai"
 
 /**
  * Badge: read-only. Says what something is (kind) or how it stands (status).

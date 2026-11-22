@@ -158,6 +158,8 @@
 [data-tone="practice"] { --tone: var(--kind-practice); }
 [data-tone="work"] { --tone: var(--kind-work); }
 [data-tone="exercise"] { --tone: var(--kind-exercise); }
+/* Noesis AI, so anything that runs or inspects a review wears one colour. */
+[data-tone="ai"] { --tone: var(--revise); }
 
 /* ---------- Primitive styles (used by src/components/ui) ---------- */
 

@@ -117,7 +117,9 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
 .noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--stage-act); }
 .noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--stage-integrate); }
-.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--stage-more); }
+/* More follows the chosen appearance theme rather than holding one fixed
+   colour, because it is a place to go, not a stage of the Loop. */
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--accent); }
 .noesis-loop__divider { background: hsl(var(--border)); }
 .noesis-loop__link { background: hsl(var(--border)); }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }

@@ -882,7 +882,13 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           if (selected?.kind === 'record' && selected.record.id === record.id) {
             ctx.strokeStyle = fg; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, s * 2.2, 0, 7); ctx.stroke();
           }
-          if (recordA > 0.45) label(record.label.length > 30 ? `${record.label.slice(0, 28)}…` : record.label, x, y + s * 2.4, '13px Spectral, Georgia, serif', alpha(ink, 0.92));
+          // A name grows with the zoom. Far out, where a screen holds many
+          // islands, it is cut so the ground stays readable; once you are in
+          // close on one island there is room, and the title is given whole.
+          // Nothing collides: label() drops any name that would overlap one
+          // already drawn.
+          const room = k >= 3 ? Infinity : Math.round(18 + 9 * k);
+          if (recordA > 0.45) label(record.label.length > room ? `${record.label.slice(0, room - 1)}…` : record.label, x, y + s * 2.4, '13px Spectral, Georgia, serif', alpha(ink, 0.92));
           ctx.globalAlpha = 1;
         });
       }
