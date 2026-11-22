@@ -189,6 +189,7 @@ export interface NoesisRouteContentProps {
   addTimelineEvent: (event: TimelineEvent, result?: import('@/lib/contextual-ai').AiReviewResult, eventIds?: readonly string[]) => void | Promise<void>;
   saveGoal: import('@/lib/goal-persistence').SaveGoalPlan;
   saveGoalCheckIn: import('@/lib/goal-persistence').SaveGoalCheckIn;
+  saveContextDeskFinding: React.ComponentProps<typeof ContextDeskRoutePage>['onSaveFinding'];
   saveProfile: (profile: Partial<UserProfile>, approval?: ProfileReviewApproval) => Promise<void>;
   saveProfilePrivacy: (privacy: ProfilePrivacySettings, snapshot: PublicProfileSnapshot, expectedVersion: { dateUpdated?: string }) => Promise<ProfilePrivacySettings>;
   saveSettingsSection: (
@@ -303,6 +304,7 @@ export function NoesisRouteContent({
   addTimelineEvent,
   saveGoal,
   saveGoalCheckIn,
+  saveContextDeskFinding,
   saveProfile,
   saveProfilePrivacy,
   saveSettingsSection,
@@ -557,6 +559,7 @@ export function NoesisRouteContent({
           works={drafts}
           practices={practices}
           onAddDraft={addDraft}
+          onSaveFinding={saveContextDeskFinding}
           onNavigate={(view, targetId, annotationSourceId) => navigateToView(view as NoesisView, {
             annotationId: view === 'annotations' ? targetId : null,
             annotationSourceId: view === 'annotations' ? annotationSourceId : null,

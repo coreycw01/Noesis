@@ -24,7 +24,7 @@ export interface PracticesRoutePageProps {
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;
-  onNavigate: (view: NoesisView, options?: { practiceId?: string | null }) => void;
+  onNavigate: (view: NoesisView, options?: { practiceId?: string | null; questionId?: string | null; positionId?: string | null }) => void;
 }
 
 export function PracticesRoutePage({
@@ -72,6 +72,8 @@ export function PracticesRoutePage({
       onOpenPracticeRoute={(practiceId) => onNavigate('labs', { practiceId })}
       onNavigateTarget={(target) => onNavigate(target.view, {
         practiceId: target.view === 'labs' ? target.targetId : null,
+        questionId: target.view === 'questions' ? target.targetId : null,
+        positionId: target.view === 'vault' ? target.targetId : null,
       })}
     />
   );

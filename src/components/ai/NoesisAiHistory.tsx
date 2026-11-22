@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AiAssistedHistoryEntry, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
+import type { DeskFinding } from '@/lib/context-desk-handoff';
 import { cn } from '@/lib/utils';
 
 export type AiHistoryRecordType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice';
@@ -66,6 +67,9 @@ export function collectAiHistory({ media, concepts, questions, positions, works,
       items.push({ key: `${type}:${recordId}:${entry.id}`, entry, type, recordId, recordLabel: recordLabel || 'Untitled', sourceId });
     }
   };
+  const deskEntries = (findings?: DeskFinding[]): AiAssistedHistoryEntry[] | undefined => findings?.map(finding => ({
+    ...finding, title: 'Context Desk finding', action: 'review_selected_context',
+  }));
   for (const source of media) {
     add('source', source.id, source.title, source.aiReviewHistory);
     for (const annotation of source.annotations || []) {
@@ -73,10 +77,19 @@ export function collectAiHistory({ media, concepts, questions, positions, works,
     }
   }
   for (const concept of concepts) add('concept', concept.id, concept.name, concept.aiReviewHistory);
-  for (const question of questions) add('inquiry', question.id, question.text, question.aiReviewHistory);
-  for (const position of positions) add('position', position.id, position.title, position.aiReviewHistory);
+  for (const question of questions) {
+    add('inquiry', question.id, question.text, question.aiReviewHistory);
+    add('inquiry', question.id, question.text, deskEntries(question.contextDeskFindings));
+  }
+  for (const position of positions) {
+    add('position', position.id, position.title, position.aiReviewHistory);
+    add('position', position.id, position.title, deskEntries(position.contextDeskFindings));
+  }
   for (const work of works) add('work', work.id, work.title, work.aiReviewHistory);
-  for (const practice of practices) add('practice', practice.id, practice.title, practice.aiReviewHistory);
+  for (const practice of practices) {
+    add('practice', practice.id, practice.title, practice.aiReviewHistory);
+    add('practice', practice.id, practice.title, deskEntries(practice.contextDeskFindings));
+  }
   const time = (value: string) => {
     const parsed = Date.parse(value);
     return Number.isFinite(parsed) ? parsed : 0;

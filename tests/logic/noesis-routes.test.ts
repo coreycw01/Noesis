@@ -35,12 +35,13 @@ test('Implement is the user-facing stage for lived action; the page keeps the Pr
 
 test('the ribbon shows plain thinking steps without changing section keys or routes', () => {
   assert.deepEqual([...NOESIS_NAV_SECTIONS], ['Today', 'Notice', 'Outline', 'Examine', 'Stand', 'Implement', 'Survey', 'More']);
-  assert.deepEqual(NOESIS_LOOP_STAGES.map(stage => NOESIS_LOOP_LABELS[stage]), ['Encounter', 'Define', 'Question', 'Claim', 'Action', 'Review']);
+  assert.deepEqual(NOESIS_LOOP_STAGES.map(stage => NOESIS_LOOP_LABELS[stage]), ['Encounter', 'Define', 'Question', 'Claim', 'Action', 'Perspective']);
   assert.equal(NOESIS_PAGE_BY_VIEW.library.section, 'Notice');
   assert.equal(NOESIS_PAGE_BY_VIEW.concepts.section, 'Outline');
   assert.equal(NOESIS_PAGE_BY_VIEW.questions.section, 'Examine');
   assert.equal(NOESIS_PAGE_BY_VIEW.vault.section, 'Stand');
-  assert.equal(NOESIS_PAGE_BY_VIEW.writing.section, 'Stand');
+  assert.equal(NOESIS_PAGE_BY_VIEW.writing.section, NOESIS_PAGE_BY_VIEW.atlas.section);
+  assert.equal(NOESIS_PAGE_BY_VIEW.writing.section, NOESIS_PAGE_BY_VIEW.evolution.section);
   assert.equal(NOESIS_PAGE_BY_VIEW.labs.section, 'Implement');
   assert.equal(NOESIS_PAGE_BY_VIEW.evolution.section, 'Survey');
   assert.equal(NOESIS_PAGE_BY_VIEW.atlas.section, 'Survey');

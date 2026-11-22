@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Noesis Workflow Map</title>
+<style>
+  :root{color-scheme:light dark;--bg:#f7f8f5;--paper:#fff;--ink:#182422;--muted:#51605b;--rule:#bfcac5;--active:#075c4d;--wash:#eaf3ee;--encounter:#825009;--outline:#745812;--examine:#185a86;--claim:#9a3947;--act:#276447;--survey:#705587;--work:#66554b}
+  @media(prefers-color-scheme:dark){:root{--bg:#151c1a;--paper:#202926;--ink:#edf5ef;--muted:#bac9c0;--rule:#52645b;--active:#a3dec8;--wash:#253c34;--encounter:#f3bc76;--outline:#e9cd79;--examine:#9bd2fb;--claim:#ffaab6;--act:#a3dcac;--survey:#dec1fa;--work:#d8baa8}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
+  main{max-width:1180px;margin:auto;padding:34px 24px 48px}
+  h1,h2,h3,p{margin:0}
+  h1,h2{font-family:Georgia,serif;font-weight:normal;line-height:1.1}
+  h1{font-size:46px;margin:7px 0 9px}
+  h2{font-size:34px;margin:5px 0 8px}
+  h3{font-size:15px}
+  .overline,.band-label,.kind,.legend{font-size:12px;letter-spacing:0}
+  .overline,.band-label,.kind{font-weight:750;text-transform:uppercase}
+  .overline{color:var(--active)}
+  .top{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--rule);padding-bottom:23px}
+  .muted,.legend{color:var(--muted)}
+  button{font:inherit;color:inherit;background:var(--paper);border:1px solid var(--rule);border-radius:7px;cursor:pointer}
+  button:hover{border-color:var(--active);background:var(--wash)}
+  button:focus-visible{outline:2px solid var(--active);outline-offset:3px}
+  .print-button{padding:8px 13px}
+  .legend{display:flex;gap:8px 22px;flex-wrap:wrap;margin:16px 0 12px}
+  .legend b{color:var(--ink)}
+  .color-key{display:flex;flex-wrap:wrap;gap:5px 15px;padding:0 0 10px;margin:0;list-style:none}
+  .color-key li{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}
+  .color-key li::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--family);flex:none}
+  .map{margin:0;padding:0 0 20px}
+  .band{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:center;padding:9px 0}
+  .band-label{color:var(--muted)}
+  .band[data-family]{border-inline-start:3px solid var(--family);padding-inline-start:9px;margin-top:4px;background:color-mix(in srgb,var(--family) 8%,transparent)}
+  .band[data-family] .band-label{color:var(--family)}
+  .nodes{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .node{min-height:43px;padding:7px 10px;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;background:color-mix(in srgb,var(--family) 14%,var(--paper));border-color:color-mix(in srgb,var(--family) 55%,var(--rule))}
+  .node::before{content:"";display:block;width:7px;height:7px;border-radius:50%;background:var(--family,var(--active));flex:none}
+  .node[aria-pressed="true"]{border-color:var(--family);box-shadow:inset 0 -3px var(--family);background:color-mix(in srgb,var(--family) 24%,var(--paper));font-weight:750}
+  .node[data-link="out"]{border-style:dashed;border-color:var(--active)}
+  .node[data-link="in"]{border-style:dotted;border-color:var(--active)}
+  .flow-arrow{color:var(--muted);font-weight:750}
+  .panel{border-top:2px solid var(--family,var(--active));padding-top:21px}
+  .panel-title{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .steps{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;padding:0;margin:16px 0 20px;border-block:1px solid var(--rule)}
+  .steps li{padding:12px;min-width:0;border-inline-start:1px solid var(--rule)}
+  .steps li:first-child{border-inline-start:0}
+  .steps b{display:block;margin-bottom:5px}
+  .step-num{color:var(--family,var(--active));font-weight:800;font-size:12px}
+  .step-text,.summary,.catch{max-width:80ch}
+  .step-text,.handoff-text,.catch{color:var(--muted)}
+  .columns{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:24px}
+  .links{list-style:none;padding:0;margin:6px 0}
+  .links li{margin-top:5px;padding:8px 8px 8px 10px;border-bottom:1px solid var(--rule);border-inline-start:3px solid var(--destination);background:color-mix(in srgb,var(--destination) 6%,transparent)}
+  .trail{margin-right:5px;color:var(--active);font-weight:800}
+  .links li[data-kind="loop"] .trail{color:var(--examine)}
+  .links li[data-kind="plan"] .trail{color:var(--muted)}
+  .to{display:inline-block;padding:3px 8px;margin-right:7px;font-weight:750;text-align:left;color:var(--destination);border:1px solid color-mix(in srgb,var(--destination) 55%,var(--rule));border-radius:6px;background:color-mix(in srgb,var(--destination) 12%,var(--paper))}
+  button.to:hover{border-color:var(--destination);background:color-mix(in srgb,var(--destination) 20%,var(--paper))}
+  .tag{color:var(--muted);font-size:12px}
+  .handoff-text{margin-top:4px}
+  .catch{border-left:2px solid var(--rule);padding-left:11px;margin:7px 0 16px}
+  .print-all{display:none}
+  @media(max-width:740px){main{padding:23px 15px 30px}.band{grid-template-columns:1fr;gap:4px}.node{min-height:44px}.columns{grid-template-columns:1fr;gap:13px}.steps li{border-inline-start:0;border-bottom:1px solid var(--rule)}}
+  @media(max-width:410px){h1{font-size:35px}h2{font-size:28px}.steps{grid-template-columns:1fr 1fr}}
+  @media print{
+    :root{color-scheme:light;--bg:#fff;--paper:#fff;--ink:#182422;--muted:#35443e;--rule:#9eada6;--active:#075c4d;--wash:#fff;--encounter:#825009;--outline:#745812;--examine:#185a86;--claim:#9a3947;--act:#276447;--survey:#705587;--work:#66554b}
+    main{padding:0;max-width:none} .print-button,#selected{display:none} .print-all{display:block}
+    .node{min-height:0;padding:2px 6px}.nodes{gap:4px}.band{padding:4px 0}.node[aria-pressed="true"]{box-shadow:none}
+    h1{font-size:34px}h2{font-size:23px}.panel{margin-top:17px;break-inside:avoid;padding-top:9px}
+    .columns{display:block}.steps{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));margin:7px 0}
+    .steps li{padding:4px 8px}.links li{margin-top:2px;padding:3px 7px}.to{border:0;padding:0}.catch{margin:4px 0 7px}
+    body{font-size:10pt} .top{padding-bottom:8px}.legend{margin:8px 0}.map{padding-bottom:0}
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div><p class="overline">Noesis / Collection workflows</p><h1>The thinking loop</h1><p class="muted">From what you encounter to what you understand, test, express, and revise.</p></div>
+    <button class="print-button" id="print" type="button">Print / Save PDF</button>
+  </header>
+  <p class="legend"><span><b>&rarr;</b> Open, link, or create</span><span><b>&#8634;</b> Bring back for review</span><span><b>&middot;&middot;&middot;</b> Not verified live</span><span><b>Node outline:</b> active, outgoing dashed, incoming dotted</span></p>
+  <p class="muted">Start anywhere. The paths are options, not required steps. A reference note, a working answer, or a finished document can be enough.</p>
+  <ul class="color-key" aria-label="Workflow colors">
+    <li style="--family:var(--encounter)">Capture</li><li style="--family:var(--outline)">Define</li>
+    <li style="--family:var(--examine)">Question</li><li style="--family:var(--claim)">Claim</li>
+    <li style="--family:var(--act)">Action</li><li style="--family:var(--survey)">Perspective</li>
+    <li style="--family:var(--work)">AI workspace</li>
+  </ul>
+  <figure class="map" id="map" aria-label="Noesis collection map"></figure>
+  <section class="panel" id="selected" aria-labelledby="selected-title"></section>
+  <section class="print-all" id="print-all" aria-label="All collection workflows"></section>
+  <noscript>This interactive map needs JavaScript enabled.</noscript>
+</main>
+<script>
+const collections = {
+  library: {
+    name:"Library", family:"encounter", kind:"Source collection", intro:"Keep the original material and your response to it separate.",
+    steps:[["Capture","Save a book, link, film, or other source."],["Reflect","Record expectations, sessions, and what changed."],["Mark up","Save passages or notes as annotations."],["Trace use","See which records explicitly draw on this source."]],
+    out:[["annotations","flow","Save a passage as a note while retaining its source."],["index","flow","Browse and cite the same sources in a reference view."],["ai","flow","Add selected source material to the Desk for a bounded review."]],
+    finish:"A source can be finished and still remain available for later reflection and citation.",
+    limit:"Adding a source to the Library does not make it support a claim."
+  },
+  annotations: {
+    name:"Annotations", family:"encounter", kind:"Capture and apply", intro:"Keep the passage in context. Decide whether anything should come from it.",
+    steps:[["Capture","Save the passage or your own observation."],["Remember","Keep an optional reason you saved it."],["Mark","Identify a question, claim, definition, action, or reference."],["Send or keep","Choose a destination, or leave the note as reference."]],
+    out:[["inquiries","flow","Send a question into an investigation."],["positions","flow","Form a claim or explicitly use a passage as support or challenge."],["concepts","flow","Use a definition mark to develop vocabulary."],["practices","flow","Turn an action mark into something to try."],["library","loop","Return to the source without losing the passage."]],
+    finish:"Reference-only is a valid end. Moving a mark does not move or delete the annotation.",
+    limit:"The reason you saved something is a private reminder, not a statement of what the author meant."
+  },
+  concepts: {
+    name:"Concepts", family:"outline", kind:"Working vocabulary", intro:"Define what you mean, try it against cases, and separate it from nearby ideas.",
+    steps:[["Define","Write a provisional meaning."],["Test the boundary","Sort cases into fits, edge case, or does not fit. Add why."],["Relate","Distinguish neighbors and compare positions using the term."],["Review","Bring a reasoned case back beside the definition and revise if needed."]],
+    out:[["inquiries","flow","Use the concept to frame or connect a question."],["positions","flow","Clarify terms a claim depends on."],["atlas","flow","Find the concept and see what relates to it."]],
+    finish:"A usable definition can stand for now. There is no mandatory close or reopen step.",
+    limit:"A shared concept is a topical relation, not evidence that one record supports another."
+  },
+  inquiries: {
+    name:"Inquiries", family:"examine", kind:"Investigation", intro:"Turn uncertainty into a working answer without pretending it is final.",
+    steps:[["Frame","Start with a real moment, your current view, or the stakes."],["Compare","Write possible answers worth distinguishing."],["Weigh","Assign support or challenge to an answer. Context alone adds no weight."],["Conclude","Return to your starting point, save a provisional answer, then decide whether to close."]],
+    out:[["positions","flow","Form a position deliberately from a saved answer.","Create linked position"],["works","flow","Start a linked draft seeded with your own answer.","Create linked draft"],["experiments","flow","Choose a future action, prediction, and signal to observe.","Create linked experiment"],["evolution","loop","A meaningful conclusion or revision can appear in the timeline.","See recorded change"]],
+    finish:"Keep investigating, record a provisional answer, resolve, or reopen when something new matters.",
+    limit:"A returned Praxis result is a review input. It does not move the scale until you choose how to use it."
+  },
+  positions: {
+    name:"Positions", family:"claim", kind:"Claims and beliefs", intro:"Say what you hold, see what bears on it, and decide whether to retain or revise it.",
+    steps:[["Claim","Write the stance and set your stated confidence."],["Grounds","Record support, objections, assumptions, and reasoned links."],["Calibrate","Compare your confidence with the grounds and review any eligible Praxis outcome."],["Revise","Record your decision and why it changed or stayed."]],
+    out:[["inquiries","flow","Turn a specific unresolved challenge into a question."],["experiments","flow","Test the claim through a bounded action."],["works","flow","Express or develop the position in writing."],["evolution","flow","Review meaningful revisions and confidence history."]],
+    finish:"Retain, revise, replace, suspend, or retire. Confidence stays yours to set.",
+    limit:"The evidence balance is a comparison of recorded grounds, not the probability that the claim is true."
+  },
+  practices: {
+    name:"Practices", family:"act", kind:"Praxis / repeat", intro:"Cultivate an action you can repeat without turning every habit into a formal test.",
+    steps:[["Choose an action","Describe what you will actually do."],["Run and log","Check in or record what happened."],["Review","Compare your expectation with observations."],["Carry forward","Keep the habit, revise it, or use a concluded result elsewhere."]],
+    out:[["inquiries","loop","A concluded, linked result with an observation can surface under Conclude."],["positions","loop","A concluded, linked result can return to Calibrate."],["commitments","flow","Eligible linked practice logs can count toward a commitment."]],
+    finish:"Continue a useful routine, adjust it, or conclude it and keep the record.",
+    limit:"A check-in is not a result. The local build adds a completion prompt linking to a specific Inquiry or Position; it has not been verified on the deployed app."
+  },
+  experiments: {
+    name:"Experiments", family:"act", kind:"Praxis / test", intro:"Find something out by comparing what you expected with what actually happened.",
+    steps:[["Design","Name the action, prediction, and evidence to watch for."],["Activate and run","Set up the run, do the action, record observations."],["Review reality","Separate the result from your interpretation and alternatives."],["Conclude","Keep what it taught you and decide where it matters."]],
+    out:[["inquiries","loop","Return a concluded observation to the linked Inquiry for review."],["positions","loop","Bring a linked result beside the objection and change-of-mind criterion."],["works","flow","Open Works to write about the result; this jump does not automatically create a linked draft."]],
+    finish:"A test can conclude, fail productively, or be integrated. No result changes a belief automatically.",
+    limit:"The local build adds a completion prompt that opens the linked Inquiry or Position after a result is saved. This prompt has not been verified on the deployed app."
+  },
+  commitments: {
+    name:"Commitments", family:"act", kind:"Praxis / uphold", intro:"Live by a chosen principle, then see how consistently your actions matched it.",
+    steps:[["Commit","Choose an action and why it matters."],["Keep","Check in or let eligible linked activity count."],["Review","Compare what you intended with what you did."],["Decide","Continue, revise, pause, or close the commitment."]],
+    out:[["practices","loop","Review the repeatable actions that contribute toward the commitment."],["positions","flow","Give the principle behind a commitment an explicit home."],["today","flow","See active commitments alongside the rest of your workspace."]],
+    finish:"Progress tracks a chosen target. Closing the commitment does not erase past check-ins.",
+    limit:"Say / Do compares action with what was expected by now, not the full lifetime target."
+  },
+  works: {
+    name:"Works", family:"survey", kind:"Perspective / expression", intro:"Turn your thinking into something you can write, draw, read back, or share independently.",
+    steps:[["Start","Create a document or start from a saved Inquiry answer."],["Compose","Write, draw, or insert a tool into the document."],["Connect","Attach relevant concepts, sources, or claims."],["Finish","Revise, finalize, export, or archive the work."]],
+    out:[["inquiries","loop","A linked document stays discoverable from the inquiry."],["positions","loop","A linked document gives the position an expression to revisit."],["concepts","flow","A concept link shows where the idea is put into words."]],
+    finish:"A work can be useful on its own. It does not need to produce another record.",
+    limit:"Writing about a belief does not automatically revise it."
+  },
+  ai: {
+    name:"Context Desk", family:"work", kind:"Noesis AI / across records", intro:"Explore selected records together. This is distinct from asking Noesis on one item.",
+    steps:[["Assemble","Select individual records and exclude anything off limits. Reopen a saved set if useful."],["Review context","Check what the request reads, not just what is on your Desk."],["Analyze","Ask a question about the records you selected."],["Review","Keep only what is useful or dismiss the result."]],
+    out:[["works","flow","Save reviewed wording as a Work you can revisit.","Create linked draft"],["positions","plan","Send a finding to Grounds as an AI-assisted review note. It does not change evidence or confidence.","Local: save for review"],["inquiries","plan","Send a finding to Conclude as a note. The scale stays unchanged.","Local: save for review"],["practices","plan","Send a finding to the Review section of an existing Practice or Experiment. It does not become an observation.","Local: save for review"],["experiments","plan","Give the new experiment an action, prediction, and signal. Keep the reviewed finding separate from what happens later.","Local: create proposed experiment"]],
+    finish:"Dismiss a result without changing any record. History is for kept reviews, not saved context.",
+    limit:"Exclusions and the per-request selection determine what is sent. The app must not quietly read the rest of a Drawer."
+  },
+  itemai: {
+    name:"Ask Noesis on an item", family:"work", kind:"Noesis AI / item assistance", intro:"Start inside a specific record and choose a tool tailored to it.",
+    steps:[["Open a record","Start with a source, annotation, concept, inquiry, position, or Praxis item."],["Check context","Review the current item and the linked material that will be sent."],["Review suggestions","Edit, keep, or discard the individual suggestions."],["Confirm","Save the specific output where the chosen tool says it goes."]],
+    out:[["positions","loop","Save reviewed assumptions, counterarguments, evidence gaps, or comparisons.","Save to the relevant Position field"],["practices","loop","Save a separate outcome review without replacing your observations.","Save outcome review"],["experiments","loop","Record a reviewed interpretation alongside the test, not as the test result.","Save outcome review"],["inquiries","loop","Save a challenge in review history, not as weighted evidence.","Save challenge note"],["concepts","loop","Approve a definition rewrite or keep a boundary review.","Save concept review"],["library","loop","Keep a source summary or reflection where the action supports it.","Save source review"],["annotations","loop","Keep a suggested interpretation of what the annotation might change.","Save effect review"]],
+    finish:"No change is necessary. Dismiss anything you do not want to keep.",
+    limit:"Available destinations depend on the selected item and tool."
+  },
+  drawers: {
+    name:"Drawers", family:"work", kind:"Saved context / input", intro:"A Drawer is a named set of context. The latest app code has a Drawers panel; the deployed app checked here still showed Saved desks.",
+    steps:[["Assemble","Pick records and exclusions on the Desk."],["Save","Name the set for a question, topic, or project."],["Reopen","Review current records and any missing items."],["Choose the request","Decide what goes into this run, without changing the saved set by default."]],
+    out:[["ai","flow","Open a saved set onto the Desk without running AI. This goes into a request, not out of a result.","Load context"]],
+    finish:"Delete the saved set without deleting the records it referenced.",
+    limit:"A Drawer saves selection and exclusions, not a result. Its records stay in their own collections."
+  },
+  atlas: {
+    name:"Atlas", family:"survey", kind:"Relationship view", intro:"Look across the workspace to see how ideas cluster and how particular records are connected.",
+    steps:[["Survey","Open the map or browse its regions."],["Inspect","Select a concept, region, or relationship."],["Distinguish","Check whether it is an explicit link or a shared topic."],["Open","Return to the relevant record to work on it."]],
+    out:[["concepts","flow","Open the concept rather than changing its meaning on the map."],["positions","flow","Follow a relationship to the position it points to."],["inquiries","flow","Open the underlying question to investigate it."]],
+    finish:"The map is a way to orient, not a final destination.",
+    limit:"Proximity or shared tags do not imply a contradiction, proof, or causal relationship."
+  },
+  evolution: {
+    name:"Evolution", family:"survey", kind:"History and comparison", intro:"Read how your thinking changed over time, rather than redoing the work here.",
+    steps:[["Select a period","Use the Timeline or comparisons to narrow what you are looking at."],["Review a change","See what was recorded and why it mattered, where a reason exists."],["Compare","Look for the change in a claim, confidence, or interpretation."],["Return","Reopen the underlying record if you need to reconsider."]],
+    out:[["positions","loop","Follow a revision back to the claim."],["today","flow","Return to the day-to-day workspace when finished reviewing."]],
+    finish:"Understanding what changed is a valid endpoint. No edit is required.",
+    limit:"A recorded event can show that something changed. It does not always explain why."
+  },
+  index: {
+    name:"Source Index", family:"encounter", kind:"Library view", intro:"A reference ledger for the Library, not a second collection.",
+    steps:[["Find","Search or filter sources already in the Library."],["Inspect","Check metadata and usage."],["Cite","Copy or export bibliography information."]],
+    out:[["library","flow","Open the same source record to read, reflect, or mark it up."]],
+    finish:"You can finish at the citation; no reflection is required.",
+    limit:"Switching views does not duplicate or move a source."
+  },
+  today: {
+    name:"Today", family:"act", kind:"Starting point", intro:"See what to pick up and do a small action without having to choose a collection first.",
+    steps:[["Orient","Review focus, open work, and workspace signals."],["Act","Choose a recommended next move or log an eligible practice."],["Resume","Follow the exact record when deeper work is needed."]],
+    out:[["inquiries","flow","Revisit an unfinished investigation."],["positions","flow","Inspect a confidence or evidence cue."],["practices","flow","Check in or open the practice."],["works","flow","Continue an unfinished document."]],
+    finish:"One useful action is enough; this is not an inbox you have to empty.",
+    limit:"A recommendation is not a new task or a judgment about what you must finish."
+  }
+};
+
+const bands = [
+  ["Start anywhere", ["library","annotations","concepts","inquiries","positions"]],
+  ["Action", ["practices","experiments","commitments"], false, "act"],
+  ["Perspective", ["works","atlas","evolution"], false, "survey"],
+  ["Workspace tools", ["today","index"]],
+  ["Noesis AI", ["drawers","ai","itemai"], false, "work"],
+];
+const flowKinds = {
+  flow:["→","Deliberate handoff"],
+  loop:["↺","Returns for review"],
+  plan:["···","Proposed"],
+};
+const map = document.getElementById("map");
+const panel = document.getElementById("selected");
+const printAll = document.getElementById("print-all");
+const nodes = new Map();
+const el = (tag, text, className) => {
+  const node = document.createElement(tag);
+  if (text) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+};
+
+for (const [title, keys, arrows, family] of bands) {
+  const band = el("div", "", "band");
+  if (family) {
+    band.dataset.family = family;
+    band.style.setProperty("--family", "var(--" + family + ")");
+  }
+  band.append(el("div", title, "band-label"));
+  const row = el("div", "", "nodes");
+  keys.forEach((key, i) => {
+    if (arrows && i) {
+      const arrow = el("span", "→", "flow-arrow");
+      arrow.setAttribute("aria-hidden","true");
+      row.append(arrow);
+    }
+    const btn = el("button", collections[key].name, "node");
+    btn.type = "button";
+    btn.style.setProperty("--family", "var(--" + collections[key].family + ")");
+    btn.setAttribute("aria-controls", "selected");
+    btn.addEventListener("click", () => select(key));
+    nodes.set(key, btn);
+    row.append(btn);
+  });
+  band.append(row);
+  map.append(band);
+}
+
+function render(target, key, printable) {
+  const item = collections[key];
+  target.style.setProperty("--family", "var(--" + item.family + ")");
+  const title = el("h2", item.name);
+  if (!printable) { title.id = "selected-title"; title.tabIndex = -1; }
+  const heading = el("div", "", "panel-title");
+  const header = el("div");
+  header.append(el("p",item.kind,"kind"),title,el("p",item.intro,"summary"));
+  heading.append(header);
+  const sequence = el("ol", "", "steps");
+  item.steps.forEach(([label, detail], i) => {
+    const step = el("li");
+    step.append(el("span", String(i + 1).padStart(2,"0"), "step-num"),el("b",label),el("p",detail,"step-text"));
+    sequence.append(step);
+  });
+  const cols = el("div","","columns");
+  const endings = el("div");
+  endings.append(el("h3","Where it can go"));
+  const list = el("ul","","links");
+  item.out.forEach(([dest, kind, detail, action]) => {
+    const [glyph, type] = flowKinds[kind];
+    const destination = collections[dest];
+    const row = el("li");
+    row.dataset.kind = kind;
+    row.style.setProperty("--destination", "var(--" + destination.family + ")");
+    const button = el(printable ? "span" : "button", destination.name, "to");
+    if (!printable) {
+      button.type = "button";
+      button.addEventListener("click", () => { select(dest); document.getElementById("selected-title").focus(); });
+    }
+    row.append(el("span",glyph,"trail"),button,el("span",action || (kind === "flow" ? "Open or link" : type),"tag"),el("p",detail,"handoff-text"));
+    list.append(row);
+  });
+  endings.append(list);
+  const notes = el("div");
+  notes.append(el("h3","Where it can stop"),el("p",item.finish,"catch"),el("h3","What does not happen automatically"),el("p",item.limit,"catch"));
+  const incoming = Object.entries(collections).filter(([from, entry]) => from !== key && entry.out.some(([dest, kind]) => dest === key && kind !== "plan"));
+  if (incoming.length) notes.append(el("h3","Paths into this collection"),el("p",incoming.map(([,entry]) => entry.name).join(" · "),"catch"));
+  cols.append(endings,notes);
+  target.replaceChildren(heading,sequence,cols);
+}
+
+function select(key) {
+  const selected = collections[key];
+  for (const [id, btn] of nodes) {
+    btn.setAttribute("aria-pressed", String(id === key));
+    btn.dataset.link = selected.out.some(([dest]) => dest === id) ? "out" : collections[id].out.some(([dest]) => dest === key) ? "in" : "";
+  }
+  render(panel, key, false);
+}
+
+for (const [, keys] of bands) for (const key of keys) {
+  const section = el("article", "", "panel");
+  render(section,key,true);
+  printAll.append(section);
+}
+document.getElementById("print").addEventListener("click", () => window.print());
+select("inquiries");
+</script>
+</body>
+</html>

@@ -1439,9 +1439,9 @@ const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string
   { key: 'encounter', stage: 'Notice', pages: 'Library, Sources, Annotations, Today' },
   { key: 'outline', stage: 'Outline', pages: 'Concepts' },
   { key: 'examine', stage: 'Examine', pages: 'Inquiries' },
-  { key: 'claim', stage: 'Stand', pages: 'Positions, Works' },
+  { key: 'claim', stage: 'Stand', pages: 'Positions' },
   { key: 'act', stage: 'Implement', pages: 'Praxis, Exercises, Commitments' },
-  { key: 'integrate', stage: 'Survey', pages: 'Atlas, Evolution' },
+  { key: 'integrate', stage: 'Perspective', pages: 'Works, Atlas, Evolution' },
   { key: 'more', stage: 'More', pages: 'Profile, Settings, Context Desk' },
 ];
 

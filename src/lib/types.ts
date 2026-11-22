@@ -371,6 +371,7 @@ export interface PositionComparisonReview {
 }
 
 export interface VaultEntry extends NoesisStageState {
+  contextDeskFindings?: import('./context-desk-handoff').DeskFinding[];
   id: string;
   title: string;
   type: VaultType;
@@ -466,6 +467,7 @@ export interface InquiryEvidence {
 }
 
 export interface Question extends NoesisStageState {
+  contextDeskFindings?: import('./context-desk-handoff').DeskFinding[];
   id: string;
   text: string;
   status: QuestionStatus | 'gathering_evidence' | 'under_tension' | 'partially_answered' | 'resolved' | 'reopened';
@@ -620,6 +622,7 @@ export interface ExternalDraftDocument {
 }
 
 export interface Practice extends NoesisStageState {
+  contextDeskFindings?: import('./context-desk-handoff').DeskFinding[];
   id: string;
   title: string;
   description: string;

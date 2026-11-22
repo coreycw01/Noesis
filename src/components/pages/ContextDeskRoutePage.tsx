@@ -10,6 +10,8 @@ import { Check, Filter, FolderOpen, Plus, Search, SlidersHorizontal, X } from 'l
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { buildContextDeskMemory, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { contextDeskWorkDraft, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
+import { deskExperimentId, isDeskFindingTarget, type DeskExperiment, type DeskFindingTarget } from '@/lib/context-desk-handoff';
+import type { AiReviewResult } from '@/lib/contextual-ai';
 import { EntityPicker } from '@/components/search/EntityPicker';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,6 +66,7 @@ interface ContextDeskRoutePageProps {
   works: Draft[];
   practices: Practice[];
   onAddDraft: (data: Partial<Draft>, origin?: ContextDeskWorkOrigin) => Promise<Draft>;
+  onSaveFinding: (target: DeskFindingTarget, result: AiReviewResult, content: string, records: ReadonlyArray<{ type: string; id: string }>, experiment?: DeskExperiment) => Promise<void>;
   onNavigate: (view: string, targetId?: string | null, sourceId?: string) => void;
 }
 
@@ -114,12 +117,15 @@ export function ContextDeskRoutePage({
   works,
   practices,
   onAddDraft,
+  onSaveFinding,
   onNavigate,
 }: ContextDeskRoutePageProps) {
   const workspaceKey = useContext(NoesisWorkspaceKeyContext);
   // The Desk comes first, because it is the thing you work in; History is the
   // record of what has already been run.
   const [surface, setSurface] = useState<'history' | 'desk'>('desk');
+  const [savingTo, setSavingTo] = useState('work');
+  const [experiment, setExperiment] = useState<DeskExperiment>({ title: '', action: '', prediction: '', measure: '' });
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('noesis:context-desk-surface');
@@ -698,7 +704,38 @@ export function ContextDeskRoutePage({
               promptLabel="What should Noesis examine across these records?"
               promptPlaceholder="For example: Where do these records contradict each other, and what should I investigate next?"
               buildEnvelope={buildEnvelope}
+              acceptLabel={savingTo === 'work' ? 'Save as Work' : savingTo === 'experiment' ? 'Save experiment draft' : 'Save for review'}
+              acceptDestination={<div className="mb-2 grid gap-2"><label className="grid gap-1 text-sm font-medium">
+                Save reviewed text to
+                <select value={savingTo} onChange={event => setSavingTo(event.target.value)} className="min-h-11 w-full rounded-md border border-border bg-background px-2">
+                  <option value="work">New Work</option>
+                  <option value="experiment">New experiment draft</option>
+                  {analysisRecords.filter(isDeskFindingTarget).map(record => <option key={record.key} value={record.key}>{record.type === 'practice' ? 'Praxis' : record.type === 'position' ? 'Position' : 'Inquiry'}: {record.label}</option>)}
+                </select>
+              </label>
+              {savingTo === 'experiment' && <div className="grid max-h-[25vh] gap-2 overflow-y-auto sm:grid-cols-2">
+                {([['title', 'Experiment name'], ['action', 'What will you do?'], ['prediction', 'What do you expect?'], ['measure', 'What will you look for?']] as const).map(([field, label]) => (
+                  <label key={field} className="grid gap-1 text-xs font-medium">{label}
+                    <Input value={experiment[field]} maxLength={field === 'title' ? 160 : 600} onChange={event => setExperiment({ ...experiment, [field]: event.target.value })} />
+                  </label>
+                ))}
+              </div>}
+              </div>}
               onAccept={async (result, content) => {
+                if (savingTo === 'experiment') {
+                  if (Object.values(experiment).some(value => !value.trim())) throw new Error('Name the experiment and fill in its action, prediction, and signal.');
+                  const id = deskExperimentId(result.reviewId);
+                  await onSaveFinding({ type: 'practice', id }, result, content, analysisRecords, experiment);
+                  onNavigate('labs', id);
+                  return;
+                }
+                if (savingTo !== 'work') {
+                  const target = analysisRecords.find(record => record.key === savingTo);
+                  if (!target || !isDeskFindingTarget(target)) throw new Error('Choose a destination included in this review.');
+                  await onSaveFinding(target, result, content, analysisRecords);
+                  onNavigate(viewForType[target.type], target.id);
+                  return;
+                }
                 const created = await onAddDraft(contextDeskWorkDraft(result, content, analysisRecords), { result, records: analysisRecords });
                 onNavigate('writing', created.id);
               }}
