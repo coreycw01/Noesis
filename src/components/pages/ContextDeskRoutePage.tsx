@@ -3,10 +3,10 @@
 import { ContextDrawers } from '@/components/ai/ContextDrawers';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
-import { Check, Filter, FolderOpen, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Check, Filter, FolderOpen, GripVertical, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { buildContextDeskMemory, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
 import { contextDeskWorkDraft, type ContextDeskWorkOrigin } from '@/lib/context-desk-work';
@@ -341,6 +341,24 @@ export function ContextDeskRoutePage({
   const [memberLimit, setMemberLimit] = useState(40);
   // Drawers live behind a panel so the Desk itself keeps the room it needs.
   const [drawersOpen, setDrawersOpen] = useState(false);
+  // Which slip is in hand, and which one it is hovering over.
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
+  /**
+   * Put one slip where another sits. Order is not decoration here: the first
+   * records on the desk are the ones a request reads, so moving a slip up the
+   * pile is how you decide what goes in.
+   */
+  const moveSelected = (from: string, to: string) => {
+    if (from === to) return;
+    setSelectedKeys((keys) => {
+      const target = keys.indexOf(to);
+      if (target < 0 || !keys.includes(from)) return keys;
+      const next = keys.filter((key) => key !== from);
+      next.splice(keys.indexOf(from) < target ? target : target, 0, from);
+      return next;
+    });
+  };
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     const dateWindow = dateFilter === 'all' ? 0 : ({ '7d': 7, '30d': 30, '90d': 90, year: 365 } as const)[dateFilter];
@@ -705,26 +723,51 @@ export function ContextDeskRoutePage({
             {selected.length > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedKeys([])}>Clear</Button>}
           </div>
 
-          <div className="mt-4 min-h-36 divide-y divide-border overflow-hidden rounded-[var(--card-radius)] border border-border bg-card/25 px-3">
+          {/* The desk itself. Records are slips laid out on it, and the cut —
+              where this request stops reading — is a line drawn across the
+              surface rather than a sentence about one. Drag a slip over the
+              line to put it in the request; the Plus button does the same
+              thing from the keyboard. */}
+          <div className="noesis-desk mt-4 min-h-36 overflow-hidden rounded-[var(--card-radius)] border border-border px-3">
             {selected.slice(0, memberLimit).map((record, index) => {
               const Icon = iconForNoesisView(viewForType[record.type]);
+              const reads = index < MAX_CONTEXT_ITEMS;
               return (
-                <div key={record.key} className="grid grid-cols-[1.75rem_minmax(0,1fr)_2.5rem] items-start gap-2 py-3">
-                  <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
-                  <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
-                    <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
-                    <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
-                    <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{index < MAX_CONTEXT_ITEMS ? 'Next review: ' : 'On desk: '}{record.summary}</span>
-                  </button>
-                  <div className="grid justify-items-end">
-                  {index >= MAX_CONTEXT_ITEMS && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Prioritize ${record.label} for the next review`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
-                  <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Remove ${record.label} from context`}><X className="size-4" /></Button>
+                <Fragment key={record.key}>
+                  {index === MAX_CONTEXT_ITEMS && (
+                    <div className="noesis-desk__cut" role="separator" aria-label={`This request stops after ${MAX_CONTEXT_ITEMS} records`}>
+                      <span>reads to here · {MAX_CONTEXT_ITEMS}</span>
+                    </div>
+                  )}
+                  <div
+                    draggable
+                    onDragStart={(event) => { setDragKey(record.key); event.dataTransfer.effectAllowed = 'move'; }}
+                    onDragEnd={() => { setDragKey(null); setOverKey(null); }}
+                    onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setOverKey(record.key); }}
+                    onDragLeave={() => setOverKey((key) => key === record.key ? null : key)}
+                    onDrop={(event) => { event.preventDefault(); if (dragKey) moveSelected(dragKey, record.key); setDragKey(null); setOverKey(null); }}
+                    data-reads={reads || undefined}
+                    data-dragging={dragKey === record.key || undefined}
+                    data-over={overKey === record.key && dragKey !== record.key || undefined}
+                    className="noesis-desk__slip grid grid-cols-[1.25rem_1.5rem_minmax(0,1fr)_auto] items-start gap-2 py-3"
+                  >
+                    <GripVertical className="mt-1 size-4 cursor-grab text-muted-foreground/50 active:cursor-grabbing" aria-hidden="true" />
+                    <Icon className="mt-1 size-4 text-muted-foreground" aria-hidden="true" />
+                    <button type="button" className="min-w-0 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(viewForType[record.type], record.id, record.type === 'annotation' ? record.sourceIds[0] : undefined)}>
+                      <span className="block text-sm font-medium leading-5 text-foreground">{record.label}</span>
+                      <span className="mt-0.5 block text-label uppercase text-muted-foreground">{record.type}</span>
+                      <span className="mt-1 block line-clamp-2 text-xs leading-5 text-muted-foreground">{record.summary}</span>
+                    </button>
+                    <div className="flex items-start justify-end">
+                    {!reads && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Move ${record.label} into this request`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
+                    <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Take ${record.label} off the desk`}><X className="size-4" /></Button>
+                    </div>
                   </div>
-                </div>
+                </Fragment>
               );
             })}
-            {selected.length > memberLimit && <Button type="button" variant="outline" onClick={() => setMemberLimit(limit => limit + 40)}>Show more desk items</Button>}
-            {!selected.length && <div className="flex min-h-36 items-center justify-center px-5 text-center text-sm leading-6 text-muted-foreground">Select at least one record to begin. Two or more records are best for comparison and contradiction checks.</div>}
+            {selected.length > memberLimit && <Button type="button" variant="outline" className="my-3" onClick={() => setMemberLimit(limit => limit + 40)}>Show more desk items</Button>}
+            {!selected.length && <div className="flex min-h-36 items-center justify-center px-5 text-center text-sm leading-6 text-muted-foreground">The desk is clear. Add records from the left, then drag them into the order you want them read.</div>}
           </div>
 
           {staleSelectionCount > 0 && (
