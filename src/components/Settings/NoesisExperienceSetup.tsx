@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { doc, setDoc, type Firestore } from 'firebase/firestore';
 import { ArrowRight, BookOpen, CircleHelp, Flag, NotebookPen } from 'lucide-react';
 import { useDoc } from '@/firebase/firestore/use-doc';
@@ -19,8 +19,14 @@ type Dimension = keyof typeof prompts;
 const dimensions = Object.keys(prompts) as Dimension[];
 const choiceLabel = (field: Dimension, value: NoesisExperience[Dimension]) => EXPERIENCE_OPTIONS[field].find(([id]) => id === value)?.[1];
 
-export function NoesisExperienceSetup({ db, uid, initialSignIn, emptyHome, showSettings, navigate, children }: {
-  db: Firestore; uid: string; initialSignIn: boolean; emptyHome: boolean; showSettings: boolean;
+const ExperienceSettingsContext = createContext<ReactNode>(null);
+
+export function ExperienceSettingsRow() {
+  return useContext(ExperienceSettingsContext);
+}
+
+export function NoesisExperienceSetup({ db, uid, initialSignIn, emptyHome, navigate, children }: {
+  db: Firestore; uid: string; initialSignIn: boolean; emptyHome: boolean;
   navigate: (view: NoesisView) => void; children: ReactNode;
 }) {
   const ref = useMemo(() => doc(db, 'users', uid, 'settings', 'experience'), [db, uid]);
@@ -32,12 +38,13 @@ export function NoesisExperienceSetup({ db, uid, initialSignIn, emptyHome, showS
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState('');
   const lock = useRef(false);
+  const settingsButton = useRef<HTMLButtonElement>(null);
   const saved = sessionSaved || readExperience(data);
   const requiredOffer = initialSignIn && !loading && !error && !saved.onboardingCompleted && !closed;
   const settingsOpen = draft !== null;
   const current = draft || saved;
   const field = dimensions[step - 1];
-  const openSetup = () => { setFailure(''); setStep(0); setDraft(saved); };
+  const openSetup = () => { setFailure(''); setStep(5); setDraft(saved); };
   const select = (key: Dimension, value: string) => {
     const next = readExperience({ ...current, [key]: value });
     setDraft(next);
@@ -60,6 +67,15 @@ export function NoesisExperienceSetup({ db, uid, initialSignIn, emptyHome, showS
   ] as const;
   const ordered = saved.primaryPurpose === 'develop_philosophy' || saved.primaryPurpose === 'challenge'
     ? [entry[1], entry[2], entry[3], entry[0]] : entry;
+  const settingsRow = (
+    <div className="border-t border-border pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <h3 className="text-sm font-medium">My Noesis Experience</h3>
+        <Button ref={settingsButton} variant="outline" className="min-h-11" onClick={openSetup} disabled={loading || Boolean(error)} aria-haspopup="dialog">Review setup</Button>
+      </div>
+      {error && <p role="status" className="mt-2 text-sm text-muted-foreground">Experience preferences are unavailable. Other settings are unchanged.</p>}
+    </div>
+  );
 
   return <>
     {emptyHome && (initialSignIn || saved.onboardingCompleted) && !loading ? <section className="noesis-page mx-auto w-full max-w-3xl">
@@ -69,15 +85,14 @@ export function NoesisExperienceSetup({ db, uid, initialSignIn, emptyHome, showS
           <Icon size={18} aria-hidden="true" /><span className="flex-1">{label}</span><ArrowRight size={16} aria-hidden="true" />
         </button>
       </li>)}</ul>
-    </section> : children}
-    {showSettings && <section className="noesis-page mx-auto w-full max-w-5xl border-t border-border">
-      <h2 className="font-headline text-xl font-semibold">My Noesis Experience</h2>
-      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">{dimensions.map(key => <div key={key}><dt className="text-muted-foreground">{prompts[key]}</dt><dd>{choiceLabel(key, saved[key])}</dd></div>)}</dl>
-      <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" onClick={openSetup} disabled={loading || Boolean(error)}>Review setup</Button><Button variant="ghost" onClick={() => { setFailure(''); setDraft(DEFAULT_EXPERIENCE); setStep(5); }} disabled={loading || Boolean(error)}>Review default preferences</Button></div>
-      {error && <p role="status" className="mt-2 text-sm">Experience preferences are unavailable. Other settings are unchanged.</p>}
-    </section>}
+    </section> : <ExperienceSettingsContext.Provider value={settingsRow}>{children}</ExperienceSettingsContext.Provider>}
     <Dialog open={requiredOffer || settingsOpen} onOpenChange={open => { if (!open && !saving) { setClosed(true); setDraft(null); setStep(0); } }}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" onCloseAutoFocus={event => {
+        if (settingsButton.current) {
+          event.preventDefault();
+          settingsButton.current.focus();
+        }
+      }}>
         <DialogHeader>
           <DialogTitle>{step === 0 ? 'A place for your mind to grow.' : field ? prompts[field] : 'Your Noesis experience'}</DialogTitle>
           <DialogDescription>{step === 0 ? 'Collect ideas, explore questions, and see how your thinking changes.' : field === 'primaryPurpose' ? 'Choose your primary purpose, then add others as needed.' : step === 5 ? 'Your preferences are yours to change. This setup does not start background analysis or send notifications.' : 'You can change this independently in Settings.'}</DialogDescription>
@@ -98,10 +113,11 @@ export function NoesisExperienceSetup({ db, uid, initialSignIn, emptyHome, showS
               <input type="checkbox" checked={current.purposes.includes(id)} onChange={e => setDraft({ ...current, purposes: e.target.checked ? [...current.purposes, id] : current.purposes.filter(purpose => purpose !== id) })} />{label}
             </label>)}
           </fieldset>}
-          <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setStep(step - 1)}>Back</Button><Button onClick={() => setStep(step + 1)}>Continue</Button></div>
+          <div className="flex justify-between gap-2"><Button variant="ghost" onClick={() => setStep(step === 1 && !requiredOffer ? 5 : step - 1)}>Back</Button><Button onClick={() => setStep(step + 1)}>Continue</Button></div>
         </> : <>
           <ul className="divide-y divide-border text-sm">{dimensions.map(key => <li className="py-2" key={key}>{choiceLabel(key, current[key])}</li>)}</ul>
           <div className="flex flex-wrap gap-2"><Button onClick={() => void save(current)} disabled={saving}>{saving ? 'Saving…' : requiredOffer ? 'Enter Noesis' : 'Save preferences'}</Button><Button variant="ghost" disabled={saving} onClick={() => setStep(1)}>Adjust my preferences</Button></div>
+          {!requiredOffer && <Button variant="ghost" className="justify-self-start" disabled={saving} onClick={() => { setFailure(''); setDraft(current === DEFAULT_EXPERIENCE ? saved : DEFAULT_EXPERIENCE); }}>{current === DEFAULT_EXPERIENCE ? 'Return to saved preferences' : 'Review default preferences'}</Button>}
         </>}
         {requiredOffer && step > 0 && <Button variant="ghost" className="justify-self-start" onClick={() => void save(DEFAULT_EXPERIENCE)} disabled={saving}>Explore with defaults</Button>}
         {failure && <p role="alert" className="text-sm text-destructive">{failure}</p>}

@@ -6,6 +6,7 @@ import { sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { Download, LogOut, Network, RefreshCw, Save, Shield, Trash2, Wrench } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
+import { ExperienceSettingsRow } from '@/components/Settings/NoesisExperienceSetup';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -609,6 +610,7 @@ export function SettingsPage({
         return (
           <div className="space-y-6">
             <SettingsCard title="Workspace" description="Navigation, object creation, review mode, and general working behavior.">
+              <ExperienceSettingsRow />
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Default landing page">
                   <ViewSelect value={drafts.workspace.defaultLandingPage} onChange={(value) => setDrafts((prev) => ({ ...prev, workspace: { ...prev.workspace, defaultLandingPage: value } }))} />

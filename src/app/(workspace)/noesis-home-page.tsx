@@ -3688,7 +3688,6 @@ export function ReadexWorkspace({
             uid={effectiveUid}
             initialSignIn={isInitialSignIn(user.metadata.creationTime, user.metadata.lastSignInTime)}
             emptyHome={activeView === 'home' && !reviewDataLoading && Object.values(resolvedWorkspaceCounts).every(count => count === 0)}
-            showSettings={activeView === 'settings'}
             navigate={navigateToView}
           >
             {renderRouteContent()}
