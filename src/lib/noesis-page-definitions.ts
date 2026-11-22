@@ -21,7 +21,7 @@ export const NOESIS_LOOP_LABELS: Record<NoesisNavSection, string> = {
   Examine: 'Question',
   Stand: 'Claim',
   Implement: 'Action',
-  Survey: 'Review',
+  Survey: 'Perspective',
   More: 'More',
 };
 
@@ -153,7 +153,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     route: '/works',
     title: 'Works',
     purpose: 'Create writing, notes, recordings, drawings, and external-document artifacts.',
-    section: 'Stand',
+    section: 'Survey',
     signatureExperience: 'A multimodal creation studio for expressed thought.',
     loadingLayout: 'studio',
   },
