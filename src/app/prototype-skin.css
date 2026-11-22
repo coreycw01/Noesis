@@ -120,8 +120,14 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
 .noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--stage-act); }
 .noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--stage-integrate); }
-/* More follows the workspace theme rather than the current page's stage. */
-.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--workspace-accent); }
+/* "more" used to follow the workspace theme, because it meant Profile,
+   Settings and the Context Desk — places to go rather than stages of the
+   Loop. It now also carries Perspective (Atlas, Works, Evolution), which are
+   stages with a colour of their own, and taking the theme accent there left
+   them whatever hue the theme happened to be instead of their blue. The pages
+   that should follow the theme get it from noesisPageTone's "theme" tone
+   instead, which is the more precise place for it. */
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--sidebar-stage-more); }
 .noesis-loop__divider { background: hsl(var(--border)); }
 .noesis-loop__link { background: hsl(var(--border)); }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }
@@ -356,14 +362,29 @@ section[aria-label="Page filters and search"] { position: static !important; pad
    border saying the same thing. */
 :root { --revise: 270 30% 43%; }
 .dark { --revise: 276 28% 71%; }
+/* The AI colour follows the chosen appearance theme, the way every other
+   accent in the app does. It reads --workspace-accent rather than --accent,
+   because pages rewrite --accent to their own stage tone and the assistant
+   would otherwise change colour on every navigation. The violet above is the
+   fallback for a build where --workspace-accent is unset. */
+:root { --revise: var(--workspace-accent, 270 30% 43%); }
+.dark { --revise: var(--workspace-accent, 276 28% 71%); }
 .noesis-aidock { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .noesis-ai-trigger { border: 1.5px solid hsl(var(--revise)) !important; box-shadow: 0 0 0 3px hsl(var(--revise) / .15); background: hsl(var(--revise) / .1) !important; color: hsl(var(--revise)) !important; font-weight: 600; }
 .noesis-ai-trigger:hover { box-shadow: 0 0 0 5px hsl(var(--revise) / .22); background: hsl(var(--revise) / .18) !important; }
 .noesis-aidock__depth { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--revise)); border: 1px dotted hsl(var(--revise) / .6); border-radius: var(--radius-pill); padding: 2px 8px; }
 [role="dialog"]:has(.noesis-ai-review), .noesis-ai-dialog { border-color: hsl(var(--revise) / .45) !important; }
-/* Outline: the concept stage, in the prototype's highlight gold. */
-:root { --stage-outline: 44 72% 34%; --sidebar-stage-outline: 46 74% 66%; }
-.dark { --stage-outline: 46 74% 66%; }
+/* Outline: the concept stage, in silver.
+   Silver is a near-neutral, which puts it close to --muted-foreground — the
+   colour of every de-emphasised line in the app — so the risk is a Concept
+   reading as greyed-out text rather than as a kind. Two things keep it apart.
+   It leans cool where muted leans warm (27deg), and it holds enough chroma to
+   measure: 17.4 apart in Lab on light, 20.6 on dark, both clear of the ~15
+   where two colours start reading as one. It stays 20.9 (light) and 18.0
+   (dark) from the new Works blue, its nearest kind. Contrast is 5.41 and
+   11.12, so it passes as body-adjacent text in either theme. */
+:root { --stage-outline: 216 17% 42%; --sidebar-stage-outline: 215 20% 80%; }
+.dark { --stage-outline: 215 20% 80%; }
 [data-stage-tone="outline"] { --stage: var(--stage-outline); }
 .noesis-nav-section[data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
 .noesis-loop__stage[data-stage="outline"], [data-stage="outline"] { --loop-stage: var(--stage-outline); --stage: var(--stage-outline); }
@@ -669,17 +690,25 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 /* ---------- Noesis AI wears the assistant, not a stage ---------- */
 /* Every other page takes its accent from the Loop stage it belongs to, which
    is how a page says what it is. Noesis AI is not a stage — it was borrowing
-   the "More" blue-green for no reason. Its tab marks are the assistant's
-   violet, and its accent is whatever appearance theme the person chose, which
-   is otherwise only visible in small corners of the app. */
+   the "More" blue-green for no reason. */
+/* Context Desk keeps a purple of its own — the one the AI used to wear, now
+   that the Ask Noesis button follows the appearance theme instead. It is a
+   page identity, not a record kind: it names a header, a tab mark and a nav
+   entry, and never sits in a list beside an Inquiry or a Review badge. That
+   matters, because there is no fourth purple left that clears the ~15 Lab gap
+   from the other two. Light does clear it (15.0 from Inquiry, 15.5 from
+   Review). Dark does not: 17.7 from Inquiry but only 10.8 from the Review
+   violet. Acceptable only because the two are never shown together. */
+:root { --stage-context: 270 30% 43%; }
+.dark { --stage-context: 272 48% 82%; }
 .noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label,
-.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label__section { color: hsl(var(--nav-accent)); }
-.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label::before { background: hsl(var(--nav-accent)); }
-[data-noesis-route="context-desk"] [role="tab"] svg { color: hsl(var(--revise)); }
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label__section { color: hsl(var(--stage-context)); }
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label::before { background: hsl(var(--stage-context)); }
+[data-noesis-route="context-desk"] [role="tab"] svg { color: hsl(var(--stage-context)); }
 [data-noesis-route="context-desk"] [role="tab"][aria-selected="false"] svg { opacity: .6; }
 [data-noesis-route="context-desk"] [role="tab"][aria-selected="true"] {
-  border: 1px solid hsl(var(--revise) / .45);
-  box-shadow: 0 0 0 2px hsl(var(--revise) / .12);
+  border: 1px solid hsl(var(--stage-context) / .45);
+  box-shadow: 0 0 0 2px hsl(var(--stage-context) / .12);
 }
 
 /* ---------- An annotation is a highlight ---------- */
@@ -691,6 +720,13 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
    wash with ordinary ink on top, which is what a marked passage looks like. */
 :root { --kind-annotation-wash: 52 94% 74%; --kind-annotation-ink: 48 90% 16%; }
 .dark { --kind-annotation-wash: 52 64% 30%; --kind-annotation-ink: 52 92% 82%; }
+/* An Annotation badge used to inherit Encounter's amber from tokens.css, which
+   made it the same colour as a Source — the two kinds you most often see side
+   by side. It takes the highlighter yellow now, which only became usable as a
+   colour in its own right once Concept moved off gold. 30.9 from Source on
+   light, 41.6 on dark; contrast 7.12 and 15.84. */
+:root { --kind-annotation-mark: 52 90% 20%; }
+.dark { --kind-annotation-mark: 52 92% 82%; }
 /* The kind mark on a record: its name, in its own colour. Annotations get the
    wash instead, so a highlight looks like one wherever a record is listed. */
 .noesis-kind-mark { color: hsl(var(--kind-source)); }

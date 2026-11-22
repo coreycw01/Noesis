@@ -8,11 +8,17 @@ export type PraxisShape = 'circle' | 'triangle' | 'square';
  * a circle for upholding a principle (commitments and rules), a triangle for
  * testing an idea (experiments), and a square for building consistency
  * (practices and habits).
+ *
+ * All three are green, because all three are Praxis. The shapes used to carry
+ * a stage colour each — a purple triangle, a green circle, an amber square —
+ * which borrowed Question's and Encounter's colours to say something they do
+ * not mean, and made one kind of record look like three. The shape alone says
+ * which method it is; the colour says what kind of record it is.
  */
 export function praxisShapeFor(type: PracticeType | string): { shape: PraxisShape; tone: string; intent: string } {
-  if (type === 'experiment' || type === 'observation' || type === 'challenge' || type === 'exposure') return { shape: 'triangle', tone: 'examine', intent: 'Test an idea' };
+  if (type === 'experiment' || type === 'observation' || type === 'challenge' || type === 'exposure') return { shape: 'triangle', tone: 'act', intent: 'Test an idea' };
   if (type === 'commitment' || type === 'rule' || type === 'decision_rule' || type === 'restraint') return { shape: 'circle', tone: 'act', intent: 'Uphold a principle' };
-  return { shape: 'square', tone: 'encounter', intent: 'Build consistency' };
+  return { shape: 'square', tone: 'act', intent: 'Build consistency' };
 }
 
 export function PraxisMethodShape({ shape, state = 'kept', size = 18, className, title }: {

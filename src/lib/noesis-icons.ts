@@ -8,7 +8,6 @@ import {
   MapPinned,
   Network,
   Repeat2,
-  ScanEye,
   Target,
   UserCircle2,
 } from 'lucide-react';
@@ -114,6 +113,17 @@ const SettingsDial = glyph('settings', [
   ['circle', { cx: 7, cy: 7, r: 2.2, strokeWidth: 1.4 }],
   ['circle', { cx: 7, cy: 7, r: 5, strokeWidth: 1.4, strokeDasharray: '2 2' }],
 ]);
+/* The Context Desk, drawn as a desk: a worktop on two legs with two records
+   laid out on it. It was a scanning eye before, which described the AI looking
+   at things rather than the surface you lay them on. */
+const ContextDesk = glyph('context', [
+  ['rect', { x: 2.1, y: 2.2, width: 4, height: 3, rx: 0.4, ...FILL, opacity: 0.8 }],
+  ['rect', { x: 7.4, y: 3.1, width: 4.5, height: 2.1, rx: 0.4, ...FILL, opacity: 0.55 }],
+  ['path', { d: 'M1 6.6H13', strokeWidth: 1.5 }],
+  ['path', { d: 'M2.6 6.9V12.6', strokeWidth: 1.4 }],
+  ['path', { d: 'M11.4 6.9V12.6', strokeWidth: 1.4 }],
+  ['path', { d: 'M2.6 9.9H6.4', strokeWidth: 1.3 }],
+]);
 
 export type NoesisIconKey =
   | 'home'
@@ -174,7 +184,7 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   annotation: InkTrail,
   position: PlantedFlag,
   work: WorkSheet,
-  context: ScanEye,
+  context: ContextDesk,
   lab: FlaskConical,
   praxis: PraxisTarget,
   practice: Repeat2,
