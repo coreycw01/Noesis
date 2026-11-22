@@ -7,7 +7,7 @@ import { ContextFolderStack } from '@/components/ai/ContextFolderStack';
 import { deskComposition, deskSuggestions, proposeFromQuestion, type DeskItem } from '@/lib/context-desk-suggestions';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
-import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
 import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
 import { Check, Filter, FolderOpen, GripVertical, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
@@ -83,6 +83,12 @@ const viewForType: Record<ContextRecordType, string> = {
   work: 'writing',
   practice: 'labs',
 };
+
+/** The shelf's width in rem, and the little room it is allowed to move in. */
+const SHELF_MIN = 18;
+const SHELF_MAX = 30;
+const SHELF_DEFAULT = 22;
+const clampShelf = (value: number) => Math.min(SHELF_MAX, Math.max(SHELF_MIN, Math.round(value)));
 
 const contextTypeLabels: Record<ContextRecordType, string> = {
   source: 'Sources',
@@ -346,6 +352,22 @@ export function ContextDeskRoutePage({
     [exclusionRules, recordsByKey, selectedKeys],
   );
   const [memberLimit, setMemberLimit] = useState(40);
+  /**
+   * How wide the shelf runs, in rem. Bounded on purpose: a little give for a
+   * long title or a full desk, never enough to squeeze either side into
+   * uselessness.
+   */
+  const [shelfWidth, setShelfWidth] = useState(SHELF_DEFAULT);
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('noesis:desk-shelf'));
+      if (Number.isFinite(saved) && saved > 0) setShelfWidth(clampShelf(saved));
+    } catch { /* Layout preference is optional. */ }
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem('noesis:desk-shelf', String(shelfWidth)); } catch { /* Optional. */ }
+  }, [shelfWidth]);
+  const shelfStyle = useMemo(() => ({ '--desk-shelf': `${shelfWidth}rem` } as CSSProperties), [shelfWidth]);
   /**
    * Narrowing the shelf by what a record is linked to. Only concepts and
    * positions: browsing by source is what the Library is for.
@@ -746,7 +768,7 @@ export function ContextDeskRoutePage({
 
       {surface === 'history' && <NoesisAiHistory items={aiHistory} onNavigate={onNavigate} />}
       {surface === 'desk' && (
-      <div className="grid gap-6 py-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className="noesis-desk-split grid gap-0 py-6 lg:grid-cols-[var(--desk-shelf,22rem)_auto_minmax(0,1fr)]" style={shelfStyle}>
         {/* The cabinet: drawers above Find because choosing one scopes
             everything, folders below because they are what you reach for while
             already working. */}
@@ -886,7 +908,46 @@ export function ContextDeskRoutePage({
           )}
         </section>
 
-        <section aria-labelledby="selected-context-heading" className="min-w-0 border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+        {/* A little give between the shelf and the desk — enough to favour one
+            when a title runs long or a desk fills up, not enough to make
+            either unusable. Arrow keys move it too, since dragging is not
+            available to everyone. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the shelf"
+          aria-valuenow={Math.round(shelfWidth)}
+          aria-valuemin={SHELF_MIN}
+          aria-valuemax={SHELF_MAX}
+          tabIndex={0}
+          className="noesis-desk-grip"
+          onDoubleClick={() => setShelfWidth(SHELF_DEFAULT)}
+          onKeyDown={(event) => {
+            const step = event.shiftKey ? 4 : 1;
+            if (event.key === 'ArrowLeft') { event.preventDefault(); setShelfWidth((width) => clampShelf(width - step)); }
+            if (event.key === 'ArrowRight') { event.preventDefault(); setShelfWidth((width) => clampShelf(width + step)); }
+            if (event.key === 'Home') { event.preventDefault(); setShelfWidth(SHELF_DEFAULT); }
+          }}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            const grip = event.currentTarget;
+            grip.setPointerCapture(event.pointerId);
+            const startX = event.clientX;
+            const startWidth = shelfWidth;
+            const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+            const move = (moveEvent: PointerEvent) => setShelfWidth(clampShelf(startWidth + (moveEvent.clientX - startX) / rem));
+            const stop = () => {
+              grip.removeEventListener('pointermove', move);
+              grip.removeEventListener('pointerup', stop);
+              grip.removeEventListener('pointercancel', stop);
+            };
+            grip.addEventListener('pointermove', move);
+            grip.addEventListener('pointerup', stop);
+            grip.addEventListener('pointercancel', stop);
+          }}
+        />
+
+        <section aria-labelledby="selected-context-heading" className="min-w-0 border-t border-border pt-5 lg:border-t-0 lg:pl-6 lg:pt-0">
           {/* What will be sent, what to check, and the run — kept at the top
               and still. As a sticky footer this panel slid under the cursor
               every time the selection changed length. */}

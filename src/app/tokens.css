@@ -151,6 +151,7 @@
 [data-tone="stage"] { --tone: var(--stage, var(--accent)); }
 [data-tone="accent"] { --tone: var(--accent); }
 [data-tone="source"] { --tone: var(--kind-source); }
+/* Annotations wear a highlighter wash rather than a tone; see prototype-skin. */
 [data-tone="annotation"] { --tone: var(--kind-annotation); }
 [data-tone="concept"] { --tone: var(--kind-concept); }
 [data-tone="inquiry"] { --tone: var(--kind-inquiry); }

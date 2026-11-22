@@ -682,3 +682,35 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   border: 1px solid hsl(var(--revise) / .45);
   box-shadow: 0 0 0 2px hsl(var(--revise) / .12);
 }
+
+/* ---------- An annotation is a highlight ---------- */
+/* Highlighter yellow cannot be an annotation's text colour. Bright enough to
+   read as a highlighter, it fails contrast on paper (2.7–4.0 against a 4.5
+   bar); dark enough to pass, it lands on top of the Concept gold (dE 6–12,
+   where 15 is where two colours stop reading as one). A highlighter was never
+   text, though — it is the ground behind it. So the annotation mark is a
+   wash with ordinary ink on top, which is what a marked passage looks like. */
+:root { --kind-annotation-wash: 52 94% 74%; --kind-annotation-ink: 48 90% 16%; }
+.dark { --kind-annotation-wash: 52 64% 30%; --kind-annotation-ink: 52 92% 82%; }
+[data-tone="annotation"],
+[data-stage-tone="annotation"] .noesis-kind-mark {
+  background: hsl(var(--kind-annotation-wash)) !important;
+  color: hsl(var(--kind-annotation-ink)) !important;
+  border-color: hsl(var(--kind-annotation-wash)) !important;
+}
+
+/* The handle between the shelf and the desk. It is the column border as well,
+   so the split reads as one line rather than a line plus a control. */
+.noesis-desk-grip { display: none; }
+@media (min-width: 1024px) {
+  .noesis-desk-grip {
+    display: block; width: 11px; margin: 0 -5px; cursor: col-resize;
+    background: linear-gradient(hsl(var(--border)), hsl(var(--border))) center / 1px 100% no-repeat;
+    touch-action: none;
+  }
+  .noesis-desk-grip:hover, .noesis-desk-grip:focus-visible {
+    background-image: linear-gradient(hsl(var(--revise)), hsl(var(--revise)));
+    background-size: 3px 100%;
+    outline: none;
+  }
+}
