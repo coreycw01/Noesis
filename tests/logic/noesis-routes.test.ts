@@ -9,7 +9,13 @@ test('workspace utility pages use the chosen accent without changing collection 
   }
   assert.equal(noesisPageTone('concepts', NOESIS_PAGE_BY_VIEW.concepts.section), 'outline');
   assert.equal(noesisPageTone('vault', NOESIS_PAGE_BY_VIEW.vault.section), 'claim');
-  assert.equal(noesisPageTone('writing', NOESIS_PAGE_BY_VIEW.writing.section), 'integrate');
+  // Works sits in Perspective with Atlas and Evolution. That section held the
+  // Review violet ('integrate') when this test was written, which left a Work
+  // record blue and the page it lives on violet. The section is blue now; the
+  // violet stays with Review.
+  assert.equal(noesisPageTone('writing', NOESIS_PAGE_BY_VIEW.writing.section), 'more');
+  assert.equal(noesisPageTone('atlas', NOESIS_PAGE_BY_VIEW.atlas.section), 'more');
+  assert.equal(noesisPageTone('evolution', NOESIS_PAGE_BY_VIEW.evolution.section), 'more');
   assert.equal(noesisPageTone('context-desk', NOESIS_PAGE_BY_VIEW['context-desk'].section), 'more');
 });
 
