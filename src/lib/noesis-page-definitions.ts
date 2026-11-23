@@ -33,7 +33,12 @@ export const NOESIS_NAV_SECTION_TONE: Record<NoesisNavSection, string> = {
   Examine: 'examine',
   Stand: 'claim',
   Implement: 'act',
-  Survey: 'integrate',
+  /* Survey holds Atlas, Works and Evolution — the three pages you stand back
+     on. It used to take the Review violet, which left a Work record blue and
+     the page it lives on violet. It takes the blue now, so the page agrees
+     with the records on it. The violet stays --stage-integrate, where Review
+     still uses it. */
+  Survey: 'more',
   More: 'more',
 };
 

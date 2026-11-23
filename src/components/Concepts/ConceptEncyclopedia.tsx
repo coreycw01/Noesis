@@ -30,9 +30,8 @@ import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
 import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
-import { ThroughConcept } from '@/components/shared/ThroughConcept';
 import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection } from '@/components/shared/record/RecordPage';
-import { BenchBand, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
+import { BenchBand, Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Pill, PillRow } from '@/components/ui/pill';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
@@ -1000,124 +999,20 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
           <RecordFooter>
             <FooterSection title="Connections">
-            <details className="noesis-fold">
-              <summary><Button asChild variant="tertiary" size="sm"><span>Also through {selectedName}</span></Button></summary>
-              <div className="noesis-fold__body">
-              <ThroughConcept concept={selectedName} columns={[
-                { label: 'Sources', tone: 'encounter', items: r.sources.map((source) => ({ id: source.id, label: source.title, onOpen: () => previewSource(source) })) },
-                { label: 'Annotations', tone: 'encounter', items: r.annotations.map((note) => ({ id: `${note.source.id}:${note.id}`, label: note.text.length > 90 ? `${note.text.slice(0, 89)}\u2026` : note.text, onOpen: () => previewSource(note.source) })) },
-                { label: 'Inquiries', tone: 'examine', items: r.questions.map((question) => ({ id: question.id, label: question.text, onOpen: () => previewInquiry(question) })) },
-                { label: 'Positions', tone: 'claim', items: r.beliefs.map((entry) => ({ id: entry.id, label: entry.title, onOpen: () => previewPosition(entry) })) },
-                { label: 'Works', tone: 'more', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', onOpen: () => previewWork(draft) })) },
-              ]} />
-              </div>
-            </details>
-            {/* Sources + Annotations */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-              <ConceptPageSection title="Related Sources" count={r.sources.length} empty="No sources tagged with this concept yet.">
-                <div className="space-y-3">
-                  {r.sources.slice(0, 6).map((s) => (
-                    <button key={s.id} type="button" onClick={() => previewSource(s)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                      <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">{s.type}{s.year ? ` · ${s.year}` : ''}</div>
-                      <p className="text-sm font-body font-semibold text-primary leading-snug">{s.title}</p>
-                      {s.creator && <p className="text-xs text-muted-foreground font-body mt-0.5">{s.creator}</p>}
-                    </button>
-                  ))}
-                </div>
-              </ConceptPageSection>
-
-              <ConceptPageSection title="Related Annotations" count={r.annotations.length} empty="No annotations tagged with this concept yet.">
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                  {r.annotations.slice(0, 8).map((a, i) => (
-                    <button key={`${a.source.id}-${i}`} type="button" onClick={() => previewAnnotationSource(a)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                      <span className="noesis-eyebrow noesis-eyebrow--sm text-accent/70 font-bold">{a.type}</span>
-                      <p className="text-sm font-body italic text-primary/80 line-clamp-3 mt-1">&quot;{a.text}&quot;</p>
-                      <p className="text-label text-muted-foreground/40 font-body mt-1.5">{a.source.title}</p>
-                    </button>
-                  ))}
-                </div>
-              </ConceptPageSection>
-            </div>
-
-            {/* Inquiries + Positions */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-              <ConceptPageSection title="Related Inquiries" count={r.questions.length} empty="No inquiries linked to this concept.">
-                <div className="space-y-3">
-                  {r.questions.map((q) => (
-                    <button key={q.id} type="button" onClick={() => previewInquiry(q)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                      <p className="text-sm font-body text-primary/90 mb-2">{q.text}</p>
-                      {q.answer ? (
-                        <p className="text-xs text-muted-foreground font-body italic line-clamp-2 border-t border-border/20 pt-2">{q.answer}</p>
-                      ) : (
-                        <span className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Open</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </ConceptPageSection>
-
-              <ConceptPageSection title="Related Positions" count={r.beliefs.length} empty="No positions formed around this concept yet.">
-                <div className="space-y-3">
-                  {r.beliefs.map((b) => (
-                    <button key={b.id} type="button" onClick={() => previewPosition(b)} className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
-                      <p className="text-sm font-headline font-bold italic text-primary mb-1">{b.title}</p>
-                      <p className="text-xs font-body text-muted-foreground line-clamp-2 mb-2">{b.statement}</p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <div key={n} className={cn('size-1.5 rounded-full', n <= (b.confidence || 3) ? 'bg-accent' : 'bg-muted')} />
-                          ))}
-                        </div>
-                        <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/50">{b.status}</span>
-                      </div>
-                    </button>
-                  ))}
-
-                </div>
-              </ConceptPageSection>
-            </div>
-
-            {/* Works + Practices */}
-            {(r.drafts.length > 0 || r.practices.length > 0) && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-                <ConceptPageSection title="Related Works" count={r.drafts.length} empty="No works express this concept yet.">
-                  <div className="space-y-3">
-                    {r.drafts.slice(0, 6).map((draft) => (
-                      <button
-                        key={draft.id}
-                        type="button"
-                        onClick={() => previewWork(draft)}
-                        className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                      >
-                        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">{draft.type || 'work'}{draft.status ? ` · ${draft.status}` : ''}</div>
-                        <p className="text-sm font-headline font-bold italic text-primary mb-1">{draft.title}</p>
-                        {draft.body && <p className="text-xs font-body text-muted-foreground line-clamp-2">{draft.body}</p>}
-                      </button>
-                    ))}
-                  </div>
-                </ConceptPageSection>
-
-                <ConceptPageSection title="Related Practices" count={r.practices.length} empty="No practices test this concept yet.">
-                  <div className="space-y-3">
-                    {r.practices.slice(0, 6).map((practice) => (
-                      <button
-                        key={practice.id}
-                        type="button"
-                        onClick={() => previewPractice(practice)}
-                        className="w-full rounded-xl bg-card border border-border/40 shadow-sm p-4 text-left transition-colors hover:border-accent/40 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                      >
-                        <div className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground/40 mb-1 font-bold">{practice.type || 'practice'}{practice.status ? ` · ${practice.status}` : ''}</div>
-                        <p className="text-sm font-body font-semibold text-primary leading-snug">{practice.title}</p>
-                        {(practice.description || practice.notes) && (
-                          <p className="mt-1 text-xs font-body text-muted-foreground line-clamp-2">{practice.description || practice.notes}</p>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </ConceptPageSection>
-              </div>
-            )}
-
+            {/* Every other record page lists what it is attached to with the
+                shared Connections: one coloured pill per kind, carrying its
+                count, opening to the items. This page used to hand-roll six
+                grids of generic cards instead, which made a Concept's
+                attachments the one place in the app where the kind of a thing
+                was not written in its colour. */}
+            <Connections groups={[
+              { type: 'Sources', tone: 'source', items: r.sources.map((source) => ({ id: source.id, label: source.title, meta: [source.type, source.creator].filter(Boolean).join(' \u00b7 ') || undefined, onOpen: () => previewSource(source) })), empty: 'No sources tagged with this concept yet.' },
+              { type: 'Annotations', tone: 'annotation', items: r.annotations.map((note, index) => ({ id: `${note.source.id}:${index}`, label: note.text.length > 120 ? `${note.text.slice(0, 119)}\u2026` : note.text, meta: note.source.title, onOpen: () => previewAnnotationSource(note) })), empty: 'No annotations tagged with this concept yet.' },
+              { type: 'Inquiries', tone: 'inquiry', items: r.questions.map((question) => ({ id: question.id, label: question.text, meta: question.answer ? 'Answered' : 'Open', onOpen: () => previewInquiry(question) })), empty: 'No inquiries linked to this concept.' },
+              { type: 'Positions', tone: 'position', items: r.beliefs.map((belief) => ({ id: belief.id, label: belief.title, meta: [belief.status, belief.confidence ? `${belief.confidence}% confidence` : null].filter(Boolean).join(' \u00b7 ') || undefined, onOpen: () => previewPosition(belief) })), empty: 'No positions formed around this concept yet.' },
+              { type: 'Works', tone: 'work', items: r.drafts.map((draft) => ({ id: draft.id, label: draft.title || 'Untitled', meta: [draft.type, draft.status].filter(Boolean).join(' \u00b7 ') || undefined, onOpen: () => previewWork(draft) })), empty: 'No works express this concept yet.' },
+              { type: 'Praxis', tone: 'practice', items: r.practices.map((practice) => ({ id: practice.id, label: practice.title, meta: [practice.type, practice.status].filter(Boolean).join(' \u00b7 ') || undefined, onOpen: () => previewPractice(practice) })), empty: 'No practices test this concept yet.' },
+            ]} />
             </FooterSection>
 
 
@@ -1415,17 +1310,4 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   );
 }
 
-function ConceptPageSection({ title, count, empty, children }: { title: string; count: number; empty: string; children?: React.ReactNode }) {
-  return (
-    <section>
-      <div className="flex items-center gap-2 mb-4">
-        <h2 className="noesis-eyebrow text-foreground/50 font-bold">{title}</h2>
-        <span className="noesis-figure noesis-figure--sm bg-muted/30 text-muted-foreground/50 rounded-full px-2 py-0.5 font-bold">{count}</span>
-      </div>
-      {count === 0 ? (
-        <p className="text-sm text-muted-foreground/30 italic font-body">{empty}</p>
-      ) : children}
-    </section>
-  );
-}
 

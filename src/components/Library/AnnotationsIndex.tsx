@@ -1193,7 +1193,7 @@ export function AnnotationsIndex({
                   aria-label={`Select annotation from ${annotation.source.title}`}
                 />
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="noesis-eyebrow noesis-eyebrow--sm font-bold text-foreground">
+                  <span className="noesis-kind-mark noesis-eyebrow noesis-eyebrow--sm font-bold" data-kind="annotation">
                     {annotationLabel(annotationType(annotation))}
                   </span>
                   <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm font-bold">

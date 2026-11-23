@@ -22,12 +22,19 @@
   /* Record kinds: what something IS. Aliased to stage colours so "Evidence is
      the sources colour" is defined once. */
   --kind-source: var(--stage-encounter);
-  --kind-annotation: var(--stage-encounter);
+  /* Annotation is the one kind with no stage of its own. It used to alias
+     Encounter, which made an Annotation badge the same amber as a Source — the
+     two kinds most often seen together. It takes the highlighter yellow, set
+     per theme in prototype-skin.css next to the wash it matches. */
+  --kind-annotation: var(--kind-annotation-mark);
   --kind-concept: var(--stage-outline);
   --kind-inquiry: var(--stage-examine);
   --kind-position: var(--stage-claim);
   --kind-practice: var(--stage-act);
-  --kind-work: var(--stage-integrate);
+  /* Works is blue. It briefly pointed at --stage-integrate, the Review violet,
+     which is also the colour Perspective used to wear; both moved to blue so a
+     Work and the page it lives on agree. The violet stays with Review. */
+  --kind-work: var(--stage-more);
   --kind-exercise: var(--stage-act);
 
   /* Type scale. Nine steps, and nothing between them: an app with a dozen
@@ -151,6 +158,7 @@
 [data-tone="stage"] { --tone: var(--stage, var(--accent)); }
 [data-tone="accent"] { --tone: var(--accent); }
 [data-tone="source"] { --tone: var(--kind-source); }
+/* Annotations wear a highlighter wash rather than a tone; see prototype-skin. */
 [data-tone="annotation"] { --tone: var(--kind-annotation); }
 [data-tone="concept"] { --tone: var(--kind-concept); }
 [data-tone="inquiry"] { --tone: var(--kind-inquiry); }

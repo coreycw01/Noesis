@@ -120,8 +120,14 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
 .noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--stage-act); }
 .noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--stage-integrate); }
-/* More follows the workspace theme rather than the current page's stage. */
-.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--workspace-accent); }
+/* "more" used to follow the workspace theme, because it meant Profile,
+   Settings and the Context Desk — places to go rather than stages of the
+   Loop. It now also carries Perspective (Atlas, Works, Evolution), which are
+   stages with a colour of their own, and taking the theme accent there left
+   them whatever hue the theme happened to be instead of their blue. The pages
+   that should follow the theme get it from noesisPageTone's "theme" tone
+   instead, which is the more precise place for it. */
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--sidebar-stage-more); }
 .noesis-loop__divider { background: hsl(var(--border)); }
 .noesis-loop__link { background: hsl(var(--border)); }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }
@@ -356,14 +362,29 @@ section[aria-label="Page filters and search"] { position: static !important; pad
    border saying the same thing. */
 :root { --revise: 270 30% 43%; }
 .dark { --revise: 276 28% 71%; }
+/* The AI colour follows the chosen appearance theme, the way every other
+   accent in the app does. It reads --workspace-accent rather than --accent,
+   because pages rewrite --accent to their own stage tone and the assistant
+   would otherwise change colour on every navigation. The violet above is the
+   fallback for a build where --workspace-accent is unset. */
+:root { --revise: var(--workspace-accent, 270 30% 43%); }
+.dark { --revise: var(--workspace-accent, 276 28% 71%); }
 .noesis-aidock { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .noesis-ai-trigger { border: 1.5px solid hsl(var(--revise)) !important; box-shadow: 0 0 0 3px hsl(var(--revise) / .15); background: hsl(var(--revise) / .1) !important; color: hsl(var(--revise)) !important; font-weight: 600; }
 .noesis-ai-trigger:hover { box-shadow: 0 0 0 5px hsl(var(--revise) / .22); background: hsl(var(--revise) / .18) !important; }
 .noesis-aidock__depth { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--revise)); border: 1px dotted hsl(var(--revise) / .6); border-radius: var(--radius-pill); padding: 2px 8px; }
 [role="dialog"]:has(.noesis-ai-review), .noesis-ai-dialog { border-color: hsl(var(--revise) / .45) !important; }
-/* Outline: the concept stage, in the prototype's highlight gold. */
-:root { --stage-outline: 44 72% 34%; --sidebar-stage-outline: 46 74% 66%; }
-.dark { --stage-outline: 46 74% 66%; }
+/* Outline: the concept stage, in silver.
+   Silver is a near-neutral, which puts it close to --muted-foreground — the
+   colour of every de-emphasised line in the app — so the risk is a Concept
+   reading as greyed-out text rather than as a kind. Two things keep it apart.
+   It leans cool where muted leans warm (27deg), and it holds enough chroma to
+   measure: 17.4 apart in Lab on light, 20.6 on dark, both clear of the ~15
+   where two colours start reading as one. It stays 20.9 (light) and 18.0
+   (dark) from the new Works blue, its nearest kind. Contrast is 5.41 and
+   11.12, so it passes as body-adjacent text in either theme. */
+:root { --stage-outline: 216 17% 42%; --sidebar-stage-outline: 215 20% 80%; }
+.dark { --stage-outline: 215 20% 80%; }
 [data-stage-tone="outline"] { --stage: var(--stage-outline); }
 .noesis-nav-section[data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
 .noesis-loop__stage[data-stage="outline"], [data-stage="outline"] { --loop-stage: var(--stage-outline); --stage: var(--stage-outline); }
@@ -474,12 +495,11 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 @media (max-width: 760px) { .noesis-concept-split { grid-template-columns: 1fr; } .noesis-concept-split__list { position: static; max-height: 40vh; } }
 /* Ask Noesis opens in place: a panel anchored under its dock, not a modal. */
 .noesis-aidock-anchor { position: relative; display: inline-flex; vertical-align: middle; }
-.noesis-ai-inline { position: absolute; z-index: 45; top: calc(100% + 8px); right: 0; width: min(980px, calc(100vw - 2rem)); height: min(78vh, 760px); text-align: left; border-radius: var(--radius-lg); border: 1.5px solid hsl(var(--revise) / .55) !important; background: hsl(var(--background)); box-shadow: 0 24px 60px -24px hsl(0 0% 0% / .7), 0 0 0 4px hsl(var(--revise) / .08); outline: none; }
+/* The assistance panel is sized and skinned here; the dialog itself handles
+   where it sits, which is the middle of the screen. */
+.noesis-ai-inline { width: min(980px, calc(100vw - 2rem)); max-width: none; height: min(78vh, 760px); text-align: left; border-radius: var(--radius-lg); border: 1.5px solid hsl(var(--revise) / .55) !important; background: hsl(var(--background)); box-shadow: 0 24px 60px -24px hsl(0 0% 0% / .7), 0 0 0 4px hsl(var(--revise) / .08); outline: none; }
 .noesis-ai-inline > div { height: 100%; }
-@media (max-width: 760px) {
-  .noesis-ai-inline, .noesis-ai-inline[data-side="left"] { position: fixed; z-index: 80; top: auto; left: 0; right: 0; bottom: 0; width: 100vw; height: 85dvh; border-radius: var(--radius-lg) 18px 0 0; }
-}
-.noesis-ai-inline[data-side="left"] { right: auto; left: 0; }
+@media (max-width: 760px) { .noesis-ai-inline { height: 85dvh; } }
 /* Concepts split: the prototype's Relations box. */
 .noesis-relations { display: grid; gap: 8px; padding: 16px 18px; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); }
 .noesis-relations__zone { display: grid; gap: 4px; padding: 10px 12px; border-radius: var(--radius-panel); border: 1px dashed hsl(var(--stage) / .55); }
@@ -648,7 +668,11 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   border-radius: var(--radius-sm) var(--radius-sm) 0 0; background: inherit;
 }
 .noesis-folder:first-child { margin-top: var(--space-2); }
-.noesis-folder:hover:not(:disabled), .noesis-folder:focus-visible { transform: translateX(8px) translateY(-4px); box-shadow: 0 7px 16px hsl(var(--foreground) / .18); z-index: 4; }
+.noesis-folder { flex-wrap: wrap; }
+/* An open folder stays put: lifting one you are reading from makes the list
+   it just revealed move under the cursor. */
+.noesis-folder:not([data-open]):hover:not(:disabled), .noesis-folder:not([data-open]):focus-within { transform: translateX(8px) translateY(-4px); box-shadow: 0 7px 16px hsl(var(--foreground) / .18); z-index: 4; }
+.noesis-folder[data-open] { z-index: 5; box-shadow: 0 7px 16px hsl(var(--foreground) / .18); }
 .noesis-folder[data-in] { background: hsl(var(--kind-concept) / .14); }
 .noesis-folder:disabled { opacity: .5; }
 .noesis-folder__mark { color: hsl(var(--kind-concept)); font-weight: 600; flex: none; }
@@ -662,3 +686,77 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-chip button:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
 /* A slip a folder carried in keeps the folder's colour down its edge. */
 .noesis-desk__slip[data-carried] { box-shadow: inset 3px 0 0 hsl(var(--kind-concept)); }
+
+/* ---------- Noesis AI wears the assistant, not a stage ---------- */
+/* Every other page takes its accent from the Loop stage it belongs to, which
+   is how a page says what it is. Noesis AI is not a stage — it was borrowing
+   the "More" blue-green for no reason. */
+/* Context Desk keeps a purple of its own — the one the AI used to wear, now
+   that the Ask Noesis button follows the appearance theme instead. It is a
+   page identity, not a record kind: it names a header, a tab mark and a nav
+   entry, and never sits in a list beside an Inquiry or a Review badge. That
+   matters, because there is no fourth purple left that clears the ~15 Lab gap
+   from the other two. Light does clear it (15.0 from Inquiry, 15.5 from
+   Review). Dark does not: 17.7 from Inquiry but only 10.8 from the Review
+   violet. Acceptable only because the two are never shown together. */
+:root { --stage-context: 270 30% 43%; }
+.dark { --stage-context: 272 48% 82%; }
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label,
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label__section { color: hsl(var(--stage-context)); }
+.noesis-page-header[data-noesis-route="context-desk"] .noesis-route-label::before { background: hsl(var(--stage-context)); }
+[data-noesis-route="context-desk"] [role="tab"] svg { color: hsl(var(--stage-context)); }
+[data-noesis-route="context-desk"] [role="tab"][aria-selected="false"] svg { opacity: .6; }
+[data-noesis-route="context-desk"] [role="tab"][aria-selected="true"] {
+  border: 1px solid hsl(var(--stage-context) / .45);
+  box-shadow: 0 0 0 2px hsl(var(--stage-context) / .12);
+}
+
+/* ---------- An annotation is a highlight ---------- */
+/* Highlighter yellow cannot be an annotation's text colour. Bright enough to
+   read as a highlighter, it fails contrast on paper (2.7–4.0 against a 4.5
+   bar); dark enough to pass, it lands on top of the Concept gold (dE 6–12,
+   where 15 is where two colours stop reading as one). A highlighter was never
+   text, though — it is the ground behind it. So the annotation mark is a
+   wash with ordinary ink on top, which is what a marked passage looks like. */
+:root { --kind-annotation-wash: 52 94% 74%; --kind-annotation-ink: 48 90% 16%; }
+.dark { --kind-annotation-wash: 52 64% 30%; --kind-annotation-ink: 52 92% 82%; }
+/* An Annotation badge used to inherit Encounter's amber from tokens.css, which
+   made it the same colour as a Source — the two kinds you most often see side
+   by side. It takes the highlighter yellow now, which only became usable as a
+   colour in its own right once Concept moved off gold. 30.9 from Source on
+   light, 41.6 on dark; contrast 7.12 and 15.84. */
+:root { --kind-annotation-mark: 52 90% 20%; }
+.dark { --kind-annotation-mark: 52 92% 82%; }
+/* The kind mark on a record: its name, in its own colour. Annotations get the
+   wash instead, so a highlight looks like one wherever a record is listed. */
+.noesis-kind-mark { color: hsl(var(--kind-source)); }
+.noesis-kind-mark[data-kind="source"] { color: hsl(var(--kind-source)); }
+.noesis-kind-mark[data-kind="concept"] { color: hsl(var(--kind-concept)); }
+.noesis-kind-mark[data-kind="inquiry"] { color: hsl(var(--kind-inquiry)); }
+.noesis-kind-mark[data-kind="position"] { color: hsl(var(--kind-position)); }
+.noesis-kind-mark[data-kind="practice"] { color: hsl(var(--kind-practice)); }
+.noesis-kind-mark[data-kind="work"] { color: hsl(var(--kind-work)); }
+.noesis-kind-mark[data-kind="annotation"] {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: hsl(var(--kind-annotation-wash));
+  color: hsl(var(--kind-annotation-ink));
+  box-decoration-break: clone;
+}
+
+/* The handle between the shelf and the desk. It is the column border as well,
+   so the split reads as one line rather than a line plus a control. */
+.noesis-desk-grip { display: none; }
+@media (min-width: 1024px) {
+  .noesis-desk-grip {
+    display: block; width: 11px; margin: 0 -5px; cursor: col-resize;
+    background: linear-gradient(hsl(var(--border)), hsl(var(--border))) center / 1px 100% no-repeat;
+    touch-action: none;
+  }
+  .noesis-desk-grip:hover, .noesis-desk-grip:focus-visible {
+    background-image: linear-gradient(hsl(var(--revise)), hsl(var(--revise)));
+    background-size: 3px 100%;
+    outline: none;
+  }
+}

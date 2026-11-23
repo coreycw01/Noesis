@@ -60,23 +60,26 @@
   /* Thinking-loop stage colors. Pages, nav groups, and badges take their tone
      from the stage they belong to, so the loop reads at a glance. */
   --stage-encounter: 33 87% 35%;
-  /* Examine is a question, and a question is blue leaning into purple. Works
-     take the blue-green it used to hold, which keeps every record kind a
-     clear step from its neighbours: 12, 33, 95, 187, 252. */
+  /* Examine is a question, and a question is blue leaning into purple. */
   --stage-examine: 252 38% 46%;
   --stage-claim: 12 62% 43%;
   --stage-act: 95 41% 33%;
   /* Review moves on round to a warm violet: with Question now a blue-purple,
      a plain purple here left the two reading as one colour. */
   --stage-integrate: 308 30% 45%;
-  --stage-more: 187 40% 33%;
+  /* More — Works, Atlas and Evolution — is a plain blue. It sits 40 degrees
+     off Question's blue-purple, which is 30.3 apart in Lab: far enough that a
+     Work and an Inquiry never read as the same kind. The blue-green that used
+     to live here is now spoken for by nothing, and that is fine: an unused
+     colour costs nothing, a confusable pair costs a misread. */
+  --stage-more: 212 52% 38%;
   /* The sidebar is always dark, so it keeps the bright stage set in both themes. */
   --sidebar-stage-encounter: 35 73% 55%;
   --sidebar-stage-examine: 250 44% 72%;
   --sidebar-stage-claim: 15 65% 61%;
   --sidebar-stage-act: 87 30% 63%;
   --sidebar-stage-integrate: 306 30% 72%;
-  --sidebar-stage-more: 185 32% 62%;
+  --sidebar-stage-more: 211 45% 70%;
   --sidebar-ring: 262 73% 46%;
 }
 
@@ -103,7 +106,7 @@
   --stage-claim: 15 65% 61%;
   --stage-act: 87 30% 63%;
   --stage-integrate: 306 30% 72%;
-  --stage-more: 185 32% 62%;
+  --stage-more: 211 45% 70%;
 }
 
 .high-contrast {
