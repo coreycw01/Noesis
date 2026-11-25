@@ -612,7 +612,7 @@ h1, h2, h3, h4, h5, h6 {
   --dock-bg: hsl(var(--sidebar-background) / .94);
   position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 40;
   transform: translateX(-50%);
-  display: flex; align-items: center; gap: .35rem;
+  display: flex; align-items: center; gap: var(--space-1);
   padding: .4rem .5rem; border-radius: var(--radius-pill);
   background: var(--dock-bg); color: hsl(var(--sidebar-foreground));
   border: 1px solid hsl(var(--sidebar-border));
@@ -631,7 +631,7 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-loop__link { width: .9rem; height: 1px; background: hsl(var(--sidebar-foreground) / .22); }
 .noesis-loop__stage { position: relative; }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold {
-  display: inline-flex; align-items: center; gap: .45rem; border-radius: var(--radius-pill);
+  display: inline-flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-pill);
   padding: .3rem .55rem .3rem .3rem; background: transparent;
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .14em; text-transform: uppercase;
   color: hsl(var(--sidebar-foreground) / .7);
@@ -661,7 +661,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .noesis-loop__pop-label { padding: .3rem .55rem .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .18em; text-transform: uppercase; color: hsl(var(--nav-stage)); }
 .noesis-loop__pop-item {
-  display: flex; width: 100%; align-items: center; gap: .6rem; border-radius: var(--radius-panel); padding: .5rem .55rem;
+  display: flex; width: 100%; align-items: center; gap: var(--space-2); border-radius: var(--radius-panel); padding: .5rem .55rem;
   font-size: var(--text-sm); color: hsl(var(--sidebar-foreground) / .85); background: transparent;
 }
 .noesis-loop__pop-item svg { color: hsl(var(--nav-stage)); }
@@ -699,8 +699,8 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-source-detail { --stage: var(--stage-encounter); }
 
 /* Atlas timeline replay. */
-.noesis-atlas-timeline { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .9rem; padding: .35rem 0 .5rem; }
-.noesis-atlas-timeline__date { display: inline-flex; align-items: center; gap: .45rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-atlas-timeline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) .9rem; padding: .35rem 0 .5rem; }
+.noesis-atlas-timeline__date { display: inline-flex; align-items: center; gap: var(--space-2); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
 .noesis-atlas-timeline__date input { height: 2rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); padding: 0 .7rem; font-size: var(--text-xs); letter-spacing: 0; color: hsl(var(--foreground)); color-scheme: inherit; }
 .noesis-atlas-timeline__slider { flex: 1 1 14rem; display: flex; align-items: center; min-width: 10rem; }
 .noesis-atlas-timeline__slider input { width: 100%; accent-color: hsl(var(--stage-integrate)); }
@@ -713,44 +713,44 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-ribbon-row { display: flex; align-items: flex-start; flex-shrink: 0; }
 .noesis-ribbon-row[data-collapsed] { justify-content: flex-end; border-bottom: 1px solid hsl(var(--border) / .5); padding: .3rem 0; }
 .noesis-ribbon-fold__toggle {
-  flex-shrink: 0; display: inline-flex; align-items: center; gap: .3rem; margin: .65rem .75rem 0 -.25rem;
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: var(--space-1); margin: .65rem .75rem 0 -.25rem;
   height: 1.6rem; padding: 0 .45rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border));
   background: hsl(var(--card)); color: hsl(var(--muted-foreground));
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .14em; text-transform: uppercase;
 }
 .noesis-ribbon-row[data-collapsed] .noesis-ribbon-fold__toggle { margin-top: 0; }
 .noesis-ribbon-fold__toggle:hover { color: hsl(var(--foreground)); border-color: hsl(var(--stage-more) / .6); }
-.noesis-tool-strip { flex-wrap: wrap; align-items: center; gap: .4rem; padding: .35rem 1rem; border-bottom: 1px solid hsl(var(--border) / .45); }
+.noesis-tool-strip { flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: .35rem 1rem; border-bottom: 1px solid hsl(var(--border) / .45); }
 .noesis-tool-strip__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
 .noesis-tool-strip__chip { height: 1.6rem; padding: 0 .7rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); background: transparent; font-size: var(--text-xs); color: hsl(var(--foreground) / .85); }
 .noesis-tool-strip__chip:hover, .noesis-tool-strip__chip[aria-pressed="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); }
 
 /* Assistance panel: per-action reasoning depth. */
 .noesis-ai-depth { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
-.noesis-ai-depth__option { display: grid; gap: .15rem; text-align: left; padding: .6rem .75rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: var(--text-sm); }
+.noesis-ai-depth__option { display: grid; gap: var(--space-1); text-align: left; padding: .6rem .75rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: var(--text-sm); }
 .noesis-ai-depth__option:hover:not(:disabled) { border-color: hsl(var(--stage-more) / .6); }
 .noesis-ai-depth__option[aria-checked="true"] { border-color: hsl(var(--stage-more)); background: hsl(var(--stage-more) / .12); box-shadow: inset 0 0 0 1px hsl(var(--stage-more) / .5); }
 @media (max-width: 520px) { .noesis-ai-depth { grid-template-columns: 1fr; } }
 
 /* Shape My Philosophy: guided process. */
 .noesis-philosophy-launch { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--stage) / .45); background: hsl(var(--stage) / .07); }
-.noesis-philosophy-steps { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; margin: 0; padding: 0; }
-.noesis-philosophy-steps button { display: inline-flex; align-items: center; gap: .45rem; height: 2rem; padding: 0 .8rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); font-size: var(--text-sm); color: hsl(var(--muted-foreground)); background: transparent; }
+.noesis-philosophy-steps { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.noesis-philosophy-steps button { display: inline-flex; align-items: center; gap: var(--space-2); height: 2rem; padding: 0 .8rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); font-size: var(--text-sm); color: hsl(var(--muted-foreground)); background: transparent; }
 .noesis-philosophy-steps button[aria-current="step"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .14); color: hsl(var(--foreground)); }
 .noesis-philosophy-steps button:disabled { opacity: .45; }
 .noesis-philosophy-rule { border-left: 2px solid hsl(var(--stage)); padding-left: .8rem; font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
-.noesis-philosophy-item { display: grid; gap: .6rem; padding: 1rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--background) / .5); }
+.noesis-philosophy-item { display: grid; gap: var(--space-2); padding: 1rem; border-radius: var(--card-radius); border: 1px solid hsl(var(--border)); background: hsl(var(--background) / .5); }
 .noesis-philosophy-word { padding: .2rem .55rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); font-size: var(--text-sm); background: transparent; }
 .noesis-philosophy-word[aria-pressed="true"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .18); }
 .noesis-philosophy-ladder { display: grid; gap: .5rem; margin: 0; padding-left: 1.1rem; }
-.noesis-philosophy-ladder li { display: grid; gap: .1rem; }
+.noesis-philosophy-ladder li { display: grid; gap: var(--space-1); }
 
 /* Evolution: each change wears its record's stage color. */
 .noesis-event-kind { color: hsl(var(--stage)); }
 
 /* Concepts: relation zones with a draggable shelf of the user's concepts. */
-.noesis-concept-shelf { margin-bottom: 1rem; display: grid; gap: .55rem; padding: .75rem; border-radius: var(--card-radius); border: 1px dashed hsl(var(--border)); }
-.noesis-concept-shelf__list { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .25rem; scrollbar-width: thin; }
+.noesis-concept-shelf { margin-bottom: 1rem; display: grid; gap: var(--space-2); padding: .75rem; border-radius: var(--card-radius); border: 1px dashed hsl(var(--border)); }
+.noesis-concept-shelf__list { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: .25rem; scrollbar-width: thin; }
 .noesis-concept-shelf__chip { flex-shrink: 0; cursor: grab; user-select: none; padding: .25rem .65rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--stage-examine) / .55); color: hsl(var(--foreground) / .9); font-size: var(--text-xs); background: hsl(var(--stage-examine) / .08); }
 .noesis-concept-shelf__chip:active { cursor: grabbing; }
 .noesis-concept-zone--relation { border-left: 3px solid hsl(var(--tone, var(--stage)) / .7); transition: background var(--motion-quick) var(--ease-noesis), border-color var(--motion-quick) var(--ease-noesis); }
@@ -758,8 +758,8 @@ h1, h2, h3, h4, h5, h6 {
 .noesis-concept-zone[data-drop-active] { background: hsl(var(--tone, var(--stage)) / .1); border-color: hsl(var(--tone, var(--stage))); }
 
 /* "Last opened" quick links under index page headers. */
-.noesis-recent-strip { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .9rem; }
-.noesis-recent-strip__label { display: inline-flex; align-items: center; gap: .35rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
+.noesis-recent-strip { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: .9rem; }
+.noesis-recent-strip__label { display: inline-flex; align-items: center; gap: var(--space-1); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-right: .2rem; }
 .noesis-recent-strip__item { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 1.75rem; padding: 0 .75rem; border-radius: var(--radius-pill); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: var(--text-xs); color: hsl(var(--foreground) / .85); }
 .noesis-recent-strip__item:hover { border-color: hsl(var(--stage, var(--accent)) / .6); }
 
