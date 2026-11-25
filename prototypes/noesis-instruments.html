@@ -1,0 +1,949 @@
+<title>Noesis Instruments</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400;1,500&family=Spectral:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap">
+<style>
+/* Layout: a fixed instrument rail on the left, one working surface at a time
+   on the right. Every drawing is ink on the page's own paper — stroke only,
+   fills never above 18%, colour from the record-kind tokens so the whole
+   instrument set re-tints with the appearance theme. */
+:root{
+  /* Noesis's own tokens, light. */
+  --paper:60 23% 97%; --card:0 0% 100%; --ink:30 6% 10%; --muted:27 5% 40%;
+  --border:40 16% 85%; --rule:40 16% 79%;
+  --k-source:33 87% 35%; --k-concept:216 17% 42%; --k-inquiry:252 38% 46%;
+  --k-position:12 62% 43%; --k-practice:95 41% 33%; --k-work:212 52% 38%;
+  --k-review:308 30% 45%; --k-annotation:52 90% 20%; --k-ai:270 30% 43%;
+  --desk:32 18% 62%; --board:28 30% 58%; --lamp:44 90% 72%;
+  /* Ink weights. The scale in Inquiries set these; everything else follows. */
+  --w-hair:1.1px; --w-detail:1.6px; --w-struct:2.5px; --w-beam:5px;
+  --f-read:"Spectral",Georgia,serif;
+  --f-claim:"Playfair Display",Georgia,serif;
+  --f-mark:"JetBrains Mono",ui-monospace,SFMono-Regular,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:30 6% 8%; --card:30 6% 11%; --ink:45 22% 92%; --muted:42 10% 62%;
+  --border:33 9% 19%; --rule:33 9% 26%;
+  --k-source:35 73% 55%; --k-concept:215 20% 80%; --k-inquiry:250 44% 72%;
+  --k-position:15 65% 61%; --k-practice:87 30% 63%; --k-work:211 45% 70%;
+  --k-review:306 30% 72%; --k-annotation:52 92% 82%; --k-ai:272 48% 82%;
+  --desk:30 14% 20%; --board:28 20% 24%; --lamp:44 70% 60%;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:30 6% 8%; --card:30 6% 11%; --ink:45 22% 92%; --muted:42 10% 62%;
+  --border:33 9% 19%; --rule:33 9% 26%;
+  --k-source:35 73% 55%; --k-concept:215 20% 80%; --k-inquiry:250 44% 72%;
+  --k-position:15 65% 61%; --k-practice:87 30% 63%; --k-work:211 45% 70%;
+  --k-review:306 30% 72%; --k-annotation:52 92% 82%; --k-ai:272 48% 82%;
+  --desk:30 14% 20%; --board:28 20% 24%; --lamp:44 70% 60%;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:hsl(var(--paper));color:hsl(var(--ink));font-family:var(--f-read);line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;font-weight:600;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid hsl(var(--k-ai));outline-offset:2px;border-radius:3px}
+
+.shell{display:grid;grid-template-columns:232px minmax(0,1fr);gap:0;min-height:100%}
+.rail{border-right:1px solid hsl(var(--border));padding-block:24px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;
+  position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto}
+.stage{min-width:0;padding-block:24px 64px;
+  padding-left:24px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+@media(max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid hsl(var(--border));
+    padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .stage{padding-left:max(16px,env(safe-area-inset-left,0px))}
+}
+
+/* ---- marks ---- */
+.mark{font-family:var(--f-mark);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:hsl(var(--muted))}
+.mark--sm{font-size:9px}
+.figure{font-family:var(--f-mark);font-variant-numeric:tabular-nums}
+.wordmark{font-family:var(--f-claim);font-style:italic;font-size:22px;letter-spacing:-.01em}
+.wordmark span{color:hsl(var(--k-source))}
+
+.navgrp{margin-top:20px}
+.navgrp>.mark{display:block;margin-bottom:6px}
+.nav{display:grid;gap:2px}
+.nav button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+  padding:6px 8px;border-radius:6px;font-size:14px;color:hsl(var(--muted))}
+.nav button:hover{background:hsl(var(--ink)/.05);color:hsl(var(--ink))}
+.nav button[aria-current="true"]{color:hsl(var(--ink));background:hsl(var(--tone,var(--k-source))/.12);
+  box-shadow:inset 2px 0 0 hsl(var(--tone,var(--k-source)))}
+.nav svg{flex:none;color:hsl(var(--tone,var(--muted)))}
+
+/* ---- screen headers ---- */
+.head{border-bottom:1px solid hsl(var(--border));padding-bottom:14px;margin-bottom:24px}
+.head__row{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px}
+.head h1{font-size:clamp(26px,3vw,36px);font-style:italic;font-family:var(--f-claim);font-weight:500}
+.head .label{font-family:var(--f-mark);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:hsl(var(--tone));display:inline-flex;align-items:center;gap:8px}
+.head .label::before{content:"";width:2px;height:12px;background:hsl(var(--tone))}
+.head p{margin-top:6px;color:hsl(var(--muted));font-size:15px;max-width:62ch}
+
+/* ---- paper & panels ---- */
+.sheet{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:10px;padding:18px}
+.sheet--ruled{background:
+  repeating-linear-gradient(180deg,transparent 0 27px,hsl(var(--rule)/.5) 27px 28px),
+  hsl(var(--card));}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.grid2{display:grid;gap:18px;grid-template-columns:minmax(0,1fr) minmax(0,340px);align-items:start}
+@media(max-width:1080px){.grid2{grid-template-columns:1fr}}
+.stack{display:grid;gap:18px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* ---- voice registers: whose words these are ---- */
+.v-mine{font-family:var(--f-read);color:hsl(var(--ink))}
+.v-source{font-family:var(--f-claim);font-style:italic;color:hsl(var(--ink)/.86);
+  border-left:2px solid hsl(var(--k-source)/.5);padding-left:12px}
+.v-ai{font-family:var(--f-mark);font-size:13px;line-height:1.65;color:hsl(var(--k-ai));
+  border:1px dashed hsl(var(--k-ai)/.55);border-radius:8px;padding:10px 12px;background:hsl(var(--k-ai)/.05)}
+.v-ai__state{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+
+/* ---- the trace: what this used to be, behind what it is ---- */
+.trace{position:relative;display:inline-flex;align-items:baseline;gap:10px}
+.trace__was{font-family:var(--f-mark);font-size:12px;color:hsl(var(--muted)/.75);text-decoration:line-through}
+.trace__arrow{color:hsl(var(--muted)/.6);font-size:12px}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;
+  border:1px solid hsl(var(--tone,var(--border))/.5);background:hsl(var(--tone,var(--muted))/.1);
+  font-family:var(--f-mark);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:hsl(var(--tone,var(--muted)))}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;
+  border:1px solid hsl(var(--tone,var(--border)));color:hsl(var(--tone,var(--ink)));font-size:13px}
+.btn:hover{background:hsl(var(--tone,var(--ink))/.1)}
+.btn--solid{background:hsl(var(--tone));color:hsl(var(--card));border-color:hsl(var(--tone))}
+.btn--solid:hover{opacity:.9;background:hsl(var(--tone))}
+
+/* ---- screens ---- */
+.screen[hidden]{display:none}
+
+/* ===== INSTRUMENT SHEET ===== */
+.spec{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(min(100%,268px),1fr))}
+.spec__item{border:1px solid hsl(var(--border));border-radius:10px;background:hsl(var(--card));overflow:hidden}
+.spec__draw{padding:14px 14px 4px;display:grid;place-items:center;min-height:188px}
+.spec__draw svg{width:100%;height:auto;max-width:252px}
+.spec__body{padding:0 14px 14px}
+.spec__body h3{font-size:15px;margin-bottom:2px}
+.spec__body p{font-size:13px;color:hsl(var(--muted));margin-top:4px}
+.strokes{display:grid;gap:10px}
+.strokes div{display:flex;align-items:center;gap:12px}
+.strokes i{display:block;flex:1;background:hsl(var(--ink));border-radius:2px}
+
+/* ===== DESK ===== */
+.desk{border-radius:12px;padding:22px;position:relative;overflow:hidden;
+  background:
+    radial-gradient(120% 90% at 22% 0%,hsl(var(--lamp)/.22),transparent 58%),
+    repeating-linear-gradient(94deg,hsl(var(--ink)/.05) 0 1px,transparent 1px 9px),
+    repeating-linear-gradient(94deg,hsl(var(--card)/.14) 0 2px,transparent 2px 23px),
+    linear-gradient(180deg,hsl(var(--desk)),hsl(var(--desk)/.82));
+  border:1px solid hsl(var(--ink)/.18)}
+.desk__cols{display:grid;gap:18px;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
+@media(max-width:980px){.desk__cols{grid-template-columns:1fr}}
+.board{border-radius:8px;padding:16px;
+  background:radial-gradient(hsl(var(--ink)/.14) .9px,transparent 1px) 0 0/7px 7px,
+    linear-gradient(180deg,hsl(var(--board)),hsl(var(--board)/.86));
+  box-shadow:inset 0 0 0 5px hsl(var(--ink)/.16),0 1px 0 hsl(var(--card)/.2)}
+.cards{display:grid;gap:12px;margin-top:12px}
+.card{position:relative;background:hsl(var(--card));border-radius:3px;padding:12px 14px 12px 16px;
+  box-shadow:0 2px 5px hsl(0 0% 0%/.22);border-left:3px solid hsl(var(--tone,var(--k-source)))}
+.card:nth-child(odd){transform:rotate(-.4deg)}
+.card:nth-child(even){transform:rotate(.35deg)}
+.card__pin{position:absolute;top:-7px;left:14px;width:13px;height:13px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,hsl(var(--card)/.95),hsl(var(--tone,var(--k-source))) 62%);
+  box-shadow:0 2px 3px hsl(0 0% 0%/.4)}
+.card h4{font-size:14px}
+.card p{font-size:13px;color:hsl(var(--muted));margin-top:3px}
+.notebook{border-radius:4px;padding:16px 18px;
+  background:repeating-linear-gradient(180deg,transparent 0 25px,hsl(var(--k-work)/.22) 25px 26px),hsl(var(--card));
+  box-shadow:0 2px 8px hsl(0 0% 0%/.25);border-left:2px solid hsl(var(--ink)/.25)}
+.thread{display:flex;gap:10px;align-items:flex-start;padding:5px 0}
+.thread__what{flex:1;min-width:0}
+.thread__what b{display:block;font-weight:600;font-size:14px}
+.thread__what span{font-size:12px;color:hsl(var(--muted))}
+.tape{border-radius:2px;padding:14px 16px;background:hsl(var(--card)/.93);
+  box-shadow:0 1px 4px hsl(0 0% 0%/.2);
+  -webkit-mask:linear-gradient(90deg,transparent 0 3px,#000 7px calc(100% - 7px),transparent calc(100% - 3px));
+  mask:linear-gradient(90deg,transparent 0 3px,#000 7px calc(100% - 7px),transparent calc(100% - 3px))}
+.changes{display:grid;gap:9px;margin-top:10px}
+.change{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:baseline;font-size:13px}
+.change time{font-family:var(--f-mark);font-size:11px;color:hsl(var(--muted))}
+
+/* ===== LEDGER (position) ===== */
+.ledger{background:
+  linear-gradient(90deg,transparent 0 46px,hsl(var(--k-position)/.3) 46px 47px,transparent 47px),
+  repeating-linear-gradient(180deg,transparent 0 29px,hsl(var(--rule)/.55) 29px 30px),hsl(var(--card));
+  border:1px solid hsl(var(--border));border-radius:8px;padding:16px 16px 16px 60px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:0}
+@media(max-width:720px){.cols{grid-template-columns:1fr}.cols>div+div{border-left:0!important;padding-left:0!important;margin-top:14px}}
+.cols>div+div{border-left:1px solid hsl(var(--rule));padding-left:16px}
+.cols li{font-size:14px;line-height:30px;list-style:none}
+.cols ul{margin:0;padding:0}
+.hang{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;align-items:baseline}
+.hang>span:first-child{font-family:var(--f-mark);font-size:11px;color:hsl(var(--tone))}
+
+/* ===== PRESSURE (arch controls) ===== */
+.stones{display:grid;gap:6px;margin-top:10px}
+.stone{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:center;
+  padding:7px 10px;border:1px solid hsl(var(--border));border-radius:7px;background:hsl(var(--card));
+  font-size:13px;text-align:left;width:100%}
+.stone:hover{border-color:hsl(var(--k-position)/.7)}
+.stone[aria-pressed="true"]{border-color:hsl(var(--k-position));background:hsl(var(--k-position)/.09)}
+.stone__n{font-family:var(--f-mark);font-size:10px;color:hsl(var(--muted))}
+.stone__st{font-family:var(--f-mark);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:hsl(var(--muted))}
+.stone[aria-pressed="true"] .stone__st{color:hsl(var(--k-position))}
+.readout{display:flex;flex-wrap:wrap;gap:18px;align-items:baseline;margin-top:12px}
+.readout b{font-family:var(--f-mark);font-size:28px;font-weight:500;font-variant-numeric:tabular-nums}
+
+.fold{border-top:1px solid hsl(var(--border));margin-top:16px;padding-top:12px}
+.fold summary{cursor:pointer;font-family:var(--f-mark);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:hsl(var(--muted));list-style:none}
+.fold summary::-webkit-details-marker{display:none}
+.fold summary::before{content:"▸ ";color:hsl(var(--tone,var(--muted)))}
+.fold[open] summary::before{content:"▾ "}
+
+/* ===== CONTEXT DESK ===== */
+.cdesk{display:grid;gap:16px;grid-template-columns:184px minmax(0,1fr);align-items:start}
+@media(max-width:860px){.cdesk{grid-template-columns:1fr}}
+.cabinet{border-radius:7px;overflow:hidden;border:1px solid hsl(var(--ink)/.3);
+  background:linear-gradient(180deg,hsl(var(--desk)),hsl(var(--desk)/.8))}
+.drawer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;width:100%;
+  padding:11px 12px;text-align:left;border-bottom:1px solid hsl(var(--ink)/.26);
+  background:linear-gradient(180deg,hsl(var(--card)/.1),transparent);font-size:13px;color:hsl(var(--ink))}
+.drawer:hover{background:hsl(var(--card)/.18)}
+.drawer[aria-pressed="true"]{background:hsl(var(--card)/.3);box-shadow:inset 3px 0 0 hsl(var(--k-ai))}
+.drawer__pull{width:26px;height:7px;border-radius:3px;
+  background:linear-gradient(180deg,hsl(var(--card)/.65),hsl(var(--ink)/.3))}
+.blotter{border-radius:7px;padding:16px;min-height:220px;
+  background:linear-gradient(180deg,hsl(var(--k-ai)/.14),hsl(var(--k-ai)/.07));
+  border:1px solid hsl(var(--k-ai)/.3);
+  box-shadow:inset 0 0 0 1px hsl(var(--card)/.35)}
+.slips{display:grid;gap:8px;margin-top:10px}
+.slip{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;
+  background:hsl(var(--card));border-radius:3px;padding:9px 12px;font-size:13px;
+  box-shadow:0 1px 3px hsl(0 0% 0%/.18);border-left:3px solid hsl(var(--tone,var(--k-source)))}
+.folders{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.folder{position:relative;padding:9px 14px 7px;border-radius:2px 7px 2px 2px;font-size:12px;
+  background:linear-gradient(180deg,hsl(var(--k-annotation)/.3),hsl(var(--k-annotation)/.16));
+  border:1px solid hsl(var(--k-annotation)/.45);color:hsl(var(--ink))}
+.folder:hover{transform:translateY(-3px)}
+.folder::before{content:"";position:absolute;top:-4px;left:7px;width:34px;height:5px;border-radius:3px 3px 0 0;
+  background:hsl(var(--k-annotation)/.45)}
+
+.foot{margin-top:28px;border-top:1px solid hsl(var(--border));padding-top:14px;
+  font-size:13px;color:hsl(var(--muted));max-width:70ch}
+.foot code{font-family:var(--f-mark);font-size:12px;color:hsl(var(--ink))}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.folder,.stone,.nav button{transition:transform .14s ease,background .14s ease,border-color .14s ease}
+</style>
+
+<div class="shell">
+  <nav class="rail" aria-label="Noesis">
+    <p class="wordmark">Noesis<span>.</span></p>
+    <p class="mark mark--sm" style="margin-top:4px">Direction study · 4 surfaces</p>
+
+    <div class="navgrp">
+      <span class="mark">Surfaces</span>
+      <div class="nav" role="tablist" aria-label="Prototype surfaces">
+        <button role="tab" data-go="instruments" aria-current="true" style="--tone:var(--k-concept)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 11.5h12M4 11.5V6M12 11.5V8.5M4 6l4-3.5L12 8.5"/></svg>Instruments</button>
+        <button role="tab" data-go="desk" style="--tone:var(--k-source)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1.5 7.5h13M3 7.5V14M13 7.5V14M3.5 2.5h9v5h-9z"/></svg>The Desk</button>
+        <button role="tab" data-go="position" style="--tone:var(--k-position)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 13.5V9a6 6 0 0 1 12 0v4.5M5.5 13.5V9a2.5 2.5 0 0 1 5 0v4.5"/></svg>Position</button>
+        <button role="tab" data-go="inquiry" style="--tone:var(--k-inquiry)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 2v11M4 13h8M3 5.5h10M3 5.5 1.5 9h3zM13 5.5 11.5 9h3z"/></svg>Inquiry</button>
+        <button role="tab" data-go="context" style="--tone:var(--k-ai)">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1.5 6.5h13M2.5 6.5V13M13.5 6.5V13M4 3h8v3.5H4zM5 9.5h3"/></svg>Context Desk</button>
+      </div>
+    </div>
+
+    <div class="navgrp">
+      <span class="mark">Carried over</span>
+      <p style="font-size:12px;color:hsl(var(--muted));line-height:1.55;margin-top:6px">
+        Every workbench, thinking tool and fold in the app stays. These surfaces change what they sit on,
+        not what they do.</p>
+    </div>
+
+    <div class="navgrp">
+      <span class="mark">Theme</span>
+      <div class="row" style="margin-top:6px">
+        <button class="btn" data-theme-set="light" style="--tone:var(--k-source);font-size:12px;padding:4px 11px">Light</button>
+        <button class="btn" data-theme-set="dark" style="--tone:var(--k-concept);font-size:12px;padding:4px 11px">Dark</button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="stage">
+
+  <!-- ============ INSTRUMENTS ============ -->
+  <section class="screen" id="instruments" style="--tone:var(--k-concept)">
+    <header class="head">
+      <div class="head__row"><h1>The instrument set</h1><span class="label">Art direction</span></div>
+      <p>One drawing language, taken from the evidence scale already in Inquiries: ink line, stroke only,
+         fills never above 18%, colour from the record-kind token so every instrument re-tints with the theme.
+         Each one shows a physical force the record is actually under.</p>
+    </header>
+
+    <div class="stack">
+      <div class="sheet">
+        <div class="sheet__head"><h2 style="font-size:17px">The rules</h2><span class="mark">Shared by every drawing</span></div>
+        <div class="grid2">
+          <div class="strokes">
+            <div><span class="mark" style="width:92px">Hairline</span><i style="height:1.1px"></i><span class="figure mark">1.1</span></div>
+            <div><span class="mark" style="width:92px">Detail</span><i style="height:1.6px"></i><span class="figure mark">1.6</span></div>
+            <div><span class="mark" style="width:92px">Structure</span><i style="height:2.5px"></i><span class="figure mark">2.5</span></div>
+            <div><span class="mark" style="width:92px">Primary</span><i style="height:5px"></i><span class="figure mark">5.0</span></div>
+            <p style="font-size:13px;color:hsl(var(--muted));margin-top:4px">
+              Round caps. Curves drawn with a single quadratic so the hand shows. No gradients, no shadow,
+              no perspective — these are diagrams, not pictures.</p>
+          </div>
+          <div class="row" style="gap:14px">
+            <span class="pill" style="--tone:var(--k-source)">Source</span>
+            <span class="pill" style="--tone:var(--k-concept)">Concept</span>
+            <span class="pill" style="--tone:var(--k-inquiry)">Inquiry</span>
+            <span class="pill" style="--tone:var(--k-position)">Position</span>
+            <span class="pill" style="--tone:var(--k-practice)">Praxis</span>
+            <span class="pill" style="--tone:var(--k-work)">Work</span>
+            <span class="pill" style="--tone:var(--k-annotation)">Annotation</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="spec">
+        <!-- SCALE (exists) -->
+        <article class="spec__item">
+          <div class="spec__draw">
+            <svg viewBox="0 0 220 150" role="img" aria-label="Balance scale weighing support against challenge">
+              <g fill="none" stroke="hsl(var(--k-inquiry))" stroke-linecap="round">
+                <path d="M96 140 L110 52 L124 140Z" fill="hsl(var(--k-inquiry)/.12)" stroke-width="1.6"/>
+                <line x1="40" y1="44" x2="180" y2="60" stroke-width="5"/>
+                <circle cx="110" cy="52" r="6" fill="hsl(var(--k-inquiry))"/>
+                <line x1="40" y1="44" x2="22" y2="78" stroke-width="1.6"/>
+                <line x1="40" y1="44" x2="58" y2="78" stroke-width="1.6"/>
+                <path d="M16 78 Q40 98 64 78Z" fill="hsl(var(--k-inquiry)/.15)" stroke-width="1.6"/>
+                <line x1="180" y1="60" x2="162" y2="92" stroke-width="1.6"/>
+                <line x1="180" y1="60" x2="198" y2="92" stroke-width="1.6"/>
+                <path d="M156 92 Q180 112 204 92Z" fill="hsl(var(--k-inquiry)/.15)" stroke-width="1.6"/>
+              </g>
+              <g fill="hsl(var(--k-practice))"><circle cx="32" cy="72" r="5"/><circle cx="46" cy="72" r="4"/><circle cx="39" cy="63" r="4.5"/></g>
+              <g fill="none" stroke="hsl(var(--k-position))" stroke-width="1.6"><path d="M172 90 Q178 72 170 58"/><path d="M188 90 Q194 74 186 62"/></g>
+              <g fill="hsl(var(--k-position)/.18)" stroke="hsl(var(--k-position))" stroke-width="1.1"><ellipse cx="170" cy="54" rx="6" ry="8"/><ellipse cx="186" cy="58" rx="5" ry="7"/></g>
+            </svg>
+          </div>
+          <div class="spec__body">
+            <span class="mark" style="color:hsl(var(--k-inquiry))">Inquiry · exists</span>
+            <h3>The balance</h3>
+            <p>Support has mass and sinks the pan. Challenge is buoyant and lifts it. Context is drawn but weighs nothing.</p>
+          </div>
+        </article>
+
+        <!-- ARCH (new, positions) -->
+        <article class="spec__item">
+          <div class="spec__draw">
+            <svg viewBox="0 0 220 150" role="img" aria-label="Arch: assumptions as voussoirs under load">
+              <g fill="none" stroke="hsl(var(--k-position))" stroke-linecap="round">
+                <g stroke-width="1.6" fill="hsl(var(--k-position)/.12)">
+                  <path d="M30 118 A80 80 0 0 1 48 68 L72 84 A52 52 0 0 0 58 118Z"/>
+                  <path d="M48 68 A80 80 0 0 1 86 40 L96 68 A52 52 0 0 0 72 84Z"/>
+                  <path d="M86 40 A80 80 0 0 1 134 40 L124 68 A52 52 0 0 0 96 68Z" fill="hsl(var(--k-position)/.24)"/>
+                  <path d="M134 40 A80 80 0 0 1 172 68 L148 84 A52 52 0 0 0 124 68Z"/>
+                  <path d="M172 68 A80 80 0 0 1 190 118 L162 118 A52 52 0 0 0 148 84Z"/>
+                </g>
+                <line x1="18" y1="118" x2="202" y2="118" stroke-width="2.5"/>
+                <g stroke-width="1.1" opacity=".55">
+                  <line x1="24" y1="118" x2="16" y2="130"/><line x1="48" y1="118" x2="40" y2="130"/>
+                  <line x1="96" y1="118" x2="88" y2="130"/><line x1="148" y1="118" x2="140" y2="130"/>
+                  <line x1="196" y1="118" x2="188" y2="130"/></g>
+                <g stroke-width="1.6" stroke-dasharray="3 3">
+                  <path d="M88 16 v12"/><path d="M110 12 v14"/><path d="M132 16 v12"/></g>
+                <g stroke-width="1.6" fill="hsl(var(--k-position))" stroke="none">
+                  <path d="M85 27 l3 6 3-6Z"/><path d="M107 25 l3 6 3-6Z"/><path d="M129 27 l3 6 3-6Z"/></g>
+              </g>
+            </svg>
+          </div>
+          <div class="spec__body">
+            <span class="mark" style="color:hsl(var(--k-position))">Position · new</span>
+            <h3>The arch</h3>
+            <p>The keystone is the claim. Each voussoir is a load-bearing assumption. Challenges press from above. Pull a stone and watch what the span does.</p>
+          </div>
+        </article>
+
+        <!-- CALIPER -->
+        <article class="spec__item">
+          <div class="spec__draw">
+            <svg viewBox="0 0 220 150" role="img" aria-label="Caliper measuring a concept boundary">
+              <g fill="none" stroke="hsl(var(--k-concept))" stroke-linecap="round">
+                <line x1="24" y1="58" x2="196" y2="58" stroke-width="5"/>
+                <g stroke-width="1.1">
+                  <line x1="40" y1="58" x2="40" y2="48"/><line x1="64" y1="58" x2="64" y2="50"/>
+                  <line x1="88" y1="58" x2="88" y2="48"/><line x1="112" y1="58" x2="112" y2="50"/>
+                  <line x1="136" y1="58" x2="136" y2="48"/><line x1="160" y1="58" x2="160" y2="50"/></g>
+                <path d="M52 58 v44 q0 8 8 8 h6" stroke-width="2.5"/>
+                <path d="M148 58 v30 q0 8 -8 8 h-6" stroke-width="2.5"/>
+                <rect x="140" y="48" width="22" height="20" rx="3" stroke-width="1.6" fill="hsl(var(--k-concept)/.14)"/>
+              </g>
+              <g fill="hsl(var(--k-concept)/.16)" stroke="hsl(var(--k-concept))" stroke-width="1.6">
+                <circle cx="78" cy="104" r="9"/><circle cx="104" cy="110" r="7"/></g>
+              <g fill="none" stroke="hsl(var(--muted))" stroke-width="1.1" stroke-dasharray="3 3"><circle cx="128" cy="116" r="8"/></g>
+            </svg>
+          </div>
+          <div class="spec__body">
+            <span class="mark" style="color:hsl(var(--k-concept))">Concept · exists</span>
+            <h3>The caliper</h3>
+            <p>Jaws close on a definition. What fits sits inside; the edge case rides the jaw; what fails is drawn outside, dashed.</p>
+          </div>
+        </article>
+
+        <!-- PLUMB -->
+        <article class="spec__item">
+          <div class="spec__draw">
+            <svg viewBox="0 0 220 150" role="img" aria-label="Plumb line testing a practice against true">
+              <g fill="none" stroke="hsl(var(--k-practice))" stroke-linecap="round">
+                <line x1="110" y1="16" x2="110" y2="104" stroke-width="1.6" stroke-dasharray="4 4" opacity=".6"/>
+                <line x1="110" y1="16" x2="128" y2="100" stroke-width="2.5"/>
+                <line x1="62" y1="16" x2="158" y2="16" stroke-width="5"/>
+                <path d="M128 100 l9 14 -9 16 -9 -16Z" fill="hsl(var(--k-practice)/.2)" stroke-width="1.6"/>
+                <path d="M110 118 q10 4 18 0" stroke-width="1.1"/>
+              </g>
+              <g stroke="hsl(var(--muted))" stroke-width="1.1" fill="none" opacity=".7">
+                <line x1="48" y1="132" x2="172" y2="132"/>
+                <line x1="56" y1="132" x2="48" y2="142"/><line x1="92" y1="132" x2="84" y2="142"/>
+                <line x1="128" y1="132" x2="120" y2="142"/><line x1="164" y1="132" x2="156" y2="142"/></g>
+            </svg>
+          </div>
+          <div class="spec__body">
+            <span class="mark" style="color:hsl(var(--k-practice))">Praxis · new</span>
+            <h3>The plumb line</h3>
+            <p>A practice hangs from the claim it tests. The gap between the bob and true is what the week actually showed.</p>
+          </div>
+        </article>
+
+        <!-- SOUNDING -->
+        <article class="spec__item">
+          <div class="spec__draw">
+            <svg viewBox="0 0 220 150" role="img" aria-label="Sounding line measuring how far an inquiry has been taken">
+              <g fill="none" stroke="hsl(var(--k-inquiry))" stroke-linecap="round">
+                <path d="M16 44 q26 -9 52 0 t52 0 t52 0 t32 0" stroke-width="2.5"/>
+                <line x1="110" y1="44" x2="110" y2="112" stroke-width="1.6"/>
+                <g stroke-width="1.1">
+                  <line x1="104" y1="60" x2="116" y2="60"/><line x1="104" y1="76" x2="116" y2="76"/>
+                  <line x1="104" y1="92" x2="116" y2="92"/></g>
+                <path d="M110 112 l8 12 -8 14 -8 -14Z" fill="hsl(var(--k-inquiry)/.2)" stroke-width="1.6"/>
+              </g>
+              <g stroke="hsl(var(--muted)/.55)" stroke-width="1.1" fill="none">
+                <path d="M16 128 q26 -6 52 0 t52 0 t52 0 t32 0"/></g>
+            </svg>
+          </div>
+          <div class="spec__body">
+            <span class="mark" style="color:hsl(var(--k-inquiry))">Unknowns · new</span>
+            <h3>The sounding line</h3>
+            <p>How far down a question has actually been taken, against how deep it goes. Marks every fathom.</p>
+          </div>
+        </article>
+
+        <!-- TRACE -->
+        <article class="spec__item">
+          <div class="spec__draw">
+            <svg viewBox="0 0 220 150" role="img" aria-label="Confidence traced over time with the prior state behind it">
+              <g fill="none" stroke-linecap="round">
+                <line x1="24" y1="124" x2="200" y2="124" stroke="hsl(var(--rule))" stroke-width="1.1"/>
+                <path d="M24 60 L62 54 L100 48 L138 44 L176 40" stroke="hsl(var(--muted)/.45)" stroke-width="1.6" stroke-dasharray="4 4"/>
+                <path d="M24 60 L62 54 L100 48 L138 70 L176 78" stroke="hsl(var(--k-position))" stroke-width="2.5"/>
+                <circle cx="176" cy="78" r="4.5" fill="hsl(var(--k-position))" stroke="none"/>
+                <circle cx="138" cy="70" r="3" fill="hsl(var(--card))" stroke="hsl(var(--k-position))" stroke-width="1.6"/>
+                <line x1="138" y1="70" x2="138" y2="44" stroke="hsl(var(--k-practice))" stroke-width="1.1"/>
+                <path d="M134 50 l4 -6 4 6" stroke="hsl(var(--k-practice))" stroke-width="1.6"/>
+              </g>
+            </svg>
+          </div>
+          <div class="spec__body">
+            <span class="mark" style="color:hsl(var(--k-position))">Every record</span>
+            <h3>The trace</h3>
+            <p>What the record used to be stays drawn, dashed, behind what it is. The tick marks the practice that moved it.</p>
+          </div>
+        </article>
+      </div>
+
+      <p class="foot">Nothing here is decorative. Each instrument draws a quantity the domain model already stores —
+        <code>evidenceFor</code> / <code>evidenceAgainst</code>, <code>assumptions</code>,
+        <code>falsification</code>, <code>versionHistory</code>, <code>confidence</code> — so the drawing is
+        a reading of the record, not an illustration beside it.</p>
+    </div>
+  </section>
+
+  <!-- ============ DESK ============ -->
+  <section class="screen" id="desk" hidden style="--tone:var(--k-source)">
+    <header class="head">
+      <div class="head__row"><h1>The Desk</h1><span class="label">Today</span></div>
+      <p>No counts, no streaks, no books finished. A desk answers three questions: what am I in the middle of,
+         what needs my judgment, and what changed.</p>
+    </header>
+
+    <div class="desk">
+      <div class="desk__cols">
+        <div class="stack">
+          <div class="board">
+            <div class="row" style="justify-content:space-between">
+              <span class="mark" style="color:hsl(var(--ink)/.75)">Needs your judgment</span>
+              <span class="mark figure" style="color:hsl(var(--ink)/.6)">5 pinned</span>
+            </div>
+            <div class="cards">
+              <article class="card" style="--tone:var(--k-position)"><span class="card__pin"></span>
+                <h4>Attention must be protected before it can be directed</h4>
+                <p>Held at 86% on four supports and a single recorded objection. High confidence, thin opposition.</p></article>
+              <article class="card" style="--tone:var(--k-inquiry)"><span class="card__pin"></span>
+                <h4>Does narrative coherence help or distort agency?</h4>
+                <p>You answered this but never wrote what resolved it.</p></article>
+              <article class="card" style="--tone:var(--k-practice)"><span class="card__pin"></span>
+                <h4>Begin work before consuming media</h4>
+                <p>Ended Tuesday. Its effect on the position it was testing is unresolved.</p></article>
+              <article class="card" style="--tone:var(--k-annotation)"><span class="card__pin"></span>
+                <h4>Three marks from <i>Genealogy of Morals</i> have gone nowhere</h4>
+                <p>Captured eleven days ago, still raw.</p></article>
+              <article class="card" style="--tone:var(--k-review)"><span class="card__pin"></span>
+                <h4>Two positions appear to conflict</h4>
+                <p><i>Identity is enacted before it is explained</i> against <i>Narrative coherence stabilises agency</i>.</p></article>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="notebook">
+            <span class="mark">In the middle of</span>
+            <div style="margin-top:8px">
+              <div class="thread"><span class="pill" style="--tone:var(--k-source)">Reading</span>
+                <span class="thread__what"><b>Meditations</b><span>Marcus Aurelius · book IV, 38 minutes in</span></span></div>
+              <div class="thread"><span class="pill" style="--tone:var(--k-inquiry)">Examining</span>
+                <span class="thread__what"><b>Can discipline exist without meaning?</b><span>Gathering evidence · two sources attached</span></span></div>
+              <div class="thread"><span class="pill" style="--tone:var(--k-work)">Writing</span>
+                <span class="thread__what"><b>What I Mean by Agency</b><span>Edited yesterday · 1,240 words</span></span></div>
+              <div class="thread"><span class="pill" style="--tone:var(--k-practice)">Running</span>
+                <span class="thread__what"><b>Log identity-protective avoidance</b><span>Day 5 of 7 · observation due today</span></span></div>
+            </div>
+          </div>
+
+          <div class="tape">
+            <span class="mark">What changed</span>
+            <div class="changes">
+              <div class="change"><time>Tue</time><span>Confidence on <i>Identity is enacted before it is explained</i> fell
+                <span class="trace"><span class="trace__was">78</span><span class="trace__arrow">→</span><b class="figure">72</b></span>
+                after the avoidance log.</span></div>
+              <div class="change"><time>Mon</time><span>Reopened <i>Does narrative coherence help or distort agency?</i></span></div>
+              <div class="change"><time>Sun</time><span>Clarified the boundary of <i>Narrative Self</i> — two counterexamples now sit outside it.</span></div>
+              <div class="change"><time>Fri</time><span><i>Begin work before consuming media</i> concluded and weakened the belief it tested.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="foot">On a phone this stops being a desk. The board, the notebook and the tape collapse to one
+      column of today's moves — capture a thought, resume the source, log an observation. The studio is desktop;
+      the phone is the field notebook.</p>
+  </section>
+
+  <!-- ============ POSITION ============ -->
+  <section class="screen" id="position" hidden style="--tone:var(--k-position)">
+    <header class="head">
+      <div class="head__row"><h1>Identity is enacted before it is explained</h1><span class="label">Claim · Position</span></div>
+      <p class="v-mine" style="color:hsl(var(--ink));font-size:17px;margin-top:10px">
+        Identity is primarily built through repeated action, then narrated afterward.</p>
+      <div class="row" style="margin-top:10px">
+        <span class="pill" style="--tone:var(--k-position)">Worldview claim</span>
+        <span class="pill" style="--tone:var(--k-review)">Revised</span>
+        <span class="pill" style="--tone:var(--k-practice)">Tested twice</span>
+      </div>
+    </header>
+
+    <div class="grid2">
+      <div class="stack">
+        <!-- THE ARCH -->
+        <div class="sheet">
+          <div class="sheet__head">
+            <h2 style="font-size:17px">What holds it up</h2>
+            <span class="mark">Pull a stone to test the span</span>
+          </div>
+          <svg id="arch" viewBox="0 0 440 230" role="img" style="width:100%;height:auto"
+               aria-label="Arch of four load-bearing assumptions under a keystone claim">
+            <g id="arch-stones" fill="none" stroke="hsl(var(--k-position))" stroke-width="1.6" stroke-linejoin="round">
+              <path data-stone="0" d="M60 186 A150 150 0 0 1 92 104 L140 130 A98 98 0 0 0 119 186Z" fill="hsl(var(--k-position)/.12)"/>
+              <path data-stone="1" d="M92 104 A150 150 0 0 1 164 48 L184 102 A98 98 0 0 0 140 130Z" fill="hsl(var(--k-position)/.12)"/>
+              <path data-stone="2" d="M276 48 A150 150 0 0 1 348 104 L300 130 A98 98 0 0 0 256 102Z" fill="hsl(var(--k-position)/.12)"/>
+              <path data-stone="3" d="M348 104 A150 150 0 0 1 380 186 L321 186 A98 98 0 0 0 300 130Z" fill="hsl(var(--k-position)/.12)"/>
+              <path id="keystone" d="M164 48 A150 150 0 0 1 276 48 L256 102 A98 98 0 0 0 184 102Z"
+                    fill="hsl(var(--k-position)/.3)" stroke-width="2.5"/>
+            </g>
+            <!-- ground -->
+            <g stroke="hsl(var(--ink)/.55)" fill="none">
+              <line x1="34" y1="186" x2="406" y2="186" stroke-width="2.5"/>
+              <g stroke-width="1.1" opacity=".5">
+                <line x1="46" y1="186" x2="34" y2="202"/><line x1="100" y1="186" x2="88" y2="202"/>
+                <line x1="154" y1="186" x2="142" y2="202"/><line x1="208" y1="186" x2="196" y2="202"/>
+                <line x1="262" y1="186" x2="250" y2="202"/><line x1="316" y1="186" x2="304" y2="202"/>
+                <line x1="370" y1="186" x2="358" y2="202"/></g>
+            </g>
+            <!-- load from challenges -->
+            <g id="load" stroke="hsl(var(--k-review))" fill="hsl(var(--k-review))" stroke-linecap="round">
+              <g stroke-width="1.6" fill="none" stroke-dasharray="4 4">
+                <path d="M186 10 v14"/><path d="M220 6 v16"/><path d="M254 10 v14"/></g>
+              <path d="M182 24 l4 8 4 -8Z"/><path d="M216 22 l4 8 4 -8Z"/><path d="M250 24 l4 8 4 -8Z"/>
+            </g>
+            <!-- keystone label -->
+            <g font-family="JetBrains Mono, monospace" font-size="9.5" letter-spacing="1.3"
+               fill="hsl(var(--muted))" text-anchor="middle">
+              <text x="200" y="84">THE CLAIM</text>
+            </g>
+            <!-- collapse indicator, hidden until a stone is pulled -->
+            <g id="crack" opacity="0">
+              <path d="M252 46 l-7 20 9 10 -7 24" fill="none" stroke="hsl(var(--k-review))"
+                    stroke-width="2.5" stroke-linecap="round"/>
+            </g>
+          </svg>
+
+          <div class="readout">
+            <span><span class="mark" style="display:block">Confidence</span>
+              <span class="trace"><b class="figure" id="conf">72</b>
+                <span class="trace__was" id="confWas">was 78</span></span></span>
+            <span><span class="mark" style="display:block">Evidence quality</span>
+              <b class="figure" style="font-size:17px">Moderate</b></span>
+            <span><span class="mark" style="display:block">Last challenged</span>
+              <b class="figure" style="font-size:17px">4 days ago</b></span>
+          </div>
+          <p id="archNote" style="font-size:14px;color:hsl(var(--muted));margin-top:10px">
+            Four assumptions carry the span. The keystone holds while they do.</p>
+
+          <div class="stones" role="group" aria-label="Load-bearing assumptions">
+            <button class="stone" data-stone="0" aria-pressed="false">
+              <span class="stone__n">1</span><span>Repeated behaviour stabilises identity over time</span>
+              <span class="stone__st">bearing</span></button>
+            <button class="stone" data-stone="1" aria-pressed="false">
+              <span class="stone__n">2</span><span>A person has enough continuity for "identity" to name one thing</span>
+              <span class="stone__st">bearing</span></button>
+            <button class="stone" data-stone="2" aria-pressed="false">
+              <span class="stone__n">3</span><span>Narration follows action rather than producing it</span>
+              <span class="stone__st">bearing</span></button>
+            <button class="stone" data-stone="3" aria-pressed="false">
+              <span class="stone__n">4</span><span>Action is observable enough to be evidence about a self</span>
+              <span class="stone__st">bearing</span></button>
+          </div>
+
+          <details class="fold" style="--tone:var(--k-position)">
+            <summary>What would change my mind</summary>
+            <p class="v-mine" style="font-size:14px;margin-top:8px">
+              A case where a person's account of themselves demonstrably reorganised their behaviour before any
+              change in what they did — and stayed reorganised.</p>
+          </details>
+        </div>
+
+        <!-- LEDGER -->
+        <div class="sheet" style="padding-bottom:12px">
+          <div class="sheet__head"><h2 style="font-size:17px">The ledger</h2>
+            <span class="mark">2 for · 2 against</span></div>
+          <div class="ledger">
+            <div class="cols">
+              <div>
+                <p class="mark" style="color:hsl(var(--k-practice));line-height:30px">Supports</p>
+                <ul>
+                  <li class="hang"><span>+</span><span>Repeated behaviour stabilises identity.</span></li>
+                  <li class="hang"><span>+</span><span>Narrative accounts still rely on enacted continuity.</span></li>
+                </ul>
+              </div>
+              <div>
+                <p class="mark" style="color:hsl(var(--k-review));line-height:30px">Challenges</p>
+                <ul>
+                  <li class="hang" style="--tone:var(--k-review)"><span>−</span><span>Stories can reframe action and future agency.</span></li>
+                  <li class="hang" style="--tone:var(--k-review)"><span>−</span><span>Trauma can reshape behaviour through interpretation first.</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <p style="font-size:13px;color:hsl(var(--muted));margin-top:10px">
+            Drawn from <i>Meditations</i> and <i>Narrative Identity and Agency Under Uncertainty</i>.</p>
+        </div>
+      </div>
+
+      <!-- RIGHT: provenance, history, assistance -->
+      <div class="stack">
+        <div class="sheet">
+          <span class="mark">Tested by</span>
+          <div class="stack" style="gap:10px;margin-top:10px">
+            <div class="row" style="justify-content:space-between">
+              <span style="font-size:14px">Log identity-protective avoidance</span>
+              <span class="pill" style="--tone:var(--k-practice)">Day 5/7</span></div>
+            <div class="row" style="justify-content:space-between">
+              <span style="font-size:14px">Begin work before consuming media</span>
+              <span class="pill" style="--tone:var(--k-review)">Weakened</span></div>
+          </div>
+        </div>
+
+        <div class="sheet">
+          <span class="mark">Expressed in</span>
+          <p style="font-size:14px;margin-top:8px">What I Mean by Agency</p>
+          <p class="v-source" style="font-size:14px;margin-top:10px">
+            "Of each particular thing ask: what is it in itself?"<br>
+            <span class="mark" style="display:block;margin-top:6px">Meditations · book VIII</span></p>
+        </div>
+
+        <div class="sheet">
+          <span class="mark">How it got here</span>
+          <div class="stack" style="gap:9px;margin-top:10px;font-size:13px">
+            <div class="change"><time>12d</time><span>Created from reading notes — action-first framing.</span></div>
+            <div class="change"><time>9d</time><span>Evidence added from the identity paper.</span></div>
+            <div class="change"><time>4d</time><span>Challenged: trauma counterexample recorded.</span></div>
+            <div class="change"><time>2d</time><span>Revised. Confidence
+              <span class="trace"><span class="trace__was">78</span><span class="trace__arrow">→</span><b class="figure">72</b></span></span></div>
+          </div>
+        </div>
+
+        <div class="sheet">
+          <div class="v-ai__state">
+            <span class="pill" style="--tone:var(--k-ai)">Proposal</span>
+            <span class="mark">Not yours until you promote it</span>
+          </div>
+          <div class="v-ai">
+            The weakest join is assumption 3. Both recorded challenges attack it directly, and nothing in
+            your evidence distinguishes "narration follows action" from "narration and action revise each
+            other." Consider splitting the claim.
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn btn--solid" style="--tone:var(--k-ai)">Promote</button>
+            <button class="btn" style="--tone:var(--muted)">Dismiss</button>
+          </div>
+          <p class="mark mark--sm" style="margin-top:8px">Generated → Review → Edit → Accept → Recorded</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INQUIRY ============ -->
+  <section class="screen" id="inquiry" hidden style="--tone:var(--k-inquiry)">
+    <header class="head">
+      <div class="head__row"><h1>Does narrative coherence help or distort agency?</h1><span class="label">Question · Inquiry</span></div>
+      <p>Partially answered. Two candidates on the beam, one source either side.</p>
+    </header>
+
+    <div class="sheet" style="border-color:hsl(var(--k-inquiry)/.45);background:hsl(var(--k-inquiry)/.06);margin-bottom:18px">
+      <div class="row" style="justify-content:space-between">
+        <span><span class="mark" style="display:block;color:hsl(var(--k-inquiry))">Next move</span>
+          <b style="font-size:16px">Write the resolution summary and choose an outcome.</b></span>
+        <button class="btn btn--solid" style="--tone:var(--k-inquiry)">Resolve</button>
+      </div>
+      <p class="mark mark--sm" style="margin-top:8px">From <code style="font-family:var(--f-mark)">inquiryNextMove()</code> — the same one move the app already computes.</p>
+    </div>
+
+    <div class="grid2">
+      <div class="stack">
+        <div class="sheet sheet--ruled">
+          <div class="sheet__head"><h2 style="font-size:17px">The beam</h2><span class="mark">A net +2 · B net −1</span></div>
+          <svg viewBox="0 0 440 210" role="img" style="width:100%;height:auto"
+               aria-label="Balance weighing candidate answer A against candidate answer B">
+            <g fill="none" stroke="hsl(var(--k-inquiry))" stroke-linecap="round">
+              <path d="M198 196 L220 74 L242 196Z" fill="hsl(var(--k-inquiry)/.12)" stroke-width="1.6"/>
+              <line x1="86" y1="86" x2="354" y2="62" stroke-width="5"/>
+              <circle cx="220" cy="74" r="7" fill="hsl(var(--k-inquiry))"/>
+              <line x1="86" y1="86" x2="58" y2="132" stroke-width="1.6"/>
+              <line x1="86" y1="86" x2="114" y2="132" stroke-width="1.6"/>
+              <path d="M50 132 Q86 160 122 132Z" fill="hsl(var(--k-inquiry)/.15)" stroke-width="1.6"/>
+              <line x1="354" y1="62" x2="326" y2="106" stroke-width="1.6"/>
+              <line x1="354" y1="62" x2="382" y2="106" stroke-width="1.6"/>
+              <path d="M318 106 Q354 134 390 106Z" fill="hsl(var(--k-inquiry)/.15)" stroke-width="1.6"/>
+            </g>
+            <g fill="hsl(var(--k-practice))"><circle cx="72" cy="126" r="6"/><circle cx="90" cy="126" r="5"/><circle cx="81" cy="114" r="5.5"/></g>
+            <g fill="none" stroke="hsl(var(--k-review))" stroke-width="1.6"><path d="M344 104 Q350 84 342 68"/></g>
+            <g fill="hsl(var(--k-review)/.18)" stroke="hsl(var(--k-review))" stroke-width="1.1"><ellipse cx="342" cy="62" rx="6" ry="8"/></g>
+            <g font-family="JetBrains Mono, monospace" font-size="10" letter-spacing="1.2" fill="hsl(var(--muted))" text-anchor="middle">
+              <text x="86" y="178">A</text><text x="354" y="152">B</text></g>
+          </svg>
+        </div>
+
+        <div class="sheet">
+          <div class="sheet__head"><h2 style="font-size:17px">Candidates</h2><span class="mark">Specimen cards</span></div>
+          <div class="stack" style="gap:12px">
+            <div style="border-left:3px solid hsl(var(--k-practice));padding-left:12px">
+              <span class="mark">A · leading</span>
+              <p class="v-mine" style="font-size:15px">It stabilises action, but it can also protect the self from corrective evidence.</p>
+              <p style="font-size:13px;color:hsl(var(--muted));margin-top:4px">
+                <b style="color:hsl(var(--k-practice))">Supports</b> Three recorded cases where a settled account preceded sustained change.</p>
+            </div>
+            <div style="border-left:3px solid hsl(var(--k-review));padding-left:12px">
+              <span class="mark">B</span>
+              <p class="v-mine" style="font-size:15px">Coherence is mostly retrospective tidying and has no effect on agency.</p>
+              <p style="font-size:13px;color:hsl(var(--muted));margin-top:4px">
+                <b style="color:hsl(var(--k-review))">Objection</b> Does not account for the avoidance log.</p>
+            </div>
+          </div>
+          <details class="fold" style="--tone:var(--k-inquiry)">
+            <summary>Assumptions underneath</summary>
+            <ul style="margin:8px 0 0;padding-left:18px;font-size:14px">
+              <li>That "agency" names something a person can have more or less of.</li>
+              <li>That self-report about coherence is worth anything.</li>
+            </ul>
+          </details>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="sheet">
+          <span class="mark">Remaining uncertainty</span>
+          <p class="v-mine" style="font-size:14px;margin-top:8px">
+            I cannot separate coherence that steadies someone from coherence that insulates them. The avoidance
+            log may be measuring the second while I read it as the first.</p>
+        </div>
+        <div class="sheet">
+          <span class="mark">Standing on</span>
+          <p class="v-source" style="font-size:14px;margin-top:10px">
+            "The self that narrates is not the self that acts, though it claims the acts as its own."<br>
+            <span class="mark" style="display:block;margin-top:6px">Narrative Identity and Agency Under Uncertainty · S. Ortega</span></p>
+        </div>
+        <div class="sheet">
+          <span class="mark">Thinking tools</span>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" style="--tone:var(--k-inquiry)">Socratic challenge</button>
+            <button class="btn" style="--tone:var(--k-inquiry)">Compare candidates</button>
+            <button class="btn" style="--tone:var(--k-position)">Where is evidence thin?</button>
+            <button class="btn" style="--tone:var(--k-source)">Propose counterexample</button>
+          </div>
+          <p class="mark mark--sm" style="margin-top:10px">Every workbench the page has today keeps its place here.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CONTEXT DESK ============ -->
+  <section class="screen" id="context" hidden style="--tone:var(--k-ai)">
+    <header class="head">
+      <div class="head__row"><h1>Context Desk</h1><span class="label">Noesis AI · Synthesis</span></div>
+      <p>An actual desk. Drawers hold a whole saved set; folders are the three or four records you carry
+         between them; the blotter is what is on the desk right now.</p>
+    </header>
+
+    <div class="cdesk">
+      <div class="stack">
+        <div class="cabinet" role="group" aria-label="Drawers">
+          <button class="drawer" aria-pressed="true"><span>Identity &amp; action</span><span class="drawer__pull"></span></button>
+          <button class="drawer" aria-pressed="false"><span>Attention work</span><span class="drawer__pull"></span></button>
+          <button class="drawer" aria-pressed="false"><span>Meaning readings</span><span class="drawer__pull"></span></button>
+          <button class="drawer" aria-pressed="false"><span>Open contradictions</span><span class="drawer__pull"></span></button>
+        </div>
+        <div>
+          <span class="mark">Folders you carry</span>
+          <div class="folders">
+            <button class="folder">Staples <span class="figure">4</span></button>
+            <button class="folder">Counters <span class="figure">3</span></button>
+            <button class="folder">Unread <span class="figure">5</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="blotter">
+          <div class="row" style="justify-content:space-between">
+            <span class="mark" style="color:hsl(var(--k-ai))">On the desk</span>
+            <span class="mark figure">4 selected · 0 excluded</span>
+          </div>
+          <div class="slips">
+            <div class="slip" style="--tone:var(--k-source)"><span class="mark mark--sm">SRC</span>
+              <span>Meditations</span><span class="mark mark--sm">Aurelius</span></div>
+            <div class="slip" style="--tone:var(--k-position)"><span class="mark mark--sm">POS</span>
+              <span>Identity is enacted before it is explained</span><span class="mark mark--sm figure">72</span></div>
+            <div class="slip" style="--tone:var(--k-inquiry)"><span class="mark mark--sm">INQ</span>
+              <span>Does narrative coherence help or distort agency?</span><span class="mark mark--sm">Open</span></div>
+            <div class="slip" style="--tone:var(--k-practice)"><span class="mark mark--sm">PRX</span>
+              <span>Log identity-protective avoidance</span><span class="mark mark--sm">Day 5</span></div>
+          </div>
+        </div>
+
+        <div class="sheet" style="border-color:hsl(var(--k-ai)/.4)">
+          <span class="mark" style="color:hsl(var(--k-ai))">Ask Noesis</span>
+          <p class="v-mine" style="font-size:15px;margin-top:8px">
+            Where do these four disagree with each other?</p>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" style="--tone:var(--k-ai)">Review this context</button>
+            <button class="btn" style="--tone:var(--k-position)">Find assumptions</button>
+            <button class="btn" style="--tone:var(--k-review)">Strongest counterargument</button>
+            <button class="btn" style="--tone:var(--k-practice)">What did the practice show?</button>
+          </div>
+          <p class="mark mark--sm" style="margin-top:10px">Refine by relationship, never by source — that is what the Library is for.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var screens = ['instruments','desk','position','inquiry','context'];
+  function show(id){
+    if(screens.indexOf(id) < 0) id = 'instruments';
+    screens.forEach(function(s){ document.getElementById(s).hidden = (s !== id); });
+    document.querySelectorAll('[data-go]').forEach(function(b){
+      b.setAttribute('aria-current', b.dataset.go === id ? 'true' : 'false');
+    });
+    try { if(location.hash.slice(1) !== id) history.replaceState(null,'','#'+id); } catch(e){}
+  }
+  document.querySelectorAll('[data-go]').forEach(function(b){
+    b.addEventListener('click', function(){ show(b.dataset.go); window.scrollTo(0,0); });
+  });
+  window.addEventListener('hashchange', function(){ show(location.hash.slice(1)); });
+  show(location.hash.slice(1) || 'instruments');
+
+  document.querySelectorAll('[data-theme-set]').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.documentElement.setAttribute('data-theme', b.dataset.themeSet);
+    });
+  });
+
+  // The arch. Pulling an assumption removes its voussoir and the span answers.
+  var pulled = {}, BASE = 72;
+  var stones = document.querySelectorAll('.stone');
+  var paths  = document.querySelectorAll('#arch-stones [data-stone]');
+  var key = document.getElementById('keystone');
+  var crack = document.getElementById('crack');
+  var conf = document.getElementById('conf');
+  var confWas = document.getElementById('confWas');
+  var note = document.getElementById('archNote');
+  var COST = [18, 26, 31, 14];
+  var SAY = [
+    'Without repetition doing the work, the claim is only a story about a story.',
+    'If there is no continuity to point at, "identity" stops naming one thing and the span has nothing to land on.',
+    'This is the join both recorded challenges attack. Remove it and the keystone has nothing under it.',
+    'If action is not observable as evidence, the arch stands but nothing can ever load it.'
+  ];
+  function render(){
+    var out = Object.keys(pulled).filter(function(k){ return pulled[k]; });
+    var lost = out.reduce(function(s,k){ return s + COST[k]; }, 0);
+    var next = Math.max(0, BASE - lost);
+    conf.textContent = next;
+    confWas.textContent = out.length ? 'was ' + BASE : 'was 78';
+    paths.forEach(function(p){
+      var on = pulled[p.dataset.stone];
+      p.setAttribute('opacity', on ? '.16' : '1');
+      p.setAttribute('stroke-dasharray', on ? '4 4' : 'none');
+    });
+    var failing = out.length > 0;
+    key.setAttribute('opacity', failing ? '.45' : '1');
+    crack.setAttribute('opacity', pulled[2] ? '1' : '0');
+    note.textContent = out.length === 0
+      ? 'Four assumptions carry the span. The keystone holds while they do.'
+      : out.map(function(k){ return SAY[k]; }).join(' ');
+    stones.forEach(function(s){
+      var on = !!pulled[s.dataset.stone];
+      s.setAttribute('aria-pressed', on ? 'true' : 'false');
+      s.querySelector('.stone__st').textContent = on ? 'pulled' : 'bearing';
+    });
+  }
+  stones.forEach(function(s){
+    s.addEventListener('click', function(){
+      pulled[s.dataset.stone] = !pulled[s.dataset.stone];
+      render();
+    });
+  });
+  render();
+})();
+</script>
