@@ -4,7 +4,7 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
-import { NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, noesisPageTone } from '@/lib/noesis-page-definitions';
+import { NOESIS_LOOP_LABELS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, noesisPageTone } from '@/lib/noesis-page-definitions';
 import { parseNoesisRoute, type NoesisRouteTargetType, type NoesisView } from '@/lib/noesis-routes';
 import { RecentlyOpenedStrip } from '@/components/shared/RecentlyOpenedStrip';
 
@@ -33,8 +33,16 @@ export function PageHeader({ title, description, actions, meta, className, child
   // Index pages for records get a strip of the ones last opened on this device.
   const recentType = ({ concepts: 'concept', questions: 'inquiry', vault: 'position', library: 'source' } as Partial<Record<NoesisView, NoesisRouteTargetType>>)[view];
   const reviewMode = /^\/(demo|review)(\/|$)/.test(pathname || '');
-  // Name where the page sits in the thinking flow, matching the sidebar groups.
-  const stage = pageSection && pageSection !== 'More' && pageSection !== section ? pageSection : null;
+  // Name where the page sits in the thinking flow, matching the sidebar groups
+  // and the dock. The section keys are internal — Notice, Outline, Examine,
+  // Stand, Implement, Survey — and naming them here meant every page called
+  // its own stage something the navigation under it never said: a header
+  // reading NOTICE above a dock reading Encounter, OUTLINE above Define,
+  // SURVEY above Perspective. NOESIS_LOOP_LABELS is the one vocabulary.
+  // It also removes a stutter: Library's stage and section are both Encounter,
+  // so the label is now one word instead of the same word twice.
+  const stageLabel = pageSection ? NOESIS_LOOP_LABELS[pageSection] : null;
+  const stage = stageLabel && pageSection !== 'More' && stageLabel !== section ? stageLabel : null;
 
   return (
     <header data-noesis-route={view} data-stage-tone={noesisPageTone(view, pageSection)} className={cn('noesis-page-header', tabs && 'noesis-page-header--with-tabs', className)}>

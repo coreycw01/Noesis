@@ -1185,7 +1185,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   <Badge variant="outline" className="rounded-full">{current.connectionCount} links</Badge>
                   {current.attentionReason && <Badge variant="outline" className="rounded-full" tone="caution">{current.attentionReason}</Badge>}
                 </div>
-                <h2 className="mt-2 font-headline text-4xl font-semibold italic">{current.name}</h2>
+                {/* text-4xl is 36px, which is not a step on the type scale.
+                    Every other record names itself with .noesis-page-title. */}
+                <h2 className="noesis-page-title mt-2">{current.name}</h2>
                 {current.concept?.description?.trim()
                   ? <blockquote className="noesis-concept-split__quote">{current.concept.description}</blockquote>
                   : <p className="mt-2 text-sm text-muted-foreground">No definition yet. Mark a definition in a source or Works, or open the workbench to write one.</p>}

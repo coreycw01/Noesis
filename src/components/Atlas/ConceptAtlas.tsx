@@ -62,6 +62,7 @@ import type {
 import { conceptKey, conceptRelated, today, uid as makeId } from '@/lib/readex';
 import { countAtlasConceptTags } from './atlas-tag-counts';
 import { cn } from '@/lib/utils';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 import { uploadPrivateAsset } from '@/lib/storage-assets';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
@@ -2528,13 +2529,17 @@ export function ConceptAtlas({
       "relative flex w-full min-h-0 flex-col bg-background font-body",
       isFullScreen ? "fixed inset-0 z-50 overflow-hidden" : "flex-1 overflow-y-auto md:h-full md:overflow-hidden"
     )}>
+      {/* The Atlas used to hand-roll its header: a 24px h1 where every other
+          page has the shared one, no route label, and data-stage-tone pinned
+          to "integrate" — the Review violet — while the page around it was
+          blue. The skin already carried a compact [data-atlas-section="map"]
+          treatment for .noesis-page-header, which matched nothing, because
+          this page never rendered one. It does now, so the map keeps its room
+          (display-size title, description hidden) and the page names itself
+          the way every other page does. */}
       {!isFullScreen && (
-        <header className="noesis-gutter shrink-0 space-y-2 pb-2 pt-2 sm:pt-3" data-stage-tone="integrate">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <AtlasIcon className="size-5 text-accent" aria-hidden="true" />
-            <h1 className="font-headline text-2xl font-semibold">Atlas</h1>
-            <span className="border-l border-border pl-2 text-xs text-muted-foreground">Survey · Map</span>
-          </div>
+        <PageHeader title="Atlas" className="noesis-gutter shrink-0"
+          description="Every concept you have defined, placed as ground you can walk: regions far out, islands closer in, records as landmarks.">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <WorkspaceTabs value={atlasSection} onChange={setAtlasSection} label="Atlas views" items={[
               { id: 'map', label: 'Map' },
@@ -2649,7 +2654,7 @@ export function ConceptAtlas({
               </span>
               <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full" onClick={() => setTimelineWindow(null)}>Now</Button>
           </div>}
-        </header>
+        </PageHeader>
       )}
 
       {atlasSection !== 'map' && !isFullScreen && (

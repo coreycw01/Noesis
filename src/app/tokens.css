@@ -52,7 +52,11 @@
   --text-title: clamp(1.75rem, 1.2rem + 2vw, 2.5rem);
   --label-tracking: .12em;
 
-  /* Space. */
+  /* Space. Every gap, in this stylesheet and the others, resolves to one of
+     these. Two things are deliberately not spacing and so are not bound by it:
+     a hairline of 1-2px, which is a rule between items rather than room
+     between them, and Tailwind's own half-steps (gap-1.5, gap-2.5) where a
+     utility class is doing the work in a component. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -184,14 +188,14 @@
    eyebrow, but not a label, so it keeps its own case and alignment. */
 .noesis-figure { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); font-variant-numeric: tabular-nums; line-height: 1.3; }
 .noesis-figure--sm { font-size: var(--text-label-sm); }
-.noesis-eyebrow--row { display: inline-flex; align-items: center; gap: 6px; }
+.noesis-eyebrow--row { display: inline-flex; align-items: center; gap: var(--space-2); }
 .noesis-eyebrow--muted { color: hsl(var(--muted-foreground)); }
 .noesis-eyebrow--tone { color: hsl(var(--tone, var(--accent))); }
 .noesis-eyebrow--strong { font-weight: 700; color: hsl(var(--foreground)); }
 
 /* Badge: read-only. Tells you a status or a kind. Never pressable. */
 .noesis-badge {
-  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  display: inline-flex; align-items: center; gap: var(--space-1); max-width: 100%;
   padding: 2px 9px; border-radius: var(--radius-pill);
   border: 1px solid hsl(var(--tone, var(--neutral)) / .45); background: hsl(var(--tone, var(--neutral)) / .1); color: hsl(var(--tone, var(--neutral)));
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .1em; text-transform: uppercase; line-height: 1.5;
@@ -205,7 +209,7 @@
 
 /* Pill: pressable. Filters, toggles, choices. */
 .noesis-pill {
-  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  display: inline-flex; align-items: center; gap: var(--space-2); max-width: 100%;
   min-height: var(--control-h-sm); padding: 2px 12px; border-radius: var(--radius-pill);
   border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--foreground));
   font-family: inherit; font-size: var(--text-sm); line-height: 1.3; text-align: left;
@@ -256,7 +260,7 @@
 .noesis-search__clear:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 
 /* Status text: one voice for inline feedback. */
-.noesis-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: hsl(var(--tone, var(--muted-foreground))); }
+.noesis-status { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: hsl(var(--tone, var(--muted-foreground))); }
 
 @media (prefers-reduced-motion: reduce) {
   .noesis-pill, .noesis-panel--interactive { transition: none; }
