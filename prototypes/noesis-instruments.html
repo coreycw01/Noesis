@@ -180,6 +180,34 @@ svg{display:block}
 .thread span.sub{color:hsl(var(--muted));font-size:13px}
 
 .tape{border:1px solid hsl(var(--border));border-radius:8px;padding:13px 15px;background:hsl(var(--card))}
+
+/* Today's lead: one move, and somewhere to write before anything else. */
+.lead{display:grid;gap:12px;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);margin-bottom:16px;align-items:start}
+@media(max-width:860px){.lead{grid-template-columns:1fr}}
+.lead__move{border:1px solid hsl(var(--k-position)/.4);border-left:3px solid hsl(var(--k-position));
+  border-radius:8px;padding:13px 15px;background:hsl(var(--card))}
+.lead__h{font-family:var(--f-claim);font-style:italic;font-weight:500;font-size:19px;line-height:1.3;margin-top:3px}
+.lead__why{font-size:13px;color:hsl(var(--muted));margin-top:6px;line-height:1.5;max-width:56ch}
+.capture{display:grid;gap:6px;border:1px dashed hsl(var(--border));border-radius:8px;
+  padding:13px 15px;background:hsl(var(--card));cursor:text}
+.capture:hover{border-color:hsl(var(--k-source)/.6)}
+.capture__field{font-size:15px;color:hsl(var(--muted)/.85);border-bottom:1px solid hsl(var(--border));padding-bottom:7px}
+.capture__hint{color:hsl(var(--muted)/.8)}
+
+.commits{display:grid;gap:7px;margin-top:9px}
+.commit{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px}
+.commit__due{color:hsl(var(--k-practice))}
+.commit b{font-weight:600;display:block;line-height:1.35}
+.commit__meta{color:hsl(var(--muted));font-size:12px}
+
+/* Context Desk find */
+.find{display:flex;align-items:center;gap:9px;border:1px solid hsl(var(--border));border-radius:7px;
+  padding:8px 11px;color:hsl(var(--muted))}
+.find:hover{border-color:hsl(var(--k-ai)/.55)}
+.find__input{flex:1;min-width:0;font-size:14px}
+.findrows{display:grid;gap:5px;margin-top:9px}
+.findrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px;
+  border-left:3px solid hsl(var(--tone));padding:5px 0 5px 9px}
 .changes{display:grid;gap:7px;margin-top:9px}
 .change{display:grid;grid-template-columns:62px minmax(0,1fr);gap:11px;align-items:baseline;font-size:13px;line-height:1.5}
 .change time{font-family:var(--f-mark);font-size:11px;color:hsl(var(--muted))}
@@ -277,11 +305,11 @@ input[type=range]{accent-color:hsl(var(--tone));width:100%;max-width:190px}
       <span class="mark">Surfaces</span>
       <div class="nav" role="tablist" aria-label="Prototype surfaces">
         <button role="tab" data-go="bench" aria-current="true" style="--tone:var(--k-concept)">
-          <!-- caliper -->
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M2 4h12M4.5 4v7a1.5 1.5 0 0 0 1.5 1.5M11.5 4v4.5a1.5 1.5 0 0 1-1.5 1.5M4 4V2.5M12 4V2.5"/></svg>Workbench</button>
+          <!-- dividers: the instrument you set an instrument with -->
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2v3M4 14 8 5.2 12 14M5.6 10.2h4.8"/><circle cx="8" cy="2.2" r="1.1"/></svg>Workbench</button>
         <button role="tab" data-go="desk" style="--tone:var(--k-source)">
-          <!-- desk lamp -->
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 14h9M8 14V8.5M8 8.5 4 7M4 7l2-4.2 4.6 1.7L8.6 8.4z"/></svg>The Desk</button>
+          <!-- a desk: a top and two legs, nothing else -->
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="4.6" width="12.4" height="1.9" rx=".6"/><path d="M3.9 6.5v6.9M12.1 6.5v6.9"/></svg>The Desk</button>
         <button role="tab" data-go="position" style="--tone:var(--k-position)">
           <!-- planted flag, as the app draws it -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 14.5V1.5M4.5 2.5h8l-2 3 2 3h-8M2.5 14.5h4"/></svg>Position</button>
@@ -289,8 +317,8 @@ input[type=range]{accent-color:hsl(var(--tone));width:100%;max-width:190px}
           <!-- the balance itself -->
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v11M5 13.5h6M2.5 5h11M2.5 5 1 8.5h3zM13.5 5 12 8.5h3z"/></svg>Inquiry</button>
         <button role="tab" data-go="context" style="--tone:var(--k-ai)">
-          <!-- drawer cabinet -->
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11" rx="1.2"/><path d="M2.5 6.2h11M2.5 9.9h11M6.6 4.3h2.8M6.6 8h2.8M6.6 11.7h2.8"/></svg>Context Desk</button>
+          <!-- the same desk, with the drawers under it -->
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="4.6" width="12.4" height="1.9" rx=".6"/><path d="M3.2 6.5v6.9"/><rect x="8.1" y="6.5" width="5.7" height="6.9" rx=".7"/><path d="M9.6 8.9h2.7M9.6 11.1h2.7"/></svg>Context Desk</button>
       </div>
     </div>
 
@@ -537,7 +565,29 @@ input[type=range]{accent-color:hsl(var(--tone));width:100%;max-width:190px}
     </header>
 
     <div class="desk">
+      <!-- Today leads with one move, not a queue. Carried over from the real
+           page along with capture and commitments; the counts and the
+           at-a-glance tiles are left behind on purpose. -->
+      <div class="lead">
+        <div class="lead__move">
+          <span class="mark" style="color:hsl(var(--k-position))">What to do next</span>
+          <h2 class="lead__h">Write what resolved <i>Does narrative coherence help or distort agency?</i></h2>
+          <p class="lead__why">You answered it on Monday and reopened it the same day. Until the resolution
+            is written, the position it feeds is standing on an answer you no longer hold.</p>
+          <div class="row" style="margin-top:10px">
+            <button class="btn btn--sm btn--solid" style="--tone:var(--k-inquiry)">Open the inquiry</button>
+            <button class="btn btn--sm" style="--tone:var(--muted)">Something else</button>
+          </div>
+        </div>
+        <label class="capture">
+          <span class="mark">Start with one real thought</span>
+          <span class="capture__field" role="textbox" aria-readonly="true">A thought, a passage, a question…</span>
+          <span class="capture__hint mark mark--sm">It becomes a mark now and a kind later</span>
+        </label>
+      </div>
+
       <div class="desk__cols">
+        <div class="stack" style="gap:14px">
         <div class="board">
           <div class="row" style="justify-content:space-between">
             <span class="mark" style="color:hsl(var(--ink)/.78)">Needs your judgment</span>
@@ -562,6 +612,19 @@ input[type=range]{accent-color:hsl(var(--tone));width:100%;max-width:190px}
           </div>
         </div>
 
+          <div class="tape">
+            <span class="mark">What changed</span>
+            <div class="changes">
+              <div class="change"><time>Tue</time><span>Confidence on <i>Identity is enacted before it is explained</i> fell
+                <span class="trace"><span class="trace__was">78</span><span class="trace__arrow">→</span><b class="figure">72</b></span>
+                after the avoidance log.</span></div>
+              <div class="change"><time>Mon</time><span>Reopened <i>Does narrative coherence help or distort agency?</i></span></div>
+              <div class="change"><time>Sun</time><span>Clarified the boundary of <i>Narrative Self</i> — two counterexamples now sit outside it.</span></div>
+              <div class="change"><time>Fri</time><span><i>Begin work before consuming media</i> concluded and weakened the belief it tested.</span></div>
+            </div>
+          </div>
+        </div>
+
         <div class="stack" style="gap:14px">
           <div class="notebook">
             <div class="nb ruled">
@@ -582,14 +645,19 @@ input[type=range]{accent-color:hsl(var(--tone));width:100%;max-width:190px}
           </div>
 
           <div class="tape">
-            <span class="mark">What changed</span>
-            <div class="changes">
-              <div class="change"><time>Tue</time><span>Confidence on <i>Identity is enacted before it is explained</i> fell
-                <span class="trace"><span class="trace__was">78</span><span class="trace__arrow">→</span><b class="figure">72</b></span>
-                after the avoidance log.</span></div>
-              <div class="change"><time>Mon</time><span>Reopened <i>Does narrative coherence help or distort agency?</i></span></div>
-              <div class="change"><time>Sun</time><span>Clarified the boundary of <i>Narrative Self</i> — two counterexamples now sit outside it.</span></div>
-              <div class="change"><time>Fri</time><span><i>Begin work before consuming media</i> concluded and weakened the belief it tested.</span></div>
+            <div class="row" style="justify-content:space-between">
+              <span class="mark">Active commitments</span>
+              <span class="mark figure">2 running</span>
+            </div>
+            <div class="commits">
+              <div class="commit"><span class="commit__due mark">Today</span>
+                <span><b>Log identity-protective avoidance</b>
+                  <span class="commit__meta">Observation · day 5 of 7</span></span>
+                <button class="btn btn--sm" style="--tone:var(--k-practice)">Log</button></div>
+              <div class="commit"><span class="commit__due mark">Thu</span>
+                <span><b>Read one primary source before commentary</b>
+                  <span class="commit__meta">Decision rule · kept 9 of 11 days</span></span>
+                <button class="btn btn--sm" style="--tone:var(--muted)">Open</button></div>
             </div>
           </div>
         </div>
@@ -952,6 +1020,34 @@ input[type=range]{accent-color:hsl(var(--tone));width:100%;max-width:190px}
       </div>
 
       <div class="stack" style="gap:14px">
+        <!-- Find sits above the desk, wide enough to read titles. Refine by
+             relationship, never by source. -->
+        <div class="sheet" style="padding:13px">
+          <div class="find">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4 14 14"/></svg>
+            <span class="find__input" role="textbox" aria-readonly="true">Search your records…</span>
+            <span class="mark mark--sm">18 of 64</span>
+          </div>
+          <div class="findrows">
+            <div class="findrow" style="--tone:var(--k-annotation)"><span class="mark mark--sm">ANN</span>
+              <span>"The self that narrates is not the self that acts…"</span>
+              <button class="btn btn--sm" style="--tone:var(--k-ai)">Add</button></div>
+            <div class="findrow" style="--tone:var(--k-concept)"><span class="mark mark--sm">CON</span>
+              <span>Narrative Self</span>
+              <button class="btn btn--sm" style="--tone:var(--k-ai)">Add</button></div>
+            <div class="findrow" style="--tone:var(--k-work)"><span class="mark mark--sm">WRK</span>
+              <span>What I Mean by Agency</span>
+              <button class="btn btn--sm" style="--tone:var(--k-ai)">Add</button></div>
+          </div>
+          <div class="row" style="margin-top:9px">
+            <span class="mark">Refine</span>
+            <button class="btn btn--sm" style="--tone:var(--k-position)">Supports a position</button>
+            <button class="btn btn--sm" style="--tone:var(--k-review)">Challenges one</button>
+            <button class="btn btn--sm" style="--tone:var(--k-inquiry)">Unresolved</button>
+          </div>
+        </div>
+
         <div class="blotter">
           <div class="row" style="justify-content:space-between">
             <span class="mark" style="color:hsl(var(--k-ai))">On the desk</span>

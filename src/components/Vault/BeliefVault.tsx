@@ -10,6 +10,7 @@ import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { DeskFindings } from '@/components/ai/DeskFindings';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
+import { PositionArch } from '@/components/Vault/PositionArch';
 import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -907,7 +908,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           ...patch,
           versionHistory: [
             ...(selected.versionHistory || []),
-            { date: today(), eventType: field === 'evidenceAgainst' ? 'challenged' : 'refined', description: `Stress test (${title}): ${answer}` },
+            // Carry the confidence this event left the position at, even when
+            // the event did not move it. A revision without one is invisible
+            // to the trace and drops out of the belief river entirely, which
+            // is why a river could show no width change across real work.
+            { date: today(), eventType: field === 'evidenceAgainst' ? 'challenged' : 'refined', description: `Stress test (${title}): ${answer}`, confidence: selected.confidence },
           ],
           dateUpdated: today(),
         });
@@ -1115,17 +1120,24 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
           </div>
-          {!!selected.assumptions?.length && (
-            <details className="mt-3 border-t border-border pt-2">
-              <summary className="min-h-9 cursor-pointer py-2 text-sm text-muted-foreground">Assumptions to check ({selected.assumptions.length})</summary>
-              <ul className="list-disc space-y-1 break-words pl-5 text-sm">{selected.assumptions.map((item, index) => <li key={index}>{item}</li>)}</ul>
-            </details>
-          )}
+          {/* The assumptions used to be a bulleted fold here. They are the
+              arch in Calibrate now, where they are load-bearing rather than
+              listed, so repeating them would say the same thing twice. */}
           <PullEvidenceDialog open={pullSide !== null} onOpenChange={(open) => { if (!open) setPullSide(null); }} side={pullSide || 'for'} media={media} concepts={concepts} questions={questions} positions={entries} excludePositionId={selected.id}
             onPick={(text) => { if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...challengeItems, text], dateUpdated: today() }); else onUpdateEntry({ ...selected, evidenceFor: [...supportItems, text], dateUpdated: today() }); }} />
         </RecordSection>
 
-        <RecordSection id="pos-calibrate" title="Calibrate" description="Your stated confidence beside what your grounds support, on one bar." here={hereId === 'pos-calibrate'}>
+        <RecordSection id="pos-calibrate" title="Calibrate" description="What the claim stands on, and your stated confidence beside what your grounds support." here={hereId === 'pos-calibrate'}>
+          {/* Two readings of the same claim: the arch is what it rests on and
+              what happens without each stone; the bar below is whether the
+              number you state matches the grounds you have. */}
+          <PositionArch
+            className="mb-4"
+            claim={selected.title}
+            assumptions={selected.assumptions || []}
+            confidence={statedPercent}
+            challengeCount={challengeCount}
+          />
           {(criterion || objection || result) && (
             <dl className="mb-4 space-y-3 border-l border-border pl-3 text-sm">
               {criterion && <div><dt className="font-medium">What would change your mind</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{criterion}</dd></div>}
@@ -1206,9 +1218,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <InfoPanel title="Challenged by" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
               <InfoPanel title="Weakened by" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
               <div className="md:col-span-2">
-                {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => (
-                  <RevisionEvent key={`${version.date}-${index}`} date={version.date} action={version.eventType?.replace(/_/g, ' ') || 'Revision'} description={version.description} current={index === (selected.versionHistory || []).length - 1} />
-                )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
+                {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => {
+                  // Every revision already stored the confidence it left behind.
+                  // Reading it against the one before turns the list into a
+                  // record of what moved, rather than a list of dates.
+                  const history = selected.versionHistory || [];
+                  const earlier = history.slice(0, index).map((item) => item.confidence)
+                    .filter((value): value is number => typeof value === 'number');
+                  return (
+                    <RevisionEvent key={`${version.date}-${index}`} date={version.date}
+                      action={version.eventType?.replace(/_/g, ' ') || 'Revision'}
+                      description={version.description}
+                      confidence={typeof version.confidence === 'number' ? confidencePercent(version.confidence) : undefined}
+                      previousConfidence={earlier.length ? confidencePercent(earlier[earlier.length - 1]) : undefined}
+                      current={index === history.length - 1} />
+                  );
+                }) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
               </div>
             </div>
             {(selected.aiReviewHistory || []).length > 0 && (
@@ -1630,7 +1655,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             await onUpdateEntry({
               ...target,
               status: 'abandoned',
-              versionHistory: [...(target.versionHistory || []), { date: today(), eventType: 'abandoned', description: 'Position abandoned instead of deleted.' }],
+              versionHistory: [...(target.versionHistory || []), { date: today(), eventType: 'abandoned', description: 'Position abandoned instead of deleted.', confidence: target.confidence }],
               dateUpdated: today(),
             });
             if (activeEntryId === target.id) closeEntry();
@@ -1707,7 +1732,7 @@ function TensionResolutionPanel({
       status: 'revised',
       versionHistory: [
         ...(selected.versionHistory || []),
-        { date: today(), eventType: 'revised', description: 'Resolved a possible tension by refining this position.' },
+        { date: today(), eventType: 'revised', description: 'Resolved a possible tension by refining this position.', confidence: selected.confidence },
       ],
       dateUpdated: today(),
     });

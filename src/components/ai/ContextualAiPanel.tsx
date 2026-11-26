@@ -649,7 +649,7 @@ export function ContextualAiPanel({
                                     </div>
                                     <span className={`shrink-0 rounded-full border px-2 py-1 text-label font-medium capitalize ${item.status === 'kept' ? 'border-accent/50 text-accent' : 'border-border text-muted-foreground'}`}>{item.status}</span>
                                   </div>
-                                  <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">{formattedInline(item.content)}</p>
+                                  <p className="noesis-voice-ai mt-2 line-clamp-3">{formattedInline(item.content)}</p>
                                 </button>
                                 <div className="mt-3 flex flex-wrap items-center gap-2">
                                   <Button type="button" aria-pressed={item.status === 'kept'} variant="outline" size="sm" disabled={accepting || dismissed} onClick={() => updateReviewItem(item.id, { status: 'kept' })} className="min-h-10"><Check className="mr-2 size-4" />Keep</Button>
