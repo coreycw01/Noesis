@@ -10,6 +10,7 @@ import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { DeskFindings } from '@/components/ai/DeskFindings';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
+import { PositionArch } from '@/components/Vault/PositionArch';
 import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
@@ -1115,17 +1116,24 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
           </div>
-          {!!selected.assumptions?.length && (
-            <details className="mt-3 border-t border-border pt-2">
-              <summary className="min-h-9 cursor-pointer py-2 text-sm text-muted-foreground">Assumptions to check ({selected.assumptions.length})</summary>
-              <ul className="list-disc space-y-1 break-words pl-5 text-sm">{selected.assumptions.map((item, index) => <li key={index}>{item}</li>)}</ul>
-            </details>
-          )}
+          {/* The assumptions used to be a bulleted fold here. They are the
+              arch in Calibrate now, where they are load-bearing rather than
+              listed, so repeating them would say the same thing twice. */}
           <PullEvidenceDialog open={pullSide !== null} onOpenChange={(open) => { if (!open) setPullSide(null); }} side={pullSide || 'for'} media={media} concepts={concepts} questions={questions} positions={entries} excludePositionId={selected.id}
             onPick={(text) => { if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...challengeItems, text], dateUpdated: today() }); else onUpdateEntry({ ...selected, evidenceFor: [...supportItems, text], dateUpdated: today() }); }} />
         </RecordSection>
 
-        <RecordSection id="pos-calibrate" title="Calibrate" description="Your stated confidence beside what your grounds support, on one bar." here={hereId === 'pos-calibrate'}>
+        <RecordSection id="pos-calibrate" title="Calibrate" description="What the claim stands on, and your stated confidence beside what your grounds support." here={hereId === 'pos-calibrate'}>
+          {/* Two readings of the same claim: the arch is what it rests on and
+              what happens without each stone; the bar below is whether the
+              number you state matches the grounds you have. */}
+          <PositionArch
+            className="mb-4"
+            claim={selected.title}
+            assumptions={selected.assumptions || []}
+            confidence={statedPercent}
+            challengeCount={challengeCount}
+          />
           {(criterion || objection || result) && (
             <dl className="mb-4 space-y-3 border-l border-border pl-3 text-sm">
               {criterion && <div><dt className="font-medium">What would change your mind</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{criterion}</dd></div>}

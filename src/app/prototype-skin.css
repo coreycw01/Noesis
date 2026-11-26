@@ -780,3 +780,49 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
     outline: none;
   }
 }
+
+/* ---------- The arch: what a claim rests on ---------- */
+/* Same ink as the evidence scale in Inquiries — stroke only, fills under a
+   third, colour from the kind token — so the two read as one instrument set. */
+.noesis-arch { display: grid; gap: var(--space-3); padding: 18px; border: 1px solid hsl(var(--border));
+  border-radius: var(--card-radius); background: hsl(var(--card)); }
+.noesis-arch__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.noesis-arch__hint { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label);
+  letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.noesis-arch__draw { width: 100%; max-width: 420px; height: auto; margin-inline: auto; }
+.noesis-arch__stone, .noesis-arch__key {
+  fill: hsl(var(--kind-position) / .12); stroke: hsl(var(--kind-position)); stroke-width: 1.6;
+  stroke-linejoin: round; transition: opacity .3s ease, transform .45s cubic-bezier(.3,.8,.3,1.05); }
+.noesis-arch__key { fill: hsl(var(--kind-position) / .3); stroke-width: 2.5; }
+.noesis-arch__key[data-failing] { opacity: .45; }
+.noesis-arch__stone[data-pulled] { opacity: .16; stroke-dasharray: 4 4; transform: translateY(20px); }
+.noesis-arch__absent { fill: none; stroke: hsl(var(--kind-position) / .45); stroke-width: 1.6; stroke-dasharray: 5 6; }
+.noesis-arch__ground { stroke: hsl(var(--foreground) / .55); stroke-width: 2.5; stroke-linecap: round; fill: none; }
+.noesis-arch__hatch path { stroke: hsl(var(--foreground) / .3); stroke-width: 1.1; stroke-linecap: round; fill: none; }
+.noesis-arch__load path { stroke: hsl(var(--stage-integrate)); stroke-width: 1.6; stroke-linecap: round;
+  fill: none; stroke-dasharray: 4 4; }
+.noesis-arch__load .noesis-arch__head-fill { fill: hsl(var(--stage-integrate)); stroke: none; stroke-dasharray: none; }
+.noesis-arch__keylabel { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px;
+  letter-spacing: 1.3px; fill: hsl(var(--muted-foreground)); }
+.noesis-arch__crack { fill: none; stroke: hsl(var(--stage-integrate)); stroke-width: 2.5; stroke-linecap: round; }
+.noesis-arch__read { display: flex; flex-wrap: wrap; gap: var(--space-5); align-items: baseline; }
+.noesis-arch__read > span { display: grid; gap: 2px; }
+.noesis-arch__figure { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-display);
+  font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.noesis-arch__was { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground) / .8); text-decoration: line-through; margin-left: var(--space-2); }
+.noesis-arch__verdict { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-lg); font-weight: 500; }
+.noesis-arch__note { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); line-height: 1.55; }
+.noesis-arch__stones { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.noesis-arch__pull { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: var(--space-2);
+  align-items: center; width: 100%; text-align: left; padding: 7px 10px; font-size: var(--text-sm);
+  border: 1px solid hsl(var(--border)); border-radius: var(--radius-sm); background: hsl(var(--card));
+  min-height: var(--control-h); transition: border-color .14s ease, background .14s ease; }
+.noesis-arch__pull:hover { border-color: hsl(var(--kind-position) / .7); }
+.noesis-arch__pull[aria-pressed="true"] { border-color: hsl(var(--kind-position)); background: hsl(var(--kind-position) / .09); }
+.noesis-arch__n, .noesis-arch__state { font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: var(--text-label); color: hsl(var(--muted-foreground)); }
+.noesis-arch__state { letter-spacing: .1em; text-transform: uppercase; }
+.noesis-arch__pull[aria-pressed="true"] .noesis-arch__state { color: hsl(var(--kind-position)); }
+.noesis-arch__fold { margin-top: 0; }
+@media (prefers-reduced-motion: reduce) { .noesis-arch__stone, .noesis-arch__key { transition: none; } }
