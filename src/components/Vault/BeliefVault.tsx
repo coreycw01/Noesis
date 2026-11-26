@@ -908,7 +908,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           ...patch,
           versionHistory: [
             ...(selected.versionHistory || []),
-            { date: today(), eventType: field === 'evidenceAgainst' ? 'challenged' : 'refined', description: `Stress test (${title}): ${answer}` },
+            // Carry the confidence this event left the position at, even when
+            // the event did not move it. A revision without one is invisible
+            // to the trace and drops out of the belief river entirely, which
+            // is why a river could show no width change across real work.
+            { date: today(), eventType: field === 'evidenceAgainst' ? 'challenged' : 'refined', description: `Stress test (${title}): ${answer}`, confidence: selected.confidence },
           ],
           dateUpdated: today(),
         });
@@ -1651,7 +1655,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             await onUpdateEntry({
               ...target,
               status: 'abandoned',
-              versionHistory: [...(target.versionHistory || []), { date: today(), eventType: 'abandoned', description: 'Position abandoned instead of deleted.' }],
+              versionHistory: [...(target.versionHistory || []), { date: today(), eventType: 'abandoned', description: 'Position abandoned instead of deleted.', confidence: target.confidence }],
               dateUpdated: today(),
             });
             if (activeEntryId === target.id) closeEntry();
@@ -1728,7 +1732,7 @@ function TensionResolutionPanel({
       status: 'revised',
       versionHistory: [
         ...(selected.versionHistory || []),
-        { date: today(), eventType: 'revised', description: 'Resolved a possible tension by refining this position.' },
+        { date: today(), eventType: 'revised', description: 'Resolved a possible tension by refining this position.', confidence: selected.confidence },
       ],
       dateUpdated: today(),
     });
