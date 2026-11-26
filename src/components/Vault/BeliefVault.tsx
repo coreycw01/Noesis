@@ -1214,9 +1214,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <InfoPanel title="Challenged by" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
               <InfoPanel title="Weakened by" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
               <div className="md:col-span-2">
-                {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => (
-                  <RevisionEvent key={`${version.date}-${index}`} date={version.date} action={version.eventType?.replace(/_/g, ' ') || 'Revision'} description={version.description} current={index === (selected.versionHistory || []).length - 1} />
-                )) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
+                {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => {
+                  // Every revision already stored the confidence it left behind.
+                  // Reading it against the one before turns the list into a
+                  // record of what moved, rather than a list of dates.
+                  const history = selected.versionHistory || [];
+                  const earlier = history.slice(0, index).map((item) => item.confidence)
+                    .filter((value): value is number => typeof value === 'number');
+                  return (
+                    <RevisionEvent key={`${version.date}-${index}`} date={version.date}
+                      action={version.eventType?.replace(/_/g, ' ') || 'Revision'}
+                      description={version.description}
+                      confidence={typeof version.confidence === 'number' ? confidencePercent(version.confidence) : undefined}
+                      previousConfidence={earlier.length ? confidencePercent(earlier[earlier.length - 1]) : undefined}
+                      current={index === history.length - 1} />
+                  );
+                }) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
               </div>
             </div>
             {(selected.aiReviewHistory || []).length > 0 && (

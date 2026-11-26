@@ -126,16 +126,50 @@ export function RelationshipList({
   );
 }
 
+/**
+ * The trace: what a value used to be, beside what it became.
+ *
+ * The app's subject is understanding that changes, so a number that moved
+ * should say so where it is read rather than only in a history tab. The prior
+ * value stays struck through next to the new one, and the pair is announced
+ * as one phrase to a screen reader instead of two loose numbers.
+ */
+export function Trace({ was, now, unit = '', className }: {
+  was: number | null | undefined;
+  now: number;
+  unit?: string;
+  className?: string;
+}) {
+  const moved = typeof was === 'number' && was !== now;
+  return (
+    <span className={cn('noesis-trace', className)}>
+      {moved && (
+        <>
+          <span className="noesis-trace__was" aria-hidden="true">{was}{unit}</span>
+          <span className="noesis-trace__arrow" aria-hidden="true">&rarr;</span>
+        </>
+      )}
+      <b className="noesis-trace__now">{now}{unit}</b>
+      {moved && <span className="sr-only">, was {was}{unit}</span>}
+    </span>
+  );
+}
+
 export function RevisionEvent({
   date,
   action,
   description,
+  confidence,
+  previousConfidence,
   current,
   className,
 }: {
   date: ReactNode;
   action: ReactNode;
   description?: ReactNode;
+  /** The confidence this revision left behind, when the record kept one. */
+  confidence?: number | null;
+  previousConfidence?: number | null;
   current?: boolean;
   className?: string;
 }) {
@@ -144,7 +178,12 @@ export function RevisionEvent({
       <div className="noesis-revision-event__marker" aria-hidden="true" />
       <time className="noesis-revision-event__date">{date}</time>
       <div className="min-w-0">
-        <div className="noesis-revision-event__action">{action}</div>
+        <div className="noesis-revision-event__action">
+          {action}
+          {typeof confidence === 'number' && (
+            <Trace was={previousConfidence} now={confidence} unit="%" className="ml-2" />
+          )}
+        </div>
         {description && <div className="noesis-revision-event__description">{description}</div>}
       </div>
     </article>

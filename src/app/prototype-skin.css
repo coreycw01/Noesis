@@ -826,3 +826,25 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-arch__pull[aria-pressed="true"] .noesis-arch__state { color: hsl(var(--kind-position)); }
 .noesis-arch__fold { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) { .noesis-arch__stone, .noesis-arch__key { transition: none; } }
+
+/* ---------- The trace: what a value was, beside what it is ---------- */
+.noesis-trace { display: inline-flex; align-items: baseline; gap: var(--space-2); }
+.noesis-trace__was { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground) / .8); text-decoration: line-through; }
+.noesis-trace__arrow { color: hsl(var(--muted-foreground) / .6); font-size: var(--text-xs); }
+.noesis-trace__now { font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums; font-weight: 500; }
+
+/* ---------- Whose words these are ---------- */
+/* Three registers that never blur. The page's own body type is the user's
+   voice, so it needs no class: a source and the assistant each depart from it
+   visibly. The assistant's register is the one that matters most — the
+   backend keeps AI output distinct from the user's words until it is
+   promoted, and until now the interface did not. */
+.noesis-voice-source { font-family: "Playfair Display", Georgia, serif; font-style: italic;
+  color: hsl(var(--foreground) / .88); border-left: 2px solid hsl(var(--kind-source) / .5);
+  padding-left: var(--space-3); }
+.noesis-voice-ai { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-sm);
+  line-height: 1.6; color: hsl(var(--revise)); border: 1px dashed hsl(var(--revise) / .55);
+  border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
+  background: hsl(var(--revise) / .05); }
