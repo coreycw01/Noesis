@@ -38,6 +38,8 @@ import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
+import { SourceSounding } from '@/components/Library/SourceSounding';
+import { sourceJourney } from '@/lib/source-journey';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
 import type { ContextualAiAction } from '@/lib/contextual-ai';
@@ -720,6 +722,15 @@ export function MediaLibrary({
                 </p>
               </Card>
             </div>
+
+            {/* sourceJourney() measured four fathoms of the reader's own work
+                and nothing drew them. The sounding line asks the question a
+                reader actually has — how far into this did I get — rather than
+                scoring how much of it is finished. */}
+            <SourceSounding
+              className="mb-6"
+              state={sourceJourney(selected, sourceInfluenceCount(selected, vault, drafts, practices, questions))}
+            />
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
               <Card className="noesis-workbench-panel">

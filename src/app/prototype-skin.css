@@ -848,3 +848,33 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   line-height: 1.6; color: hsl(var(--revise)); border: 1px dashed hsl(var(--revise) / .55);
   border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3);
   background: hsl(var(--revise) / .05); }
+
+/* ---------- The sounding line: how far down a source you have been ---------- */
+.noesis-sounding { display: grid; gap: var(--space-3); padding: 18px; border: 1px solid hsl(var(--border));
+  border-radius: var(--card-radius); background: hsl(var(--card)); }
+.noesis-sounding__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.noesis-sounding__figure { font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: var(--text-2xl); font-weight: 500; font-variant-numeric: tabular-nums; }
+.noesis-sounding__figure small { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); }
+.noesis-sounding__body { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  align-items: start; }
+@media (max-width: 720px) { .noesis-sounding__body { grid-template-columns: 1fr; } }
+.noesis-sounding__draw { width: 100%; height: auto; }
+.noesis-sounding__surface { fill: none; stroke: hsl(var(--kind-source)); stroke-width: 2.5; stroke-linecap: round; }
+.noesis-sounding__bed { fill: none; stroke: hsl(var(--muted-foreground) / .5); stroke-width: 1.1; stroke-linecap: round; }
+.noesis-sounding__line { stroke: hsl(var(--kind-source)); stroke-width: 1.6; stroke-linecap: round;
+  transition: y2 .5s cubic-bezier(.3,.8,.3,1.05); }
+.noesis-sounding__bob { fill: hsl(var(--kind-source) / .22); stroke: hsl(var(--kind-source));
+  stroke-width: 1.6; stroke-linejoin: round; transition: transform .5s cubic-bezier(.3,.8,.3,1.05); }
+.noesis-sounding__mark line { stroke: hsl(var(--muted-foreground) / .45); stroke-width: 1.1; }
+.noesis-sounding__mark text { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 8.5px;
+  letter-spacing: .1em; fill: hsl(var(--muted-foreground) / .75); }
+.noesis-sounding__mark[data-done] line { stroke: hsl(var(--kind-source)); }
+.noesis-sounding__mark[data-done] text { fill: hsl(var(--kind-source)); }
+.noesis-sounding__read { display: grid; gap: var(--space-3); }
+.noesis-sounding__meta { display: grid; gap: var(--space-1); font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground)); }
+.noesis-sounding__meta b { color: hsl(var(--muted-foreground)); font-weight: 500; }
+.noesis-sounding__meta span[data-done] b { color: hsl(var(--kind-source)); }
+.noesis-sounding__next { font-size: var(--text-base); color: hsl(var(--foreground)); }
+@media (prefers-reduced-motion: reduce) { .noesis-sounding__line, .noesis-sounding__bob { transition: none; } }
