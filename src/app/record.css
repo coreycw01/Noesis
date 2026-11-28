@@ -145,6 +145,19 @@
 @media (min-width: 1024px) {
   .noesis-instrument-board { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; gap: var(--space-4); }
   .noesis-instrument-tabs { display: none; }
+  /* The side column runs about half the height of the main one, so scrolling
+     a long record left several hundred pixels of nothing beside it. It rides
+     along instead: the instrument and the tools stay in view while the record
+     moves past them, which is what the column is for. It scrolls on its own
+     when it is taller than the screen, and never traps the page. */
+  .noesis-instrument-board > .noesis-instrument-board__column:last-child {
+    position: sticky;
+    top: calc(var(--page-top, 1rem) + env(safe-area-inset-top, 0px));
+    max-height: calc(100dvh - var(--page-top, 1rem) - var(--space-5));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
 }
 .noesis-ba { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .noesis-ba > div { border: var(--hair); border-radius: var(--radius-md); padding: 10px 12px; }
