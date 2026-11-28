@@ -806,11 +806,8 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 /* ---------- The arch: what a claim rests on ---------- */
 /* Same ink as the evidence scale in Inquiries — stroke only, fills under a
    third, colour from the kind token — so the two read as one instrument set. */
-.noesis-arch { display: grid; gap: var(--space-3); padding: 18px; border: 1px solid hsl(var(--border));
-  border-radius: var(--card-radius); background: hsl(var(--card)); }
+.noesis-arch { display: grid; gap: var(--space-3); padding-top: var(--space-3); border-top: var(--hair); }
 .noesis-arch__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
-.noesis-arch__hint { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label);
-  letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
 .noesis-arch__draw { width: 100%; max-width: 420px; height: auto; margin-inline: auto; }
 .noesis-arch__stone, .noesis-arch__key {
   fill: hsl(var(--kind-position) / .12); stroke: hsl(var(--kind-position)); stroke-width: 1.6;
@@ -820,15 +817,13 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-arch__absent { fill: none; stroke: hsl(var(--kind-position) / .45); stroke-width: 1.6; stroke-dasharray: 5 6; }
 .noesis-arch__foundation { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1.5; stroke-dasharray: 5 5; }
 .noesis-arch__foundation[data-recorded="true"] { fill: hsl(var(--stage-act) / .22); stroke: hsl(var(--stage-act)); stroke-dasharray: none; }
-.noesis-arch__load path { stroke: hsl(var(--stage-integrate)); stroke-width: 1.6; stroke-linecap: round;
+.noesis-arch__load path { stroke: hsl(var(--tone)); stroke-width: 1.6; stroke-linecap: round;
   fill: none; stroke-dasharray: 4 4; }
-.noesis-arch__load .noesis-arch__head-fill { fill: hsl(var(--stage-integrate)); stroke: none; stroke-dasharray: none; }
+.noesis-arch__load .noesis-arch__head-fill { fill: hsl(var(--tone)); stroke: none; stroke-dasharray: none; }
 .noesis-arch__keylabel { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px;
   letter-spacing: 1.3px; fill: hsl(var(--muted-foreground)); }
 .noesis-arch__read { display: flex; flex-wrap: wrap; gap: var(--space-5); align-items: baseline; }
 .noesis-arch__read > span { display: grid; gap: 2px; }
-.noesis-arch__figure { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-display);
-  font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .noesis-arch__verdict { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-lg); font-weight: 500; }
 .noesis-arch__note { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); line-height: 1.55; }
 .noesis-arch__stones { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }

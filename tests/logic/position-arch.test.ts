@@ -2,28 +2,36 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { archSpans, PositionArch } from '../../src/components/Vault/PositionArch';
+import { archSpans, PositionArch, PositionAssumptions } from '../../src/components/Vault/PositionArch';
 
 test('recorded grounds form a foundation even when there are no assumptions', () => {
   const html = renderToStaticMarkup(createElement(PositionArch, {
-    assumptions: [], confidence: 63, supportCount: 3, challengeCount: 2,
+    assumptions: [], pulled: new Set<number>(), supportCount: 3, challengeCount: 2,
   }));
   assert.match(html, /noesis-arch__foundation" data-recorded="true"/);
   assert.match(html, /3 supporting grounds, 0 recorded assumptions, and 2 recorded challenges/);
-  assert.match(html, /63%/);
-  assert.match(html, /No explicit assumptions recorded/);
   assert.doesNotMatch(html, /noesis-arch__stone"|Sound|Collapsed/);
 });
 
 test('an assumption does not count as support or imply a verdict about the claim', () => {
   const html = renderToStaticMarkup(createElement(PositionArch, {
-    assumptions: ['The cases are comparable'], confidence: 80, supportCount: 0, challengeCount: 0,
+    assumptions: ['The cases are comparable'], pulled: new Set([0]), supportCount: 0, challengeCount: 0,
   }));
   assert.match(html, /noesis-arch__foundation" data-recorded="false"/);
   assert.match(html, /0 supporting grounds, 1 recorded assumptions/);
-  assert.match(html, /aria-pressed="false"[^>]*>.*The cases are comparable/);
-  assert.match(html, /80%/);
+  assert.match(html, /data-pulled="true"/);
+  assert.match(html, /Your stated confidence is unchanged/);
+  assert.doesNotMatch(html, /The cases are comparable|New assumption/);
   assert.doesNotMatch(html, /Sound|Collapsed|Unsafe/);
+});
+
+test('the Grounds assumption editor owns the text and reflects the same pulled stone', () => {
+  const html = renderToStaticMarkup(createElement(PositionAssumptions, {
+    assumptions: ['The cases are comparable'], pulled: new Set([0]), onToggle: () => {}, onSave: async () => {},
+  }));
+  assert.match(html, /aria-pressed="true"[^>]*>.*The cases are comparable/);
+  assert.match(html, /aria-label="New assumption"/);
+  assert.doesNotMatch(html, /noesis-arch__draw/);
 });
 
 // The keystone holds 30 degrees at the crown; the stones tile the other 150.

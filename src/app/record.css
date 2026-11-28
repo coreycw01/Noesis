@@ -113,6 +113,8 @@
 .noesis-instrument-panel > .noesis-step { margin-top: 0; }
 .noesis-instrument-panel > .noesis-tools,
 .noesis-instrument-panel > .noesis-instrument-reading + .noesis-step { margin-top: var(--space-4); }
+.noesis-instrument-board[data-layout="rows"] .noesis-instrument-panel > .noesis-tools { margin-block: 0; }
+.noesis-position-ground-list { max-height: 14rem; overflow-y: auto; }
 .noesis-inquiry-side { display: grid; gap: var(--space-4); min-width: 0; }
 .noesis-inquiry-side > :is(.noesis-tools, .noesis-step) { margin: 0; min-width: 0; }
 .noesis-instrument-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); height: auto; width: 100%; margin-bottom: var(--space-3); }
@@ -140,10 +142,13 @@
 .noesis-today-desk__commitment { padding: var(--space-2) var(--space-3); background: hsl(var(--card)); border: var(--hair); border-radius: var(--radius-panel); }
 @media (max-width: 1023px) {
   .noesis-instrument-tabs { position: sticky; top: 0; z-index: 6; background: hsl(var(--background)); }
+  .noesis-instrument-board[data-layout="rows"] .noesis-instrument-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .noesis-instrument-panel[data-state="inactive"] { display: none; }
 }
 @media (min-width: 1024px) {
   .noesis-instrument-board { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; gap: var(--space-4); }
+  .noesis-instrument-board[data-layout="rows"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .noesis-instrument-board[data-layout="rows"] > .noesis-instrument-panel:last-child:nth-child(even) { grid-column: 1 / -1; }
   .noesis-instrument-tabs { display: none; }
 }
 .noesis-ba { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }

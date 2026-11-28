@@ -3,11 +3,25 @@ import test from 'node:test';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { RecordPath } from '../../src/components/shared/record/RecordPage';
+import { InstrumentWorkbench } from '../../src/components/shared/record/InstrumentWorkbench';
 import { FilterToolbar, ViewModeToggle } from '../../src/components/shared/FilterToolbar';
 import { AlertDialogFooter } from '../../src/components/ui/alert-dialog';
 import { DialogFooter } from '../../src/components/ui/dialog';
 import { Sheet, SheetFooter, SheetTrigger } from '../../src/components/ui/sheet';
 import { workbenchFocusIndex } from '../../src/lib/workbench-keyboard';
+
+test('a row workbench reads left to right before moving to the next row', () => {
+  const ids = ['claim', 'tools', 'grounds', 'calibrate', 'trace', 'revise'];
+  const html = renderToStaticMarkup(createElement(InstrumentWorkbench, {
+    label: 'Position workbench', layout: 'rows', defaultValue: 'claim',
+    stops: ids.map(id => ({ id, label: id })),
+    primary: ['claim', 'grounds', 'trace'], secondary: ['tools', 'calibrate', 'revise'],
+    panels: Object.fromEntries(ids.map(id => [id, createElement('div', { 'data-test-panel': id })])),
+  }));
+  assert.match(html, /data-layout="rows"/);
+  assert.deepEqual([...html.matchAll(/data-test-panel="([^"]+)"/g)].map(match => match[1]), ids);
+  assert.equal((html.match(/aria-selected="true"/g) || []).length, 1);
+});
 
 test('arrow keys and Home/End move focus without treating activation keys as navigation', () => {
   assert.equal(workbenchFocusIndex('ArrowRight', 3, 4), 0);

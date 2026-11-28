@@ -77,64 +77,23 @@ export function archSpans(count: number) {
 }
 
 export function PositionArch({
-  assumptions, confidence, supportCount, challengeCount, onSaveAssumptions, className,
+  assumptions, pulled, supportCount, challengeCount, className,
 }: {
   assumptions: string[];
-  confidence: number;
+  pulled: ReadonlySet<number>;
   supportCount: number;
   challengeCount: number;
-  onSaveAssumptions?: (assumptions: string[]) => Promise<void>;
   className?: string;
 }) {
   const stones = assumptions.map((text) => text.trim()).filter(Boolean);
-  const [pulled, setPulled] = useState<Set<number>>(new Set());
-  const [addedText, setAddedText] = useState('');
-  const [edit, setEdit] = useState<{ index: number; text: string } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const savingRef = useRef(false);
   const spans = archSpans(stones.length);
-
-  const toggle = (index: number) => setPulled((current) => {
-    const next = new Set(current);
-    if (next.has(index)) next.delete(index); else next.add(index);
-    return next;
-  });
-
   const load = Math.min(challengeCount, MAX_LOAD);
-
-  const save = async (next: string[]) => {
-    if (!onSaveAssumptions || savingRef.current) return;
-    savingRef.current = true;
-    setSaving(true);
-    setError('');
-    try {
-      await onSaveAssumptions(next);
-      setEdit(null);
-      setAddedText('');
-      setPulled(new Set());
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save this assumption. Try again.');
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-  };
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const text = (edit ? edit.text : addedText).trim();
-    if (!text) return;
-    void save(edit ? stones.map((stone, index) => index === edit.index ? text : stone) : [...stones, text]);
-  };
 
   return (
     <section className={cn('noesis-arch', className)} data-tone="position" aria-label="What holds this claim up">
       <div className="noesis-arch__head">
         <Eyebrow as="h3">What holds it up</Eyebrow>
-        <div className="flex items-center gap-2">
-          {stones.length > 0 && <span className="noesis-arch__hint">Test an assumption</span>}
-          <InstrumentHelp instrument="arch" />
-        </div>
+        <InstrumentHelp instrument="arch" />
       </div>
 
       <svg viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} role="img" className="noesis-arch__draw"
@@ -149,7 +108,7 @@ export function PositionArch({
         <text x={CX} y={GROUND + 34} className="noesis-arch__keylabel" textAnchor="middle">SUPPORTING GROUNDS</text>
 
         {/* Recorded challenges press on the extrados. */}
-        <g className="noesis-arch__load" aria-hidden="true">
+        <g className="noesis-arch__load" data-tone="challenge" aria-hidden="true">
           {Array.from({ length: load }, (_, index) => {
             const x = CX - (load - 1) * 17 + index * 34;
             return (
@@ -166,17 +125,13 @@ export function PositionArch({
 
       <div className="noesis-arch__read">
         <span>
-          <Eyebrow>Stated confidence</Eyebrow>
-          <b className="noesis-arch__figure">{confidence}%</b>
-        </span>
-        <span>
           <Eyebrow>Supporting grounds</Eyebrow>
           <b className="noesis-arch__verdict">{supportCount}</b>
         </span>
         {challengeCount > 0 && (
           <span>
-            <Eyebrow>Under load</Eyebrow>
-            <b className="noesis-arch__verdict">{challengeCount} {challengeCount === 1 ? 'challenge' : 'challenges'}</b>
+            <Eyebrow tone="challenge">Challenges</Eyebrow>
+            <b className="noesis-arch__verdict">{challengeCount}</b>
           </span>
         )}
       </div>
@@ -184,8 +139,52 @@ export function PositionArch({
       <div aria-live="polite">
         {pulled.size > 0 ? <p className="noesis-arch__note">
           {pulled.size === 1 ? 'If this assumption did not hold, which grounds would still support the claim?' : 'If these assumptions did not hold, which grounds would still support the claim?'} Your stated confidence is unchanged.
-        </p> : !stones.length ? <p className="noesis-arch__note">No explicit assumptions recorded.</p> : null}
+        </p> : null}
       </div>
+    </section>
+  );
+}
+
+export function PositionAssumptions({ assumptions, pulled, onToggle, onSave }: {
+  assumptions: string[];
+  pulled: ReadonlySet<number>;
+  onToggle: (index: number) => void;
+  onSave: (assumptions: string[]) => Promise<void>;
+}) {
+  const stones = assumptions.map(text => text.trim()).filter(Boolean);
+  const [addedText, setAddedText] = useState('');
+  const [edit, setEdit] = useState<{ index: number; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const savingRef = useRef(false);
+
+  const save = async (next: string[]) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setError('');
+    try {
+      await onSave(next);
+      setEdit(null);
+      setAddedText('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save this assumption. Try again.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  };
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = (edit ? edit.text : addedText).trim();
+    if (!text) return;
+    void save(edit ? stones.map((stone, index) => index === edit.index ? text : stone) : [...stones, text]);
+  };
+
+  return (
+    <section aria-label="Assumptions" className="mt-4 grid min-w-0 gap-2 border-t border-border pt-3">
+      <Eyebrow as="h3">Assumptions</Eyebrow>
+      {!stones.length && <p className="noesis-arch__note">No explicit assumptions recorded.</p>}
       {stones.length > 0 && <ul aria-label="Assumptions" className="noesis-arch__stones max-h-60 overflow-y-auto overscroll-contain">
         {stones.map((text, index) => (
           <li key={index} className="flex min-w-0 items-start gap-1">
@@ -201,19 +200,19 @@ export function PositionArch({
               </form>
             ) : <>
               <button type="button" className="noesis-arch__pull min-w-0 flex-1" aria-pressed={pulled.has(index)}
-                onClick={() => toggle(index)}>
+                onClick={() => onToggle(index)}>
                 <span className="noesis-arch__n">{index + 1}</span>
                 <span className="noesis-arch__text break-words">{text}</span>
                 <span className="noesis-arch__state" aria-hidden="true">{pulled.has(index) ? 'pulled' : 'bearing'}</span>
               </button>
-              {onSaveAssumptions && <IconButton label={`Edit assumption ${index + 1}`} variant="ghost" disabled={saving || Boolean(edit)}
-                onClick={() => { setEdit({ index, text }); setError(''); }}><Pencil className="size-4" /></IconButton>}
+              <IconButton label={`Edit assumption ${index + 1}`} variant="ghost" disabled={saving || Boolean(edit)}
+                onClick={() => { setEdit({ index, text }); setError(''); }}><Pencil className="size-4" /></IconButton>
             </>}
           </li>
         ))}
       </ul>}
 
-      {onSaveAssumptions && !edit && <form onSubmit={submit} className="flex flex-wrap items-start gap-2">
+      {!edit && <form onSubmit={submit} className="flex flex-wrap items-start gap-2">
         <Textarea aria-label="New assumption" placeholder="What does this claim depend on?" value={addedText}
           onChange={event => setAddedText(event.target.value)} rows={2} disabled={saving} className="min-w-32 flex-1" />
         <Button type="submit" size="sm" disabled={saving || !addedText.trim()}>Add assumption</Button>

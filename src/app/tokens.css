@@ -167,6 +167,7 @@
 [data-tone="concept"] { --tone: var(--kind-concept); }
 [data-tone="inquiry"] { --tone: var(--kind-inquiry); }
 [data-tone="position"] { --tone: var(--kind-position); }
+[data-tone="challenge"] { --tone: var(--stage-integrate); }
 [data-tone="practice"] { --tone: var(--kind-practice); }
 [data-tone="work"] { --tone: var(--kind-work); }
 [data-tone="exercise"] { --tone: var(--kind-exercise); }
