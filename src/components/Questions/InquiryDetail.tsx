@@ -765,13 +765,12 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
         }} />
 
       <RecordFooter>
-        <FooterSection title="Connections" count={sources.length + beliefs.length + drafts.length + practices.length + conceptNames.length} defaultOpen>
+        <FooterSection title="Connections" count={sources.length + beliefs.length + drafts.length + practices.length} defaultOpen>
           <Connections groups={[
             { type: 'Sources', tone: 'source', items: sources.map((source) => ({ id: source.id, label: source.title, meta: source.creator || undefined })) },
             { type: 'Positions', tone: 'position', items: beliefs.map((belief) => ({ id: belief.id, label: belief.title, meta: `${belief.confidence}% confidence`, onOpen: () => onOpenPosition(belief.id) })) },
             { type: 'Works', tone: 'work', items: drafts.map((work) => ({ id: work.id, label: work.title || 'Untitled', manuallyLinked: isManualInquiryLink(question, 'work', work.id), onOpen: () => onOpenWork(work.id) })) },
             { type: 'Praxis', tone: 'practice', items: practices.map((practice) => ({ id: practice.id, label: practice.title, meta: practice.status.replace(/_/g, ' '), manuallyLinked: isManualInquiryLink(question, 'practice', practice.id), onOpen: () => onOpenPractice(practice.id) })) },
-            { type: 'Concepts', tone: 'concept', items: conceptNames.map((name) => ({ id: name, label: name })) },
           ]} />
         </FooterSection>
 
