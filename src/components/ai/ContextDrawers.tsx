@@ -1,15 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { doc, runTransaction } from 'firebase/firestore';
+import { useRef, useState } from 'react';
 import { FolderOpen, Save } from 'lucide-react';
-import { initializeFirebase } from '@/firebase';
-import { useDoc } from '@/firebase/firestore/use-doc';
+import { useContextShelf } from '@/components/ai/use-context-shelf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { MAX_SAVED_DESKS, readDeskMembership, readSavedDesks, replaceSavedDesk, type DeskMembership, type SavedContextDesk } from '@/lib/saved-context-desks';
+import { MAX_SAVED_DESKS, readDeskMembership, replaceSavedDesk, type DeskMembership, type SavedContextDesk } from '@/lib/saved-context-desks';
 
 /**
  * Drawers: a named set you built on the Desk and can come back to.
@@ -22,9 +20,7 @@ import { MAX_SAVED_DESKS, readDeskMembership, readSavedDesks, replaceSavedDesk, 
  * today but were not in the Drawer when you saved it.
  */
 export function ContextDrawers({ uid, membership, onOpen }: { uid: string; membership: DeskMembership; onOpen: (membership: DeskMembership) => void }) {
-  const ref = useMemo(() => doc(initializeFirebase().firestore, 'users', uid, 'settings', 'contextDesks'), [uid]);
-  const { data, loading, error } = useDoc(ref);
-  const drawers = useMemo(() => readSavedDesks(data?.desks), [data]);
+  const { entries: drawers, loading, error, update } = useContextShelf(uid, 'drawer');
   const [opened, setOpened] = useState<SavedContextDesk | null>(null);
   const [pick, setPick] = useState('');
   const [name, setName] = useState('');
@@ -61,11 +57,7 @@ export function ContextDrawers({ uid, membership, onOpen }: { uid: string; membe
     try {
       const id = prior?.id ?? crypto.randomUUID();
       const next = mode === 'delete' ? null : { ...normalized, id, revision: crypto.randomUUID(), name: name.trim() };
-      await runTransaction(ref.firestore, async transaction => {
-        const doc = await transaction.get(ref);
-        const desks = replaceSavedDesk(readSavedDesks(doc.data()?.desks), id, prior?.revision ?? null, next);
-        transaction.set(ref, { schemaVersion: 1, desks });
-      });
+      await update(current => replaceSavedDesk(current, id, prior?.revision ?? null, next));
       setOpened(next); setPick(next?.id ?? '');
       if (!next) setName('');
       setMessage(next ? 'Drawer saved to your account.' : 'Drawer deleted. Its records are untouched, and your current selection is still on the Desk.');

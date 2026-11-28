@@ -265,7 +265,14 @@ export interface ReadingSession {
   durationSeconds?: number;
   totalElapsedSeconds?: number;
   countdownTargetSeconds?: number;
+  section?: string;
+  intent?: string;
   notes?: string;
+  reflection?: {
+    takeaway?: string;
+    effect?: string;
+    openQuestion?: string;
+  };
   status?: 'active' | 'paused' | 'completed' | 'abandoned';
   pauseStartedAt?: string;
   totalPausedSeconds?: number;
@@ -384,6 +391,7 @@ export interface VaultEntry extends NoesisStageState {
   confidenceReasoning?: string;
   assumptions?: string[];
   falsification?: string;
+  scopeCheck?: import('./position-scope-check').PositionScopeCheck;
   consequences?: string[];
   applications?: string[];
   tags: string[];
@@ -441,6 +449,8 @@ export interface Concept extends NoesisStageState {
   edgeCases?: string[];
   /** Why a case was moved into or out of "fits", keyed by the case text. */
   caseReasons?: Record<string, string>;
+  boundaryCaseNumbers?: { text: string; number: number }[];
+  boundaryNextNumber?: number;
   boundaryReview?: string;
   links: string[];
   sourceIds: string[];
@@ -501,11 +511,13 @@ export interface Question extends NoesisStageState {
   beliefIds?: string[];
   draftIds?: string[];
   practiceIds?: string[];
+  manualConnectionKeys?: Array<`${'work' | 'practice'}:${string}`>;
   type?: 'open' | 'annotation' | 'manual';
   sourceAnnotationId?: string;
   annotationOrigins?: import('./ai-provenance').AnnotationOrigin[];
   sourceWorkId?: string;
   sourceDocumentId?: string;
+  annotationHandoffNote?: string;
   dateCreated: string;
   dateUpdated?: string;
 }
@@ -644,6 +656,7 @@ export interface Practice extends NoesisStageState {
   alternativeExplanation?: string;
   aiOutcomeReview?: string;
   outcomeProvenance?: import('./ai-provenance').ProvenanceRef;
+  creationProvenance?: import('./ai-provenance').ProvenanceRef;
   conclusion?: {
     performedAsIntended?: string;
     whatHappened?: string;
@@ -870,7 +883,7 @@ export interface GoalType {
 export type IntellectualGoalKind = 'consumption' | 'understanding' | 'inquiry' | 'position' | 'expression' | 'practice' | 'transformation' | 'reflection' | 'custom';
 export type IntellectualGoalStatus = 'planned' | 'active' | 'stalled' | 'under_review' | 'completed' | 'abandoned' | 'transformed' | 'archived';
 export type SourceGoalMeasure = 'finished' | 'fully_reflected';
-export type InquiryGoalMeasure = 'active' | 'answered' | 'resolved';
+export type InquiryGoalMeasure = 'active' | 'provisional' | 'answered' | 'resolved';
 export type PositionGoalMeasure = 'reviewed' | 'revised' | 'confident';
 export type PracticeGoalMeasure = 'completed' | 'logged_days' | 'log_streak';
 export type WorkGoalMeasure = 'completed' | 'published';
@@ -883,6 +896,8 @@ export interface CommitmentCheckIn {
   status: 'completed' | 'skipped';
   note?: string;
 }
+
+export type CommitmentTracking = 'automatic' | 'manual';
 
 export interface GoalItem {
   id: string;
@@ -898,7 +913,9 @@ export interface GoalItem {
   practiceMeasure?: PracticeGoalMeasure;
   workMeasure?: WorkGoalMeasure;
   commitmentAction?: string;
+  commitmentTracking?: CommitmentTracking;
   commitmentPositionId?: string | null;
+  commitmentInquiryId?: string | null;
   commitmentFrequency?: CommitmentFrequency;
   commitmentReviewDate?: string;
   commitmentCheckIns?: CommitmentCheckIn[];

@@ -30,6 +30,9 @@ interface EntityPickerProps {
   compact?: boolean;
   inline?: boolean;
   selectedTone?: BadgeTone;
+  triggerOnly?: boolean;
+  triggerClassName?: string;
+  disabled?: boolean;
   className?: string;
 }
 
@@ -46,6 +49,9 @@ export function EntityPicker({
   compact,
   inline,
   selectedTone,
+  triggerOnly,
+  triggerClassName,
+  disabled,
   className,
 }: EntityPickerProps) {
   const [open, setOpen] = useState(false);
@@ -78,7 +84,7 @@ export function EntityPicker({
   }, [open]);
 
   const createItem = async () => {
-    if (!onCreate || !canCreate || creationLock.current) return;
+    if (!onCreate || !canCreate || disabled || creationLock.current) return;
     creationLock.current = true;
     setCreating(true);
     setCreationError('');
@@ -95,7 +101,7 @@ export function EntityPicker({
   };
 
   const selectActiveItem = () => {
-    if (creating) return;
+    if (creating || disabled) return;
     const item = filtered[activeIndex];
     if (item) {
       onToggle(item.id);
@@ -116,7 +122,8 @@ export function EntityPicker({
               type="button"
               variant="outline"
               size="sm"
-              className={cn('h-8 rounded-full border-dashed px-3 noesis-eyebrow noesis-eyebrow--sm', compact && 'h-7 px-2', inline && 'order-2')}
+              disabled={disabled && !open}
+              className={cn('h-8 rounded-full border-dashed px-3 noesis-eyebrow noesis-eyebrow--sm', compact && 'h-7 px-2', inline && 'order-2', triggerClassName)}
               onPointerDown={(event) => event.stopPropagation()}
             >
               <Plus className="mr-1.5 size-3" /> {triggerLabel}
@@ -176,6 +183,7 @@ export function EntityPicker({
                       type="button"
                       role="option"
                       aria-selected={isSelected}
+                      disabled={disabled || creating}
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={(event) => {
                         event.preventDefault();
@@ -200,7 +208,7 @@ export function EntityPicker({
                 {canCreate && (
                   <button
                     type="button"
-                    disabled={creating}
+                    disabled={disabled || creating}
                     onClick={(event) => {
                       event.preventDefault();
                       void createItem();
@@ -218,16 +226,16 @@ export function EntityPicker({
           </PopoverContent>
         </Popover>
       </div>
-      <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'contents')}>
+      {!triggerOnly && <div className={cn('flex min-h-[42px] flex-wrap items-start gap-1.5 rounded-lg border border-dashed border-border bg-muted/5 p-2', inline && 'contents')}>
         {selected.length > 0 ? selected.map((item) => (
           <Badge key={item.id} variant="secondary" tone={selectedTone} className={cn('flex shrink-0 items-center gap-1 font-body text-xs', !selectedTone && 'bg-card', inline && 'order-1')}>
             <span className="max-w-[180px] truncate italic">{item.label}</span>
-            <button type="button" onClick={(event) => { event.stopPropagation(); onToggle(item.id); }} aria-label={`Remove ${item.label}`} className="ml-1 hover:text-destructive">
+            <button type="button" disabled={disabled || creating} onClick={(event) => { event.stopPropagation(); onToggle(item.id); }} aria-label={`Remove ${item.label}`} className="ml-1 hover:text-destructive">
               <X className="size-3" />
             </button>
           </Badge>
         )) : <span className="px-1 py-1 text-xs italic text-muted-foreground">{emptySelectedLabel}</span>}
-      </div>
+      </div>}
     </div>
   );
 }

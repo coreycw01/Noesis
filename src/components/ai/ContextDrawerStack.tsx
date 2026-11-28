@@ -1,14 +1,12 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { doc, runTransaction } from 'firebase/firestore';
+import { useRef, useState } from 'react';
 import { Check, Pencil, Plus, Settings2, Trash2 } from 'lucide-react';
-import { initializeFirebase } from '@/firebase';
-import { useDoc } from '@/firebase/firestore/use-doc';
+import { useContextShelf } from '@/components/ai/use-context-shelf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
-import { MAX_SAVED_DESKS, readDeskMembership, readSavedDesks, replaceSavedDesk, type DeskMembership, type SavedContextDesk } from '@/lib/saved-context-desks';
+import { MAX_SAVED_DESKS, readDeskMembership, replaceSavedDesk, type DeskMembership, type SavedContextDesk } from '@/lib/saved-context-desks';
 
 /**
  * The cabinet. Each drawer is a whole saved desk: open one and it becomes what
@@ -22,9 +20,7 @@ export function ContextDrawerStack({ uid, membership, openId, onOpen, onOpened }
   onOpen: (membership: DeskMembership, drawer: SavedContextDesk) => void;
   onOpened: (id: string | null) => void;
 }) {
-  const ref = useMemo(() => doc(initializeFirebase().firestore, 'users', uid, 'settings', 'contextDesks'), [uid]);
-  const { data, loading, error } = useDoc(ref);
-  const drawers = useMemo(() => readSavedDesks(data?.desks), [data]);
+  const { entries: drawers, loading, error, update } = useContextShelf(uid, 'drawer');
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,11 +38,7 @@ export function ContextDrawerStack({ uid, membership, openId, onOpen, onOpened }
     if (lock.current) return;
     lock.current = true; setBusy(true); setMessage('');
     try {
-      await runTransaction(ref.firestore, async (transaction) => {
-        const snapshot = await transaction.get(ref);
-        const desks = replaceSavedDesk(readSavedDesks(snapshot.data()?.desks), id, prior?.revision ?? null, next);
-        transaction.set(ref, { schemaVersion: 1, desks });
-      });
+      await update(current => replaceSavedDesk(current, id, prior?.revision ?? null, next));
       setMessage(note);
     } catch (problem) {
       setMessage(problem instanceof Error && problem.message.startsWith('This desk changed')

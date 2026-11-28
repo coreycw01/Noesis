@@ -122,7 +122,7 @@ import { atlasNodePositionPatch, writeAtlasNodePosition, type AtlasNodePosition 
 import { publishProfileSelection } from '@/lib/public-profile-publication';
 import { addedAiReviewEvent } from '@/lib/accepted-ai-event';
 import { deletedAnnotationSource, recentRecoverableDeletions, sourceRecoveryAnnotations } from '@/lib/deleted-items';
-import { inquiryPositionEvidence, inquirySourceIds, isInquiryClosed } from '@/lib/inquiry-state';
+import { inquiryConnectionKey, inquiryPositionEvidence, inquirySourceIds, isCompleteManualInquiryLink, isInquiryClosed } from '@/lib/inquiry-state';
 import { inquiryAiReviewPatch, inquiryHistorySnapshot, makeInquiryAiProvenance, writeInquiryAiReview, type InquiryAiReview } from '@/lib/inquiry-ai-review';
 import { acceptedTextHash, promotedAnnotationOrigins, type AiProvenanceRecord } from '@/lib/ai-provenance';
 import type { PositionReviewApproval } from '@/lib/position-ai-review';
@@ -1896,6 +1896,7 @@ export function ReadexWorkspace({
       confidence: normalizePositionConfidence(data.confidence),
       status: data.status || 'active',
       positionKind: data.positionKind || 'interpretive',
+      rationale: data.rationale || '',
       confidenceReasoning: data.confidenceReasoning || '',
       assumptions: data.assumptions || [],
       falsification: data.falsification || '',
@@ -2044,7 +2045,7 @@ export function ReadexWorkspace({
       profilePatch.abandonedAt = today();
       profilePatch.reviewStatus = 'abandoned';
       positionEvents.push({ collection: refs.thinkingEvents as any, userId: effectiveUid, eventType: 'position_abandoned', entityType: 'position', entityId: entry.id, before: previous, after: nextEntry, origin: 'user', summary: `Position abandoned: ${entry.title}`, importance: 'major', epistemicStatus: 'abandoned', sourceActionId: makeActionId() });
-    } else {
+    } else if (!confidenceChanged || changeClassification.eventType !== 'confidence_changed') {
       positionEvents.push({ collection: refs.thinkingEvents as any, userId: effectiveUid, eventType: changeClassification.eventType, entityType: 'position', entityId: entry.id, before: previous || null, after: nextEntry, origin: 'user', summary: `${changeClassification.eventType === 'position_revised' ? 'Position revised' : 'Position edited'}: ${entry.title}`, importance: changeClassification.importance, sourceActionId: makeActionId() });
     }
     await commitAndReport({
@@ -2157,7 +2158,7 @@ export function ReadexWorkspace({
       confidence: normalizePositionConfidence(position.confidence),
       status: 'developing',
       positionKind: 'interpretive',
-      confidenceReasoning: question.resolutionSummary?.trim() || '',
+      rationale: question.resolutionSummary?.trim() || '',
       assumptions: question.assumptions || [],
       falsification: '',
       consequences: [],
@@ -2248,6 +2249,7 @@ export function ReadexWorkspace({
       practiceIds: uniqueIds(data.practiceIds || []),
       type: data.type || 'manual',
       sourceAnnotationId: data.sourceAnnotationId || '',
+      ...(data.annotationHandoffNote?.trim() ? { annotationHandoffNote: data.annotationHandoffNote.trim().slice(0, 1000) } : {}),
       ...(annotationOrigins.length ? { annotationOrigins } : {}),
       sourceWorkId: data.sourceWorkId || '',
       sourceDocumentId: data.sourceDocumentId || '',
@@ -2297,7 +2299,7 @@ export function ReadexWorkspace({
     const questionRef = doc(refs.questions, question.id);
     const previous = questions.find((item) => item.id === question.id);
     if (!previous || question.dateUpdated !== previous.dateUpdated) throw new WorkspaceRecordChangedError();
-    const { contextDeskFindings: _deskFindings, ...editableQuestion } = question;
+    const { contextDeskFindings: _deskFindings, manualConnectionKeys: _manualLinks, ...editableQuestion } = question;
     const nextQuestion = { ...editableQuestion, dateUpdated: today() };
     const resolved = question.status === 'resolved' || question.status === 'answered';
     const reviewNotes = (item?: Question) => item?.investigationNotes?.filter((note) => note.origin === 'ai-assisted')
@@ -2396,15 +2398,19 @@ export function ReadexWorkspace({
     const item = (type === 'work' ? drafts : practices).find((record) => record.id === itemId);
     if (!inquiry || !item) throw new Error('The inquiry or linked item is no longer available.');
     const field = type === 'work' ? 'draftIds' : 'practiceIds';
-    if (inquiry[field]?.includes(itemId) && item.questionIds?.includes(inquiryId)) return;
+    if (isCompleteManualInquiryLink(inquiry, type, item)) return;
     const dateUpdated = today();
-    const appendId = (ids: string[] | undefined, id: string) =>
+    const appendId = <T extends string>(ids: T[] | undefined, id: T) =>
       isOfflineReviewPreview ? uniqueIds([...(ids || []), id]) : arrayUnion(id);
     await commitAndReport({
       db,
       ref: doc(refs.questions, inquiryId),
       operation: 'update',
-      data: { [field]: appendId(inquiry[field], itemId), dateUpdated },
+      data: {
+        [field]: appendId(inquiry[field], itemId),
+        manualConnectionKeys: appendId(inquiry.manualConnectionKeys, inquiryConnectionKey(type, itemId)),
+        dateUpdated,
+      },
       relatedUpdates: [{
         ref: doc(type === 'work' ? refs.drafts : refs.practices, itemId),
         data: { questionIds: appendId(item.questionIds, inquiryId), dateUpdated },
@@ -2723,7 +2729,7 @@ export function ReadexWorkspace({
     return payload as Practice;
   };
 
-  const updatePractice = async (practice: Practice, approval?: PracticeReviewApproval) => {
+  const updatePractice = async (practice: Practice, approval?: PracticeReviewApproval, checkInWrite?: import('@/lib/practice-observations').PracticeCheckInWrite) => {
     const practiceRef = doc(refs.practices, practice.id);
     if (approval) {
       const date = today();
@@ -2762,7 +2768,7 @@ export function ReadexWorkspace({
       dateUpdated: today(),
     };
     const previousLogsById = new Map((previous?.logs || []).map((log) => [log.id, log]));
-    const practiceLogWrites = (nextPractice.logs || [])
+    const practiceLogWrites = (checkInWrite ? practice.logs || [] : nextPractice.logs)
       .filter((log) => JSON.stringify(previousLogsById.get(log.id) || null) !== JSON.stringify(log))
       .map((log) => ({
         ref: doc(refs.practiceLogs, historyRecordId(practice.id, log.id)),
@@ -2782,7 +2788,10 @@ export function ReadexWorkspace({
       ref: practiceRef as any,
       operation: 'update',
       data: nextPractice,
-      relatedWrites: practiceLogWrites,
+      relatedWrites: [...practiceLogWrites, ...(checkInWrite?.removedLogId ? [{
+        ref: doc(refs.practiceLogs, historyRecordId(practice.id, checkInWrite.removedLogId)), operation: 'delete' as const,
+      }] : [])],
+      requireUnchanged: checkInWrite ? { ref: practiceRef, field: 'dateUpdated', value: checkInWrite.expectedUpdatedAt } : undefined,
       createIfMissing,
       thinkingEvents: acceptedAiEvents('practice', practice.id, previous?.aiReviewHistory, nextPractice.aiReviewHistory),
       thinkingEvent: eventType !== 'edited' ? {

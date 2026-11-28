@@ -50,13 +50,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { markupTone } from '@/lib/markup-kinds';
 import { iconForNoesisView } from '@/lib/noesis-icons';
 import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { Pill } from '@/components/ui/pill';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
@@ -67,7 +67,9 @@ import { DrawingOverlayToolbar } from './DrawingOverlayToolbar';
 import { FloatingWorkToolWindow } from './FloatingWorkToolWindow';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
 import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
+import { AiCreationHistory } from '@/components/ai/AiCreationHistory';
 import { contextDeskWorkTarget } from '@/lib/context-desk-work';
+import { ContextDeskFiling } from '@/components/ai/ContextDeskFiling';
 import { PageSettingsControl, PageViewControls } from './PageViewControls';
 import { isStructuredWorkStyle, StructuredWorkSurface, workToolLabel, type StructuredWorkStyle } from './StructuredWorkSurface';
 import type { Annotation, Concept, DocumentPageSettings, DocumentPageSize, DocumentPaperColor, DocumentPaperPattern, DocumentSettings, DocumentViewMode, Draft, DraftStatus, DraftType, DrawingDocumentState, DrawingStroke, DrawingTool, ExternalDocProvider, Media, Question, UserPreferences, VaultEntry, WorkDocumentPage, WorkMark, WorkTemplateData, WorkToolSection, WritingStyle } from '@/lib/types';
@@ -76,7 +78,8 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { escapeTextAsHtml, sanitizeHtml } from '@/lib/sanitize';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill } from '@/components/shared/FilterToolbar';
+import { COLLECTION_SORT_OPTIONS, sortCollection, type CollectionOrder } from '@/lib/collection-sort';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { searchMatches } from '@/lib/search';
@@ -398,6 +401,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [filter, setFilter] = useState<WorkFilter>('all');
   const [workTab, setWorkTab] = useState<WorkTab>('all');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<CollectionOrder>('newest');
   const [isWorkTypeOpen, setIsWorkTypeOpen] = useState(false);
   const [isNoteTypeOpen, setIsNoteTypeOpen] = useState(false);
   const [isDocOpen, setIsDocOpen] = useState(false);
@@ -409,6 +413,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const recoveryBaseRef = useRef<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Draft | null>(null);
+  const [pageToRemove, setPageToRemove] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<PageViewMode>('vertical-continuous');
   const [pageSize, setPageSize] = useState<PageSize>('letter');
@@ -431,6 +436,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const [playingWorkId, setPlayingWorkId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [mobileRailOpen, setMobileRailOpen] = useState(false);
+  const [mobileRailTab, setMobileRailTab] = useState<'reel' | 'linked'>('reel');
   const [writingFocus, setWritingFocus] = useState(false);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const latestDraftRef = useRef<Draft | null>(null);
@@ -485,12 +491,16 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
   useEffect(() => {
     setEditorRibbon(activeFromStore?.activeRibbon || 'writing');
+  }, [activeFromStore?.activeRibbon, activeFromStore?.id]);
+
+  useEffect(() => {
     setCurrentPageId('main');
     setFocusedToolId(null);
+    setPageToRemove(null);
     autosaveErrorShownRef.current = false;
     autosavePausedRef.current = false;
     setDrawingRedoByPage({});
-  }, [activeFromStore?.activeRibbon, activeFromStore?.id]);
+  }, [activeFromStore?.id]);
 
   useEffect(() => {
     try {
@@ -509,7 +519,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     }
   }, []);
 
-  const visibleDrafts = drafts
+  const visibleDrafts = sortCollection(drafts
     .filter((draft) => {
       const category = draft.workCategory || workCategoryForDraft(draft.type);
       if (workTab !== 'all' && category !== workTab) return false;
@@ -530,8 +540,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
       ]),
       ...questions.filter((question) => (draft.questionIds || []).includes(question.id)).map((question) => ({ value: question.text, label: 'inquiry' })),
       ...vault.filter((position) => (draft.beliefIds || []).includes(position.id)).map((position) => ({ value: position.title, label: 'position' })),
-    ]))
-    .sort((a, b) => new Date(b.dateUpdated).getTime() - new Date(a.dateUpdated).getTime());
+    ])), sortOrder, item => item.title, item => item.dateUpdated || item.dateCreated);
 
   const workStats = useMemo(() => ({
     total: drafts.length,
@@ -605,10 +614,11 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   };
 
   const updateDocumentSettings = useCallback((patch: Partial<DocumentSettings>) => {
-    if (!active) return;
+    const current = latestDraftRef.current;
+    if (!current) return;
     const defaults = documentDefaultsForWriting(activeWritingStyle);
-    updateActive({ documentSettings: { ...defaults, ...active.documentSettings, ...patch } });
-  }, [active, activeWritingStyle, updateActive]);
+    updateActive({ documentSettings: { ...defaults, ...current.documentSettings, ...patch } });
+  }, [activeWritingStyle, updateActive]);
 
   const updatePageSettings = useCallback((pageId: string, patch: DocumentPageSettings) => {
     const current = latestDraftRef.current;
@@ -1102,6 +1112,28 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const updateToolSectionPlacement = useCallback((sectionId: string, placement: NonNullable<NonNullable<WorkToolSection['window']>['placement']>) => {
     updateToolSectionWindow(sectionId, { placement });
   }, [updateToolSectionWindow]);
+  const moveDocumentTool = (sectionId: string, pageId: string, geometry?: { x: number; y: number }) => {
+    const current = latestDraftRef.current;
+    if (!current || (pageId !== 'main' && !current.documentPages?.some(page => page.id === pageId))) return;
+    const sections = toolSectionsForDraft(current, activeWritingStyle);
+    const tool = sections.find(section => section.id === sectionId);
+    if (!tool || (tool.pageId || 'main') === pageId) return;
+    updateToolSections(sections.map(section => section.id === sectionId ? {
+      ...section,
+      pageId,
+      window: geometry ? { width: 600, height: 430, ...section.window, ...geometry } : section.window,
+    } : section));
+    setFocusedToolId(sectionId);
+    setCurrentPageId(pageId);
+    window.requestAnimationFrame(() => {
+      const page = document.getElementById(`work-page-${pageId}`);
+      const element = document.getElementById(`work-tool-${sectionId}`);
+      if (element?.getClientRects().length && getComputedStyle(element).position !== 'fixed') {
+        element.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'nearest' });
+      } else page?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' });
+      element?.focus({ preventScroll: true });
+    });
+  };
 
   const activeDocumentPages = useMemo(() => active?.documentPages || [], [active?.documentPages]);
 
@@ -1158,7 +1190,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
     };
     updateDocumentPages([...activeDocumentPages, page]);
     setCurrentPageId(page.id);
-    window.setTimeout(() => document.getElementById(`work-page-${page.id}`)?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' }), 0);
+    window.requestAnimationFrame(() => document.getElementById(`work-page-${page.id}`)?.scrollIntoView({ behavior: 'instant', block: 'start' }));
   }, [activeDocumentPages, updateDocumentPages]);
   const updateDocumentPage = useCallback((pageId: string, patch: Partial<WorkDocumentPage>) => {
     const pages = latestDraftRef.current?.documentPages || [];
@@ -1201,16 +1233,20 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const removeDocumentPage = useCallback((pageId: string) => {
     const current = latestDraftRef.current;
     if (!current) return;
+    const templateData = current.templateData;
     updateActive({
       documentPages: (current.documentPages || []).filter((page) => page.id !== pageId),
       pageSettings: removeDocumentPageSettings(current.pageSettings, pageId),
+      ...(templateData?.sections?.some(section => section.pageId === pageId) && {
+        templateData: { ...templateData, sections: templateData.sections.map(section => section.pageId === pageId ? { ...section, pageId: 'main' } : section) },
+      }),
     });
     setCurrentPageId('main');
     window.setTimeout(() => document.getElementById('work-page-main')?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' }), 0);
   }, [updateActive]);
   const jumpToDocumentPage = useCallback((pageId: string) => {
     setCurrentPageId(pageId);
-    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: workspaceScrollBehavior(), block: 'start' });
+    document.getElementById(`work-page-${pageId}`)?.scrollIntoView({ behavior: 'instant', block: 'start' });
   }, []);
   const jumpToDocumentTool = useCallback((section: WorkToolSection) => {
     const pageId = section.pageId || 'main';
@@ -1273,9 +1309,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   const mainPaperPattern = mainPageAppearance.paperPattern;
   const currentDocumentPage = activeDocumentPages.find((page) => page.id === currentPageId);
   const resolvedCurrentPageId = (currentDocumentPage || currentPageId === 'main') ? currentPageId : 'main';
-  const currentPageLabel = currentDocumentPage
-    ? currentDocumentPage.title.trim() || 'Untitled page'
-    : 'Main page';
+  const pageOptions = [{ id: 'main', label: 'Main page' }, ...activeDocumentPages.map((page, index) => ({ id: page.id, label: page.title.trim() || `Page ${index + 2}` }))];
+  const currentPageIndex = pageOptions.findIndex(page => page.id === resolvedCurrentPageId);
+  const currentPageLabel = pageOptions[currentPageIndex].label;
   const currentPageAppearance = resolveDocumentPageSettings(
     { pageSize, paperColor, paperPattern },
     active?.pageSettings,
@@ -1301,9 +1337,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         onRemove={() => updateToolSections(activeToolSections.filter((item) => item.id !== section.id))}
         onPatch={(patch) => updateToolSectionWindow(section.id, patch)}
         onPlacementChange={(placement) => updateToolSectionPlacement(section.id, placement)}
-        onMoveToPage={(pageId, geometry) => updateToolSections(activeToolSections.map((item) => item.id === section.id
-          ? { ...item, pageId, window: { width: 600, height: 430, ...(item.window || {}), ...geometry } }
-          : item))}
+        pageOptions={pageOptions}
+        onMoveToPage={(pageId, geometry) => moveDocumentTool(section.id, pageId, geometry)}
       >
         <BufferedStructuredWorkSurface
           embedded
@@ -1324,6 +1359,18 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
   };
 
   if (active) {
+    const conceptPicker = <ConceptTagPicker
+      concepts={concepts}
+      value={active.conceptTags || []}
+      onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
+      onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+      selectedTone="concept"
+      triggerLabel="Add concept"
+      emptySelectedLabel="No concepts linked."
+      triggerClassName="min-h-11"
+      inline
+      className="min-w-0"
+    />;
     const pageTools = activeToolSections.filter((section) => (section.pageId || 'main') === resolvedCurrentPageId);
     const recoveryCanApply = Boolean(pendingRecovery && activeFromStore && !dirty && canApplyWorkRecovery(activeFromStore, pendingRecovery));
     return (
@@ -1390,6 +1437,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                 placeholder={`Untitled ${activeTypeLabel}`}
               />
               <div className="flex shrink-0 items-center justify-end gap-1 border-l border-border/30 pl-2 sm:gap-2">
+                <ContextDeskFiling recordKey={`work:${active.id}`} />
                 {isDocumentSurface && <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={writingFocus ? 'Leave writing focus' : 'Enter writing focus'} aria-pressed={writingFocus} title={writingFocus ? 'Leave writing focus' : 'Writing focus'} onClick={() => setWritingFocus((value) => !value)}><Focus className="size-4" /></Button>}
                 {showExternalDocControls && <Button variant="outline" size="sm" onClick={openDocDialog} className="hidden lg:inline-flex"><Link2 className="mr-2 size-4" />{active.externalDoc ? 'Open' : 'Connect'}</Button>}
                 <div role="status" className="sr-only items-center gap-2 rounded-[var(--button-radius)] border border-border/30 bg-muted/10 px-3 py-1.5 sm:not-sr-only sm:flex">
@@ -1402,8 +1450,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   {saveStatus === 'waiting' ? <CloudAlert className="size-4 sm:mr-2" /> : <Save className="size-4 sm:mr-2" />} <span className="hidden sm:inline">{dirty ? 'Save*' : 'Save'}</span>
                 </Button>
                 {activeCategory === 'writing' && (
-                    <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" title="Version history">
-                    <History className="size-4" /><span className="ml-2 hidden xl:inline">Versions</span>
+                    <Button variant="outline" size="sm" onClick={() => setIsVersionHistoryOpen(true)} className="hidden h-9 rounded-md border-border/60 bg-card px-3 font-bold shadow-sm md:inline-flex" aria-label="Version history" title="Version history">
+                    <History className="size-4" aria-hidden="true" /><span className="ml-2 hidden xl:inline">Versions</span>
                   </Button>
                 )}
                 <DropdownMenu>
@@ -1429,44 +1477,37 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               </div>
             </div>
 
-            <div className={cn('flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2', writingFocus && 'hidden')}>
-              <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
+            <div className={cn('flex min-w-0 flex-wrap items-center gap-2 border-t border-border/20 pt-2', writingFocus && 'xl:hidden')}>
+              {!writingFocus && <Select value={compactWorkStatus(active.status)} onValueChange={(value) => updateActive({ status: value as DraftStatus, activeMode: value === 'drafting' ? 'draft' : 'final' })}>
                 <SelectTrigger className="h-8 w-28 shrink-0 rounded-md border-border/40 bg-background px-2 noesis-eyebrow noesis-eyebrow--sm font-bold shadow-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {WORK_STATUS_OPTIONS.map((status) => <SelectItem key={status.value} value={status.value} className="noesis-eyebrow noesis-eyebrow--sm">{status.label}</SelectItem>)}
                 </SelectContent>
-              </Select>
-              <div className="min-w-0 flex-[1_1_13rem]">
-                <ConceptTagPicker
-                  concepts={concepts}
-                  value={active.conceptTags || []}
-                  onChange={(tags) => updateActive({ conceptTags: normalizeConceptTags(tags) })}
-                  onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                  compact
-                  inline
-                  className="min-w-0"
-                />
-              </div>
+              </Select>}
               <Sheet open={mobileRailOpen} onOpenChange={setMobileRailOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="shrink-0" aria-label="Open linked context" title="Linked context">
-                    <NotebookPen className="mr-2 size-4" /> <span>Context</span>
+                  <Button type="button" variant="outline" size="sm" className="min-h-11 shrink-0">
+                    <NotebookPen className="size-4" aria-hidden="true" /> <span>Studio Reel</span>
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-2xl border-border bg-background p-4">
                   <SheetHeader className="pb-3 text-left">
-                    <SheetTitle className="font-headline text-2xl font-bold italic">Linked context</SheetTitle>
+                    <SheetTitle className="font-headline text-2xl font-bold italic">Studio Reel</SheetTitle>
                   </SheetHeader>
-                  <WorkRailContent
+                  <div className="noesis-rail-tabs mb-3" role="group" aria-label="Studio views">
+                    <button type="button" aria-pressed={mobileRailTab === 'reel'} onClick={() => setMobileRailTab('reel')}>Studio Reel</button>
+                    <button type="button" aria-pressed={mobileRailTab === 'linked'} onClick={() => setMobileRailTab('linked')}>Links</button>
+                  </div>
+                  {mobileRailTab === 'linked' ? <WorkLinks sources={activeSources} positions={activePositions} inquiries={activeInquiries} conceptCount={workConcepts.length} conceptPicker={conceptPicker} /> : <WorkRailContent
                     sources={activeSources}
                     positions={activePositions}
                     inquiries={activeInquiries}
                     concepts={workConcepts}
                     annotations={unusedAnnotations}
                     coherenceSignals={coherenceSignals}
-                  />
+                  />}
                   <AiAssistedHistory entries={active.aiReviewHistory || []} onChange={async (entries) => {
                     if (!await saveActive({ aiReviewHistory: entries })) throw new Error('Could not save this review history.');
                   }} />
@@ -1505,35 +1546,34 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               )}
 
               {showPaperControls && (
-                <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:justify-between sm:overflow-visible sm:pb-0">
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <PageViewControls
-                    className="shrink-0"
                     viewMode={viewMode}
                     onViewModeChange={(next) => { setViewMode(next); updateDocumentSettings({ viewMode: next }); }}
-                    pageSize={pageSize}
-                    onPageSizeChange={(next) => { setPageSize(next); updateDocumentSettings({ pageSize: next }); }}
-                    paperColor={paperColor}
-                    onPaperColorChange={(next) => { setPaperColor(next); updateDocumentSettings({ paperColor: next }); }}
-                    paperPattern={paperPattern}
-                    onPaperPatternChange={(next) => { setPaperPattern(next); updateDocumentSettings({ paperPattern: next }); }}
+                    settings={{ pageSize, paperColor, paperPattern }}
+                    onChange={(patch) => {
+                      if (patch.pageSize) setPageSize(patch.pageSize);
+                      if (patch.paperColor) setPaperColor(patch.paperColor);
+                      if (patch.paperPattern) setPaperPattern(patch.paperPattern);
+                      updateDocumentSettings(patch);
+                    }}
+                    multiplePages={pageOptions.length > 1}
                   />
                   <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="min-w-0 flex-1 justify-start sm:w-auto sm:max-w-[260px]" aria-label={`Document pages. Current page: ${currentPageLabel}`}>
+                        <Button variant="outline" size="sm" className="min-h-10 min-w-0 flex-1 justify-start sm:w-auto sm:max-w-[280px]" aria-label={`Pages. Page ${currentPageIndex + 1} of ${pageOptions.length}: ${currentPageLabel}`}>
                           <ListTree className="size-4 shrink-0 text-accent" />
                           <span className="truncate">{currentPageLabel}</span>
+                          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{currentPageIndex + 1}/{pageOptions.length}</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-72">
                         <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Document pages</DropdownMenuLabel>
-                        <DropdownMenuItem onSelect={() => jumpToDocumentPage('main')} className={cn('cursor-pointer', resolvedCurrentPageId === 'main' && 'text-accent')}>
-                          <FileText className="mr-2 size-4" /> Main page
-                        </DropdownMenuItem>
-                        {activeDocumentPages.map((page, index) => (
-                          <DropdownMenuItem key={page.id} onSelect={() => jumpToDocumentPage(page.id)} className={cn('cursor-pointer', resolvedCurrentPageId === page.id && 'text-accent')}>
-                            <FileText className="mr-2 size-4" />
-                            <span className="min-w-0 flex-1 truncate">{page.title || `Page ${index + 2}`}</span>
+                        {pageOptions.map((page, index) => (
+                          <DropdownMenuItem key={page.id} onSelect={() => jumpToDocumentPage(page.id)} aria-current={resolvedCurrentPageId === page.id ? 'page' : undefined} className={cn('min-h-10 cursor-pointer', resolvedCurrentPageId === page.id && 'text-accent')}>
+                            <span className="w-5 text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+                            <span className="min-w-0 flex-1 truncate">{page.label}</span>
                           </DropdownMenuItem>
                         ))}
                         {!!activeToolSections.length && (
@@ -1544,25 +1584,21 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                               <DropdownMenuItem key={section.id} onSelect={() => jumpToDocumentTool(section)} className={cn('cursor-pointer', focusedToolId === section.id && 'text-accent')}>
                                 <ListTree className="mr-2 size-4" />
                                 <span className="min-w-0 flex-1 truncate">{workToolLabel(section.tool)}</span>
-                                <span className="ml-2 text-label-sm uppercase text-muted-foreground">{section.window?.minimized ? 'Minimized' : section.pageId && section.pageId !== 'main' ? 'Subpage' : 'Main'}</span>
+                                <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">{pageOptions.find(page => page.id === (section.pageId || 'main'))?.label || 'Main page'}</span>
                               </DropdownMenuItem>
                             ))}
                           </>
                         )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={addDocumentPage} className="cursor-pointer font-medium">
-                          <FilePlus2 className="mr-2 size-4 text-accent" /> Add subpage
+                          <FilePlus2 className="mr-2 size-4 text-accent" /> Add page
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <PageSettingsControl
                       pageLabel={currentPageLabel}
-                      pageSize={currentPageAppearance.pageSize}
-                      onPageSizeChange={(next) => updatePageSettings(resolvedCurrentPageId, { pageSize: next })}
-                      paperColor={currentPageAppearance.paperColor}
-                      onPaperColorChange={(next) => updatePageSettings(resolvedCurrentPageId, { paperColor: next })}
-                      paperPattern={currentPageAppearance.paperPattern}
-                      onPaperPatternChange={(next) => updatePageSettings(resolvedCurrentPageId, { paperPattern: next })}
+                      settings={currentPageAppearance}
+                      onChange={(patch) => updatePageSettings(resolvedCurrentPageId, patch)}
                       overridden={Boolean(active.pageSettings?.[resolvedCurrentPageId])}
                       onReset={() => resetPageSettings(resolvedCurrentPageId)}
                     />
@@ -1604,7 +1640,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                       updateActive({ activeRibbon: 'writing' });
                     }}
                   />
-                ) : <FormattingToolbar saveStatus={saveStatus} onOpenDrawing={() => {
+                ) : <FormattingToolbar saveStatus={saveStatus} notebookRuling={currentPageAppearance.paperPattern === 'notebook'} onOpenDrawing={() => {
                   setEditorRibbon('drawing');
                   updateActive({ activeRibbon: 'drawing' });
                 }} onInsertTool={addDocumentTool} onUploadImage={uploadInlineImage} />)}
@@ -1682,7 +1718,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                   overlayBrushSize={writingStrokeSize}
                   overlayOpacity={writingStrokeOpacity}
                   overlayEnabled={editorRibbon === 'drawing'}
-                  inlineTools={inlineToolsForPage('main')}
+                  inlineTools={inlineToolsForPage('main', mainPageAppearance)}
+                  pageCount={pageOptions.length}
                   onCurrentPageChange={setCurrentPageId}
                   subpages={activeDocumentPages.length ? activeDocumentPages.map((page, index) => {
                     const appearance = resolveDocumentPageSettings(
@@ -1691,16 +1728,17 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
                       page.id,
                     );
                     return (
-                      <section key={page.id} id={`work-page-${page.id}`} data-work-page-id={page.id} className="scroll-mt-6">
-                        <div className="mb-3 flex items-center gap-2">
+                      <section key={page.id} id={`work-page-${page.id}`} data-work-page-id={page.id} className={cn('mx-auto w-full scroll-mt-6', appearance.pageSize === 'a4' ? 'max-w-[827px]' : 'max-w-[850px]')}>
+                        <div className="mb-2 flex items-center gap-2 border-b border-border/60">
+                          <span className="shrink-0 px-1 text-xs tabular-nums text-muted-foreground">{index + 2}</span>
                           <Input
                             value={page.title}
                             onChange={(event) => updateDocumentPage(page.id, { title: event.target.value })}
                             aria-label={`Title for page ${index + 2}`}
                             placeholder={`Page ${index + 2}`}
-                            className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 font-headline text-lg font-semibold italic shadow-none focus-visible:ring-1"
+                            className="h-10 min-w-0 flex-1 border-0 bg-transparent px-1 text-sm font-medium shadow-none focus-visible:ring-1"
                           />
-                          <Button type="button" variant="ghost" size="icon" onClick={() => removeDocumentPage(page.id)} className="size-9 shrink-0 rounded-md text-muted-foreground hover:text-destructive" aria-label={`Remove ${page.title || `page ${index + 2}`}`}>
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setPageToRemove(page.id)} className="size-10 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Remove ${page.title || `page ${index + 2}`}`}>
                             <Trash2 className="size-4" />
                           </Button>
                         </div>
@@ -1746,12 +1784,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             positions={activePositions}
             inquiries={activeInquiries}
             concepts={workConcepts}
+            conceptPicker={conceptPicker}
             annotations={unusedAnnotations}
             coherenceSignals={coherenceSignals}
             collapsed={railCollapsed}
             onCollapsedChange={setRailPreference}
             onMarksChange={(marks) => updateActive({ marks })}
-            onOpenVersions={() => setIsVersionHistoryOpen(true)}
           />}
         </div>
 
@@ -1770,6 +1808,8 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
               <DialogTitle className="font-headline text-3xl italic">Version history</DialogTitle>
               <p className="text-sm text-muted-foreground">Explicit saves preserve up to the latest 50 document versions.</p>
             </DialogHeader>
+            {active.bodyProvenance && <AiCreationHistory provenance={active.bodyProvenance}
+              target={contextDeskWorkTarget(active.id)} description="You saved a Noesis AI context review as this Work." />}
             <div className="space-y-2 pt-2">
               {(active.versionHistory || []).length ? [...(active.versionHistory || [])].reverse().map((revision) => (
                 <div key={revision.id} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background p-4">
@@ -1808,6 +1848,9 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
             </div>
           </DialogContent>
         </Dialog>
+        <ConfirmActionDialog open={Boolean(pageToRemove)} onOpenChange={open => { if (!open) setPageToRemove(null); }}
+          title="Remove this page?" description="The page's writing and ink will be removed. Its thinking tools will move to the main page."
+          confirmLabel="Remove page" destructive onConfirm={() => { if (pageToRemove) removeDocumentPage(pageToRemove); setPageToRemove(null); }} />
         <ConfirmActionDialog
           open={Boolean(deleteTarget)}
           onOpenChange={(open) => {
@@ -1859,7 +1902,7 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
         searchPlaceholder="Search works..."
         resultCount={visibleDrafts.length}
         resultLabel="works"
-        sortLabel="Updated newest first"
+        sortControl={<SortPill label="Sort works" value={sortOrder} onChange={setSortOrder} options={COLLECTION_SORT_OPTIONS} />}
         activeFilterLabels={activeWorkFilterLabels}
         onClear={clearWorkFilters}
         clearDisabled={!workFiltersActive}
@@ -2077,12 +2120,12 @@ export function Atelier({ uid, isReviewWorkspace = false, drafts, media, vault, 
 
             <div className="mb-4 flex flex-wrap gap-1.5">
               {(draft.workCategory || workCategoryForDraft(draft.type)) === 'writing' && (
-                <Badge variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                <Badge tone="work" className="noesis-eyebrow noesis-eyebrow--sm font-bold">
                   {WRITING_STYLE_LABELS[draft.writingStyle || writingDefaults.writingStyle]}
                 </Badge>
               )}
               {(draft.conceptTags || []).slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="secondary" className="noesis-eyebrow noesis-eyebrow--sm bg-muted/20 border-transparent text-muted-foreground/60 rounded-full font-bold">
+                <Badge key={tag} tone="concept" className="noesis-eyebrow noesis-eyebrow--sm font-bold">
                   {tag}
                 </Badge>
               ))}
@@ -3174,27 +3217,27 @@ function WorkIntellectualRail({
   positions,
   inquiries,
   concepts,
+  conceptPicker,
   annotations,
   coherenceSignals,
   collapsed,
   onCollapsedChange,
   onMarksChange,
-  onOpenVersions,
 }: {
   onMarksChange: (marks: WorkMark[]) => void;
-  onOpenVersions?: () => void;
   active: Draft;
   sources: Media[];
   positions: VaultEntry[];
   inquiries: Question[];
   concepts: string[];
+  conceptPicker: React.ReactNode;
   annotations: WorkRailAnnotation[];
   coherenceSignals: Array<{ label: string; tone: 'support' | 'warning' | 'neutral'; detail: string }>;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const category = active.workCategory || workCategoryForDraft(active.type);
-  const [railTab, setRailTab] = useState<'reel' | 'mark' | 'linked' | 'versions'>('reel');
+  const [railTab, setRailTab] = useState<'reel' | 'mark' | 'linked'>('reel');
 
   return (
     <aside className={cn(
@@ -3208,7 +3251,8 @@ function WorkIntellectualRail({
             size="icon"
             onClick={() => onCollapsedChange(false)}
             className="h-10 w-10 rounded-full bg-card"
-            aria-label="Expand studio rail"
+            aria-label="Expand Studio Reel"
+            title="Expand Studio Reel"
           >
             <ChevronLeft className="size-4 rotate-180" />
           </Button>
@@ -3229,7 +3273,7 @@ function WorkIntellectualRail({
               <h3 className="mt-1 font-headline text-xl font-bold italic">Reference rail</h3>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="rounded-md noesis-eyebrow noesis-eyebrow--sm">
+              <Badge tone="work" className="noesis-eyebrow noesis-eyebrow--sm">
                 {WORK_CATEGORY_LABELS[category]}
               </Badge>
               <Button
@@ -3247,46 +3291,50 @@ function WorkIntellectualRail({
         </div>
 
         <div className="noesis-rail-tabs" role="tablist" aria-label="Rail views">
-          {([['reel', 'Studio Reel'], ['mark', `Markup${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`], ['linked', 'Linked'], ['versions', 'Versions']] as const).map(([id, label]) => (
+          {([['reel', 'Studio Reel'], ['mark', `Markup${(active.marks || []).length ? ` · ${(active.marks || []).length}` : ''}`], ['linked', 'Links']] as const).map(([id, label]) => (
             <button key={id} type="button" role="tab" aria-selected={railTab === id} onClick={() => setRailTab(id)}>{label}</button>
           ))}
         </div>
+        <div hidden={railTab !== 'mark'}>
+          <WorkMarkPanel key={active.id} marks={active.marks || []} onChange={onMarksChange} />
+        </div>
         {railTab === 'linked' ? (
-          <div className="mt-3 grid gap-3">
-            {([['Sources', 'encounter', sources.map((item) => item.title)], ['Concepts', 'outline', concepts], ['Inquiries', 'examine', inquiries.map((item) => item.text)], ['Positions', 'claim', positions.map((item) => item.title)]] as Array<[string, string, string[]]>).map(([label, tone, items]) => (
-              <div key={label} data-stage-tone={tone} className="grid gap-1">
-                <div className="noesis-eyebrow noesis-eyebrow--sm text-[hsl(var(--stage))]">{label} · {items.length}</div>
-                {items.length ? items.map((item) => <p key={item} className="border-l-2 border-[hsl(var(--stage)/.6)] pl-2 text-sm leading-snug">{item}</p>) : <p className="text-sm text-muted-foreground">None linked.</p>}
-              </div>
-            ))}
-          </div>
-        ) : railTab === 'versions' ? (
-          <div className="mt-3 grid gap-2">
-            {[...(active.versionHistory || [])].reverse().slice(0, 12).map((version) => (
-              <div key={version.id} className="grid gap-0.5 border-l-2 border-border pl-2">
-                <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{Number.isFinite(Date.parse(version.createdAt)) ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(version.createdAt)) : version.createdAt}</span>
-                <span className="text-sm">{version.title || 'Untitled'}</span>
-              </div>
-            ))}
-            {!(active.versionHistory || []).length && <p className="text-sm text-muted-foreground">No saved versions yet. Each explicit save keeps one.</p>}
-            {onOpenVersions && <Button type="button" variant="outline" size="sm" className="mt-1 justify-self-start" onClick={onOpenVersions}>Open version history</Button>}
-          </div>
-        ) : railTab === 'mark'
-          ? <WorkMarkPanel key={active.id} marks={active.marks || []} onChange={onMarksChange} />
-          : <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />}
+          <WorkLinks sources={sources} positions={positions} inquiries={inquiries} conceptCount={concepts.length} conceptPicker={conceptPicker} />
+        ) : railTab === 'reel' && <WorkRailContent sources={sources} positions={positions} inquiries={inquiries} concepts={concepts} annotations={annotations} coherenceSignals={coherenceSignals} hideIntro />}
       </div>
       )}
     </aside>
   );
 }
 
+function WorkLinks({ sources, positions, inquiries, conceptCount, conceptPicker }: {
+  sources: Media[];
+  positions: VaultEntry[];
+  inquiries: Question[];
+  conceptCount: number;
+  conceptPicker: React.ReactNode;
+}) {
+  return <div className="mt-3 grid min-w-0 gap-3">
+    <div data-tone="concept" className="grid min-w-0 gap-1">
+      <h3 className="noesis-eyebrow noesis-eyebrow--sm text-tone">Concepts · {conceptCount}</h3>
+      {conceptPicker}
+    </div>
+    {([['Sources', 'source', sources.map(item => item.title)], ['Inquiries', 'inquiry', inquiries.map(item => item.text)], ['Positions', 'position', positions.map(item => item.title)]] satisfies Array<[string, BadgeTone, string[]]>).map(([label, tone, items]) => (
+      <div key={label} data-tone={tone} className="grid gap-1">
+        <h3 className="noesis-eyebrow noesis-eyebrow--sm text-tone">{label} · {items.length}</h3>
+        {items.length ? items.map((item, index) => <p key={`${item}:${index}`} className="break-words border-s-2 border-tone/60 ps-2 text-sm leading-snug">{item}</p>) : <p className="text-sm text-muted-foreground">None linked.</p>}
+      </div>
+    ))}
+  </div>;
+}
+
 const MarkupIcon = iconForNoesisView('annotations');
-const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string }> = [
-  { id: 'claim', label: 'Claim' },
-  { id: 'question', label: 'Question' },
-  { id: 'evidence', label: 'Evidence' },
-  { id: 'definition', label: 'Definition' },
-  { id: 'revisit', label: 'Revisit' },
+const MARK_KINDS: Array<{ id: WorkMark['kind']; label: string; tone: BadgeTone; stage?: 'integrate' }> = [
+  { id: 'claim', label: 'Claim', tone: 'position' },
+  { id: 'question', label: 'Question', tone: 'inquiry' },
+  { id: 'evidence', label: 'Evidence', tone: 'source' },
+  { id: 'definition', label: 'Definition', tone: 'concept' },
+  { id: 'revisit', label: 'Revisit', tone: 'stage', stage: 'integrate' },
 ];
 
 /**
@@ -3320,25 +3368,27 @@ function WorkMarkPanel({ marks, onChange }: { marks: WorkMark[]; onChange: (mark
     <div className="space-y-4">
       <div className="space-y-2">
         <h3 className="flex items-center gap-2 text-sm font-medium"><MarkupIcon className="size-4" aria-hidden="true" />Marks</h3>
-        {selection && <div className="space-y-2 border-b border-border pb-3">
-        <p className="mt-1 line-clamp-3 text-xs italic leading-5 text-muted-foreground">{`“${selection}”`}</p>
-        <Textarea className="my-2" aria-label="Note about selected passage" placeholder="Your note (optional)" value={note} onChange={event => setNote(event.target.value)} />
-        <MarkupVoice text={selection || note} onTranscript={words => setNote(prev => [prev.trimEnd(), words].filter(Boolean).join(' '))} />
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {MARK_KINDS.map((kind) => (
-            <button key={kind.id} type="button" data-stage-tone={markupTone(kind.id)} disabled={!selection} onClick={() => mark(kind.id)} className="noesis-mark-kind min-h-10">{kind.label}</button>
-          ))}
+        <div className="space-y-2 border-b border-border pb-3">
+          <p className="line-clamp-3 break-words text-xs leading-5 text-muted-foreground" aria-live="polite">
+            {selection ? <q className="italic">{selection}</q> : 'No passage selected'}
+          </p>
+          <Textarea aria-label="Note about selected passage" placeholder="Your note (optional)" value={note} onChange={event => setNote(event.target.value)} />
+          <MarkupVoice text={selection || note} onTranscript={words => setNote(prev => [prev.trimEnd(), words].filter(Boolean).join(' '))} />
+          <div className="flex flex-wrap gap-1.5">
+            {MARK_KINDS.map((kind) => (
+              <Pill key={kind.id} tone={kind.tone} data-stage-tone={kind.stage} disabled={!selection} onClick={() => mark(kind.id)} className="min-h-10">{kind.label}</Pill>
+            ))}
+          </div>
         </div>
-        </div>}
       </div>
       {MARK_KINDS.map((kind) => {
         const group = marks.filter((item) => item.kind === kind.id);
         if (!group.length) return null;
         return (
-          <div key={kind.id} data-stage-tone={markupTone(kind.id)} className="space-y-1.5">
-            <div className="noesis-stage-badge border-l-2 pl-2 noesis-eyebrow noesis-eyebrow--sm font-bold">{kind.label} · {group.length}</div>
+          <div key={kind.id} data-stage-tone={kind.stage} className="space-y-1.5">
+            <Badge tone={kind.tone} shape="rule" className="noesis-eyebrow noesis-eyebrow--sm font-bold">{kind.label} · {group.length}</Badge>
             {group.map((item) => (
-              <div key={item.id} className="noesis-markup-entry group/mark flex items-start gap-2 px-2 py-1.5 hover:bg-muted/40">
+              <div key={item.id} data-tone={kind.tone} className="group/mark flex items-start gap-2 border-s-2 border-tone/60 px-2 py-1.5 hover:bg-muted/40">
                 <button type="button" onClick={() => find(item.text)} className="min-w-0 flex-1 text-left text-xs leading-5" title="Find in the document">“{item.text}”{item.note && <span className="block not-italic text-muted-foreground">{item.note}</span>}</button>
                 <button type="button" onClick={() => onChange(marks.filter((entry) => entry.id !== item.id))} className="text-xs text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/mark:opacity-100 focus-visible:opacity-100" aria-label="Remove mark">×</button>
               </div>
@@ -3379,12 +3429,12 @@ function WorkRailContent({
   const unresolvedInquiries = inquiries.filter((question) => !['resolved', 'archived'].includes(question.status)).slice(0, 4).map((question) => question.text);
   return (
     <div className={cn('space-y-4', !hideIntro && 'pb-safe')}>
-      <RailSection stage="integrate" title="Claims Expressed" empty="No linked positions yet." items={relatedClaims} />
-      <RailSection stage="act" title="Supporting Material" empty="No linked sources or supporting evidence yet." items={supportingMaterial} />
-      <RailSection stage="claim" title="Unresolved Objections" empty="No objections are attached to linked positions." items={objections} tone="warning" />
-      <RailSection stage="examine" title="Relevant Concepts" empty="No concepts linked yet." items={concepts} compact />
-      <RailSection stage="examine" title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
-      <RailSection stage="encounter" title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
+      <RailSection tone="position" title="Claims Expressed" empty="No linked positions yet." items={relatedClaims} />
+      <RailSection tone="source" title="Supporting Material" empty="No linked sources or supporting evidence yet." items={supportingMaterial} />
+      <RailSection tone="caution" title="Unresolved Objections" empty="No objections are attached to linked positions." items={objections} />
+      <RailSection tone="concept" title="Relevant Concepts" empty="No concepts linked yet." items={concepts} compact />
+      <RailSection tone="inquiry" title="Open Inquiries" empty="No inquiries are linked to this work." items={unresolvedInquiries} />
+      <RailSection tone="annotation" title="Nearby Annotations" empty="No nearby annotations found." items={annotations.map((annotation) => `${annotation.text} (${annotation.sourceTitle})`)} />
       <section className="border-t border-border/60 pt-4">
         <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Coherence Review</div>
         <div className="mt-3 space-y-3">
@@ -3404,33 +3454,28 @@ function RailSection({
   title,
   items,
   empty,
-  tone = 'neutral',
+  tone,
   compact,
-  stage = 'more',
 }: {
-  stage?: string;
   title: string;
   items: string[];
   empty: string;
-  tone?: 'neutral' | 'warning';
+  tone: BadgeTone;
   compact?: boolean;
 }) {
   return (
-    <section className="noesis-reel-section" data-stage-tone={stage}>
+    <section className="noesis-reel-section" data-tone={tone}>
       <div className="noesis-reel-section__label">{title} · {items.length}</div>
       {items.length ? (
         <div className={cn('mt-3', compact ? 'flex flex-wrap gap-2' : 'space-y-2')}>
           {items.map((item, index) => compact ? (
-            <Badge key={`${item}:${index}`} variant="secondary" className="rounded-md noesis-eyebrow noesis-eyebrow--sm">
+            <Badge key={`${item}:${index}`} tone={tone} className="max-w-full break-words noesis-eyebrow noesis-eyebrow--sm">
               {item}
             </Badge>
           ) : (
             <div
               key={`${item}:${index}`}
-              className={cn(
-                'text-sm leading-5 text-foreground',
-                tone === 'warning' && 'text-foreground'
-              )}
+              className="break-words text-sm leading-5 text-foreground"
             >
               {item}
             </div>

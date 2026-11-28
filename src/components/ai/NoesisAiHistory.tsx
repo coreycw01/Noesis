@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AiAssistedHistoryEntry, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
-import type { DeskFinding } from '@/lib/context-desk-handoff';
+import { itemAiHistory } from '@/lib/item-ai-history';
+import { AssistanceHistory } from './AssistanceHistory';
 import { cn } from '@/lib/utils';
 
 export type AiHistoryRecordType = 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'work' | 'practice';
@@ -67,9 +68,6 @@ export function collectAiHistory({ media, concepts, questions, positions, works,
       items.push({ key: `${type}:${recordId}:${entry.id}`, entry, type, recordId, recordLabel: recordLabel || 'Untitled', sourceId });
     }
   };
-  const deskEntries = (findings?: DeskFinding[]): AiAssistedHistoryEntry[] | undefined => findings?.map(finding => ({
-    ...finding, title: 'Context Desk finding', action: 'review_selected_context',
-  }));
   for (const source of media) {
     add('source', source.id, source.title, source.aiReviewHistory);
     for (const annotation of source.annotations || []) {
@@ -78,17 +76,14 @@ export function collectAiHistory({ media, concepts, questions, positions, works,
   }
   for (const concept of concepts) add('concept', concept.id, concept.name, concept.aiReviewHistory);
   for (const question of questions) {
-    add('inquiry', question.id, question.text, question.aiReviewHistory);
-    add('inquiry', question.id, question.text, deskEntries(question.contextDeskFindings));
+    add('inquiry', question.id, question.text, itemAiHistory(question));
   }
   for (const position of positions) {
-    add('position', position.id, position.title, position.aiReviewHistory);
-    add('position', position.id, position.title, deskEntries(position.contextDeskFindings));
+    add('position', position.id, position.title, itemAiHistory(position));
   }
   for (const work of works) add('work', work.id, work.title, work.aiReviewHistory);
   for (const practice of practices) {
-    add('practice', practice.id, practice.title, practice.aiReviewHistory);
-    add('practice', practice.id, practice.title, deskEntries(practice.contextDeskFindings));
+    add('practice', practice.id, practice.title, itemAiHistory(practice));
   }
   const time = (value: string) => {
     const parsed = Date.parse(value);
@@ -115,7 +110,7 @@ export function NoesisAiHistory({ items, onNavigate }: {
    * the only one that answers "what was I just doing" after an hour of jumping
    * between pages.
    */
-  const [view, setView] = useState<'pages' | 'recent'>('pages');
+  const [view, setView] = useState<'pages' | 'recent' | 'exchanges'>('pages');
   const [page, setPage] = useState<AiHistoryRecordType | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 
@@ -186,17 +181,18 @@ export function NoesisAiHistory({ items, onNavigate }: {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 id="ai-history-heading" className="text-lg font-semibold">
-            {view === 'recent' ? 'Recent results' : page ? TYPE_LABELS[page] : 'AI history'}
+            {view === 'exchanges' ? 'Assistance history' : view === 'recent' ? 'Recent results' : page ? TYPE_LABELS[page] : 'AI history'}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {view === 'recent' ? 'Everything you kept, newest first — the order you did it in.'
+            {view === 'exchanges' ? 'Your latest 100 item exchanges, including responses you did not apply.' : view === 'recent' ? 'Everything you kept, newest first — the order you did it in.'
               : page ? 'Runs gathered under the record they were about, so a line of thinking reads in order.'
                 : 'Every reviewed result you kept, by the page it came from. Reread it here instead of generating it again.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="noesis-figure">{matches.length} of {items.length}</span>
-          {(page || view === 'recent') && (
+          {view !== 'exchanges' && <span className="noesis-figure">{matches.length} of {items.length}</span>}
+          {view !== 'exchanges' && <Button type="button" variant="outline" size="sm" onClick={() => setView('exchanges')}>Assistance history</Button>}
+          {(page || view !== 'pages') && (
             <Button type="button" variant="ghost" size="sm" onClick={() => { setPage(null); setView('pages'); }}>← All pages</Button>
           )}
           {view !== 'recent' && !page && (
@@ -206,6 +202,7 @@ export function NoesisAiHistory({ items, onNavigate }: {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">{search}</div>
+      {view === 'exchanges' && <div className="mt-4"><AssistanceHistory search={query} /></div>}
 
       {/* By page: the only view that shows where the assistant has never been. */}
       {view === 'pages' && !page && (

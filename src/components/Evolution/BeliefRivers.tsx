@@ -10,7 +10,7 @@ const time = (value?: string) => { const parsed = Date.parse(value || ''); retur
 const clamp = (value: number) => Math.max(0, Math.min(100, value));
 
 function markKind(type: string): RiverMark['kind'] {
-  if (/support|evidence_added|strength/.test(type)) return 'support';
+  if (/support|strength/.test(type)) return 'support';
   if (/challeng|contradiction|stress_test|assumption_challenged/.test(type)) return 'challenge';
   if (/revis|replac|redefin|abandon/.test(type)) return 'revision';
   return 'other';

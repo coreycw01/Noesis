@@ -1,5 +1,5 @@
 import { doc, runTransaction, serverTimestamp, type DocumentReference } from 'firebase/firestore';
-import { acceptedTextHash, sourceAnnotationReviewTarget, type AiProvenanceRecord } from './ai-provenance';
+import { acceptedTextHash, aiCreationPrompt, sourceAnnotationReviewTarget, type AiProvenanceRecord } from './ai-provenance';
 import { aiHistoryEntry, parseAiReviewItems, type AiReviewResult } from './contextual-ai';
 import { annotationRecord, appendAiReviewHistory, boundedNestedAnnotations } from './collection-integrity';
 import { makeThinkingEventPayload, type WriteThinkingEventInput } from './thinkingEvents/writeThinkingEvent';
@@ -30,6 +30,7 @@ export async function prepareSourceReview(uid: string, approval: SourceReviewApp
     targets: [sourceReviewTarget(baseline.id, field, id)],
     origin: { feature: 'source', action: result.action },
     generatedAt: result.generatedAt, acceptedAt, precursor: result.content.slice(0, 32000) || null,
+    ...(annotationType ? aiCreationPrompt(result) : {}),
     acceptedTextHash: await acceptedTextHash(text), state: 'active',
   };
   const newAnnotations = annotationType ? parseAiReviewItems(result.action, text)

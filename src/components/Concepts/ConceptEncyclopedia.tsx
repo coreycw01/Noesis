@@ -10,6 +10,7 @@ import { LabeledField } from '@/components/shared/LabeledField';
 import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, ChevronDown, Edit, Plus, Scale, Trash2, MoreHorizontal } from 'lucide-react';
 import { Button, IconButton } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -29,18 +30,21 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { computeConceptDiagnosis, CLARITY_BG } from '@/lib/clarity';
 import type { ClarityLevel } from '@/lib/clarity';
 import { ConceptDiagnosisBars } from '@/components/Concepts/ConceptDiagnosisBars';
-import { ConceptCaliper } from '@/components/Concepts/ConceptCaliper';
+import { ConceptConnectionStrip, conceptConnectionCounts } from '@/components/Concepts/ConceptConnectionStrip';
+import { ConceptConnectionsButton } from '@/components/Concepts/ConceptConnectionsButton';
+import { ConceptBoundaryMap } from '@/components/Concepts/ConceptBoundaryMap';
 import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection } from '@/components/shared/record/RecordPage';
 import { BenchBand, Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
+import { ItemHistoryTimeline } from '@/components/shared/record/ItemHistoryPanel';
+import { ItemWorkspace } from '@/components/shared/record/ItemWorkspace';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Pill, PillRow } from '@/components/ui/pill';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConceptBoundaryBench } from '@/components/Concepts/ConceptBoundaryBench';
-import { conceptBoundaryFindings, type ConceptBoundaryFinding } from '@/lib/concept-boundary-findings';
 import { conceptAttentionReason } from '@/lib/concept-attention';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
@@ -141,26 +145,27 @@ function conceptActivityDate(concept: Concept | undefined, events: TimelineEvent
   );
 }
 
-function conceptFingerprint(concept: Concept | undefined, name: string) {
+function conceptFingerprint(concept: Concept) {
   return Array.from(new Set([
-    name,
-    ...(concept?.aliases || []),
-    ...(concept?.notSameAs || []),
+    concept.name,
+    ...(concept.aliases || []),
   ]
     .flatMap((value) => conceptKey(value).toLowerCase().split(/\s+/))
     .filter((token) => token.length > 3)));
 }
 
-function possibleDuplicateConcepts(concept: Concept | undefined, name: string, concepts: Concept[]) {
-  const ownTerms = new Set(conceptFingerprint(concept, name));
-  if (!ownTerms.size) return [];
+function possibleDuplicateConcepts(concept: Concept, concepts: Concept[]) {
+  const ownTerms = new Set(conceptFingerprint(concept));
+  const ownNames = new Set([concept.name, ...(concept.aliases || [])].map(conceptKey).filter(Boolean));
+  const distinguishes = (left: Concept, right: Concept) =>
+    [...(left.notSameAs || []), ...(left.opposedTo || [])].some(value => conceptKey(value) === conceptKey(right.name));
   return concepts
-    .filter((candidate) => candidate.id !== concept?.id)
+    .filter(candidate => candidate.id !== concept.id && !distinguishes(concept, candidate) && !distinguishes(candidate, concept))
     .map((candidate) => {
-      const candidateTerms = conceptFingerprint(candidate, candidate.name);
+      const candidateTerms = conceptFingerprint(candidate);
       const overlap = candidateTerms.filter((term) => ownTerms.has(term)).length;
-      const aliasHit = (candidate.aliases || []).some((alias) => conceptKey(alias) === conceptKey(name)) || (concept?.aliases || []).some((alias) => conceptKey(alias) === conceptKey(candidate.name));
-      return { name: candidate.name, score: overlap + (aliasHit ? 3 : 0) };
+      const nameMatch = [candidate.name, ...(candidate.aliases || [])].some(value => ownNames.has(conceptKey(value)));
+      return { name: candidate.name, score: overlap + (nameMatch ? 3 : 0) };
     })
     .filter((candidate) => candidate.score >= 2)
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
@@ -191,13 +196,13 @@ function conceptRepairFlags({
     flags.push({ id: 'boundaries', label: 'Boundary', detail: 'Add distinctions or counterexamples so neighboring concepts do not collapse together.', tone: 'review' });
   }
   if (!(concept?.examples || []).length) {
-    flags.push({ id: 'examples', label: 'Examples', detail: 'Add clear cases that belong inside the concept.', tone: 'growth' });
+    flags.push({ id: 'examples', label: 'Examples', detail: 'Add examples that clearly fit the concept.', tone: 'growth' });
   }
   if (related.sources.length + related.annotations.length === 0) {
     flags.push({ id: 'evidence', label: 'Evidence', detail: 'Anchor the concept in at least one source, annotation, or captured example.', tone: 'urgent' });
   }
-  if (related.beliefs.length > 1 && diagnosis.tension === 'high') {
-    flags.push({ id: 'opposition', label: 'Tension', detail: 'Review whether positions using this concept cohere, contradict, or refine each other.', tone: 'review' });
+  if (concept?.philosophyStatus === 'contested') {
+    flags.push({ id: 'opposition', label: 'Contested', detail: 'Review the specific interpretations or boundaries in dispute.', tone: 'review' });
   }
   if (!related.practices.length && related.beliefs.length > 0) {
     flags.push({ id: 'practice', label: 'Untested', detail: 'Link a practice if this concept should change behavior or lived judgment.', tone: 'growth' });
@@ -264,6 +269,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [viewMode, setViewMode] = useEntityViewPreference('concepts');
   // The prototype's list-and-detail split is the default way to browse concepts.
   const [cardLayout, setCardLayout] = usePersistentView<'split' | 'cards'>('noesis:concepts-card-layout', 'split', ['split', 'cards']);
+  const [conceptOrder, setConceptOrder] = usePersistentView('noesis:concept-sort', 'auto', ['auto', 'name', 'newest', 'connected'] as const);
   const splitView = cardLayout === 'split';
   const [previewName, setPreviewName] = useState<string | null>(null);
   const [listView, setListView] = useState<ConceptListView>('all');
@@ -279,9 +285,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   const [tensionDecisions, setTensionDecisions] = useState<Record<string, ConceptTensionDecision>>({});
   const [isDefinitionEditing, setIsDefinitionEditing] = useState(false);
   const [definitionDraft, setDefinitionDraft] = useState('');
-  const [definitionCase, setDefinitionCase] = useState<{ conceptId: string; example: string } | null>(null);
   const definitionInput = React.useRef<HTMLTextAreaElement>(null);
-  const distinctionInput = React.useRef<HTMLInputElement>(null);
   const [shelfQuery, setShelfQuery] = useState('');
   const [dropField, setDropField] = useState<ConceptListField | null>(null);
   const [conceptListDrafts, setConceptListDrafts] = useState<Record<ConceptListField, string>>({
@@ -314,14 +318,14 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       if (!conceptDoc) return null;
       const related = conceptRelated(name, { media, insights, vault, drafts, practices, questions, timeline });
       const diagnosis = computeConceptDiagnosis(name, related, conceptDoc.description);
-      const connectionCount = related.sources.length + related.annotations.length + related.questions.length + related.beliefs.length + related.drafts.length + related.practices.length;
+      const connectionCount = conceptConnectionCounts(related).reduce((sum, row) => sum + row.count, 0);
       const lastActiveAt = conceptActivityDate(conceptDoc, related.events);
       const isRecent = lastActiveAt > Date.now() - RECENT_WINDOW_MS;
       const isNeglected = connectionCount > 0 && lastActiveAt > 0 && lastActiveAt < Date.now() - NEGLECTED_WINDOW_MS;
       const isUndefined = !conceptDoc.description?.trim() || conceptDoc.philosophyStatus === 'undefined' || diagnosis.clarity === 'beginning';
-      const isContested = conceptDoc.philosophyStatus === 'contested' || diagnosis.tension === 'high' || related.beliefs.some((entry) => entry.status === 'challenged');
+      const isContested = conceptDoc.philosophyStatus === 'contested';
       const isTransformed = related.events.some((event) => /transform|revise|definition|changed/i.test(`${event.eventType} ${event.reason || ''}`));
-      const possibleDuplicates = possibleDuplicateConcepts(conceptDoc, name, concepts);
+      const possibleDuplicates = possibleDuplicateConcepts(conceptDoc, countableConcepts);
       const repairFlags = conceptRepairFlags({ concept: conceptDoc, related, diagnosis, connectionCount, lastActiveAt, possibleDuplicates });
       const maturity = conceptMaturityScore({ concept: conceptDoc, related, repairFlags });
       const attentionReason = conceptAttentionReason(conceptDoc, related.beliefs.length);
@@ -342,9 +346,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       let why = 'Part of the current concept vocabulary.';
       if (listView === 'recent') why = lastActiveAt ? `Last moved ${new Date(lastActiveAt).toLocaleDateString()}.` : 'Recently updated definition or linked event.';
       if (listView === 'needs_attention') why = attentionReason;
-      if (listView === 'connected') why = `${connectionCount} linked object${connectionCount === 1 ? '' : 's'} depend on this concept.`;
+      if (listView === 'connected') why = `${connectionCount} related record${connectionCount === 1 ? '' : 's'}.`;
       if (listView === 'undefined') why = 'Needs a clearer working definition or boundary test.';
-      if (listView === 'contested') why = 'Shows tension, challenge, or inconsistent usage.';
+      if (listView === 'contested') why = 'Marked contested on the concept.';
       if (listView === 'duplicates') why = `Possible overlap with ${possibleDuplicates.join(', ')}. Distinguish, alias, or merge manually.`;
       if (listView === 'transformed') why = 'Has revision or transformation signals in its history.';
       if (listView === 'neglected') why = 'Has meaningful links but little recent movement.';
@@ -353,6 +357,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     })
     .filter((row): row is ConceptListRow => Boolean(row))
     .sort((a, b) => {
+      if (conceptOrder === 'name') return a.name.localeCompare(b.name);
+      if (conceptOrder === 'newest') return b.lastActiveAt - a.lastActiveAt || a.name.localeCompare(b.name);
+      if (conceptOrder === 'connected') return b.connectionCount - a.connectionCount || a.name.localeCompare(b.name);
       if (listView === 'recent' || listView === 'transformed') return b.lastActiveAt - a.lastActiveAt;
       if (listView === 'needs_attention') return b.repairFlags.length - a.repairFlags.length || a.maturity.score - b.maturity.score;
       if (listView === 'connected') return b.connectionCount - a.connectionCount;
@@ -360,7 +367,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       if (listView === 'duplicates') return b.possibleDuplicates.length - a.possibleDuplicates.length || a.name.localeCompare(b.name);
       return a.name.localeCompare(b.name);
     });
-  }, [allTerms, countableConcepts, search, listView, concepts, media, insights, vault, drafts, practices, questions, timeline]);
+  }, [allTerms, countableConcepts, search, listView, conceptOrder, concepts, media, insights, vault, drafts, practices, questions, timeline]);
   const conceptFiltersActive = Boolean(search.trim() || listView !== 'all');
   const activeConceptFilterLabels = [
     search.trim() ? `Search: ${search.trim()}` : null,
@@ -373,17 +380,9 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
   // The list already excludes tag-only placeholders and non-displayable
   // records. Its unfiltered default is the same user-ready set represented by
   // the shell count, so the page headline must use that set too.
-  const totalConceptCount = conceptRows.length;
-  const needsAttentionRows = conceptRows.filter((row) => row.attentionReason);
-  const matureConceptCount = conceptRows.filter((row) => row.maturity.label === 'stable').length;
-  const developingConceptCount = conceptRows.filter((row) => row.maturity.label === 'usable').length;
-  const emergingConceptCount = conceptRows.filter((row) => row.maturity.label === 'emerging' || row.maturity.label === 'beginning').length;
-  const wellDevelopedCount = conceptRows.filter((row) => row.maturity.label === 'stable' || row.maturity.label === 'usable').length;
-  const duplicateReviewCount = conceptRows.filter((row) => row.possibleDuplicates.length).length;
   const primaryConceptViews = CONCEPT_LIST_VIEWS.filter((view) => ['all', 'recent', 'needs_attention', 'connected'].includes(view.id));
   const moreConceptViews = CONCEPT_LIST_VIEWS.filter((view) => !primaryConceptViews.some((primary) => primary.id === view.id));
   const moreConceptViewActive = moreConceptViews.some((view) => view.id === listView);
-  const maturitySummary = `${conceptFiltersActive ? `${totalConceptCount} matching of ${countableConcepts.length}` : totalConceptCount} concepts · ${matureConceptCount} mature · ${developingConceptCount} developing · ${emergingConceptCount} emerging`;
 
   const openEditor = (concept?: Concept) => {
     if (concept) {
@@ -534,9 +533,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     ]
       .filter((name) => conceptKey(name) && conceptKey(name) !== conceptKey(selectedName))))
       .slice(0, 10);
-    const boundaryFindings = concept ? conceptBoundaryFindings(concept) : [];
-    const activeFinding = boundaryFindings.find(finding => definitionCase?.conceptId === concept?.id && finding.example === definitionCase?.example) || boundaryFindings[0];
-    const otherFindings = boundaryFindings.filter(finding => finding !== activeFinding);
     const driftEvents = sortedEvents.filter((event) => /concept|definition|revise|transform|changed/i.test(`${event.eventType} ${event.reason || ''}`));
 
     const back = () => {
@@ -550,9 +546,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       setIsDefinitionEditing(true);
     };
 
-    const reviewDefinition = (finding: ConceptBoundaryFinding) => {
+    const reviewDefinition = () => {
       if (!concept) return;
-      setDefinitionCase({ conceptId: concept.id, example: finding.example });
       startDefinitionEdit();
       window.requestAnimationFrame(() => definitionInput.current?.focus());
     };
@@ -601,8 +596,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       { field: 'aliases', title: 'Same as', prompt: 'Synonyms and close neighbours: other words you use for this concept.', placeholder: 'Add a synonym' },
       { field: 'notSameAs', title: 'Not the same as', prompt: 'Easily confused, but different: neighbours this should not collapse into.', placeholder: 'Add a distinction' },
       { field: 'opposedTo', title: 'Opposed to', prompt: 'Opposites and rivals: what this concept stands against.', placeholder: 'Add an opposite' },
-      { field: 'examples', title: 'Examples', prompt: 'Cases that clearly belong inside the concept.', placeholder: 'Add example' },
-      { field: 'counterexamples', title: 'Counterexamples', prompt: 'Cases that test or fall outside the boundary.', placeholder: 'Add counterexample' },
+      { field: 'examples', title: 'Examples', prompt: 'Examples that clearly fit the concept.', placeholder: 'Add example' },
+      { field: 'counterexamples', title: 'Counterexamples', prompt: 'Examples that do not fit the definition.', placeholder: 'Add counterexample' },
     ];
     const previewSource = (source: Media, reason = 'This source feeds the current concept.') => {
       openNoesisObjectPreview({
@@ -735,8 +730,8 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
     const relationCount = (concept?.aliases || []).length + (concept?.notSameAs || []).length + (concept?.opposedTo || []).length;
     let conceptHereId: string; let conceptGuide: string;
     if (!concept?.description?.trim()) { conceptHereId = 'con-define'; conceptGuide = 'Write a working definition, even a rough one.'; }
-    else if (caseCount < 2) { conceptHereId = 'con-boundary'; conceptGuide = 'Test the boundary with a case or two.'; }
-    else if (!(concept.edgeCases || []).length) { conceptHereId = 'con-boundary'; conceptGuide = 'Find an edge case: something that could go either way.'; }
+    else if (caseCount < 2) { conceptHereId = 'con-boundary'; conceptGuide = 'Test your definition with an example or two.'; }
+    else if (!(concept.edgeCases || []).length) { conceptHereId = 'con-boundary'; conceptGuide = 'Try an example where you are not sure the definition fits.'; }
     else if (!relationCount) { conceptHereId = 'con-relations'; conceptGuide = 'Relate it to a neighbouring concept.'; }
     else { conceptHereId = 'con-stands'; conceptGuide = diagnosis.suggestedNextAction; }
 
@@ -745,11 +740,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <RecordHeader backLabel="Concepts" onBack={back} view="concepts" kind="Concept" status={concept?.philosophyStatus} title={selectedName}
           trailing={concept ? <>
             <ContextualAiPanel
+              key={concept.id}
+              itemHistory={concept.aiReviewHistory || []}
               actions={['refine_concept_definition', 'clarify_concept_boundaries']}
               enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
               showContextBeforeSending={aiSettings?.showContextBeforeSending}
               reasoningDepth={aiDepthFor(aiSettings, 'concepts')}
-              buttonLabel="Ask Noesis"
+              iconOnly
               promptLabel="What should Noesis examine about this concept?"
               promptPlaceholder="For example: Where does my use of this concept conflict with its definition?"
               buildEnvelope={(action: ContextualAiAction, userPrompt) => ({
@@ -782,7 +779,31 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                 <DropdownMenuItem onSelect={() => setDeleteTarget(concept)} className="text-problem focus:text-problem"><Trash2 className="mr-2 size-4" /> Delete concept</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </> : undefined} />
+          </> : undefined}>
+          <section id="con-define" className="mt-4 max-w-3xl scroll-mt-32 space-y-2" aria-label="Concept definition">
+            <div className="flex flex-wrap items-center gap-x-3">
+              <Eyebrow>Working definition</Eyebrow>
+              {!isDefinitionEditing && concept && <Button type="button" variant="ghost" size="sm" onClick={reviewDefinition}><Edit className="size-3.5" />{concept.description ? 'Edit definition' : 'Write a definition'}</Button>}
+            </div>
+            {isDefinitionEditing ? (
+              <div className="grid gap-2">
+                <Textarea ref={definitionInput} value={definitionDraft} onChange={event => setDefinitionDraft(event.target.value)} className="min-h-24 text-base leading-7" aria-label="Working definition" />
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="primary" size="sm" onClick={saveInlineDefinition} disabled={!concept}>Save definition</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setIsDefinitionEditing(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap break-words font-body text-lg leading-relaxed">{concept?.description || 'No definition yet.'}</p>
+            )}
+            {concept?.definitionProvenance && <AiProvenanceBadge provenance={concept.definitionProvenance} target={conceptReviewTarget(concept.id, 'description', concept.definitionProvenance.provenanceId)} title="Concept definition" />}
+          </section>
+        </RecordHeader>
+        <ItemWorkspace key={concept?.id || selectedName} history={<ItemHistoryTimeline title="Concept history" entries={[
+          ...timeline.filter(event => event.entityType === 'concept' && event.entityId === concept?.id)
+            .map(event => ({ id: event.id, date: event.date, title: event.eventType.replace(/_/g, ' '), text: event.reason })),
+          ...(concept?.dateCreated ? [{ id: 'created', date: concept.dateCreated, title: 'Concept created' }] : []),
+        ]} empty="No changes recorded for this concept yet." />}>
 
         <RecordPath label="Where you are with this concept" hereId={conceptHereId} guide={conceptGuide}
           stops={[{ id: 'con-define', label: 'Definition' }, { id: 'con-boundary', label: 'Boundary' }, { id: 'con-relations', label: 'Relations' }, { id: 'con-stands', label: 'Where it stands' }]} />
@@ -866,47 +887,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
         <BenchBand note="Where you write the concept out, and where Noesis can read over your shoulder if you ask it to." />
 
-        <RecordSection id="con-define" title="Definition" description="The working meaning, in your own words. It can change." here={conceptHereId === 'con-define'}
-          aside={!isDefinitionEditing && concept ? <Button variant="tertiary" size="sm" onClick={startDefinitionEdit}><Edit className="size-3.5" /> {concept.description ? 'Edit definition' : 'Write a definition'}</Button> : undefined}>
-          {activeFinding && <div className="mb-4 max-w-3xl border-l border-border pl-3 text-sm">
-            <Eyebrow>From the boundary test</Eyebrow>
-            <p className="mt-1 break-words font-medium">{activeFinding.example} <span className="font-normal text-muted-foreground">· {activeFinding.label}</span></p>
-            <p className="whitespace-pre-wrap break-words text-muted-foreground">{activeFinding.reason}</p>
-            <div className="flex flex-wrap gap-x-3">
-              {!isDefinitionEditing && <Button type="button" variant="link" size="sm" className="min-h-8 px-0" onClick={() => reviewDefinition(activeFinding)}>Revise using this case</Button>}
-              <Button type="button" variant="link" size="sm" className="min-h-8 px-0" onClick={() => distinctionInput.current?.focus()}>Clarify a distinction</Button>
-            </div>
-            {otherFindings.length > 0 && <details className="mt-1">
-              <summary className="cursor-pointer text-muted-foreground">Other reviewed cases ({otherFindings.length})</summary>
-              <ul className="mt-1 space-y-2">
-                {otherFindings.map(finding => <li key={finding.example}><button type="button" className="min-h-8 break-words text-left underline underline-offset-2" onClick={() => reviewDefinition(finding)}>{finding.example}</button></li>)}
-              </ul>
-            </details>}
-          </div>}
-          {isDefinitionEditing ? (
-            <div className="grid max-w-3xl gap-3">
-              <Textarea ref={definitionInput} value={definitionDraft} onChange={(event) => setDefinitionDraft(event.target.value)} className="min-h-[120px] text-base leading-7" placeholder="Write the current working definition for this concept." aria-label="Working definition" />
-              <div className="flex flex-wrap gap-2">
-                <Button variant="primary" size="sm" onClick={saveInlineDefinition} disabled={!concept}>Save definition</Button>
-                <Button variant="ghost" size="sm" onClick={() => setIsDefinitionEditing(false)}>Cancel</Button>
-              </div>
-            </div>
-          ) : concept?.description ? (
-            <div className="max-w-3xl">
-              <p className="font-body text-lg leading-relaxed">{concept.description}</p>
-              {concept.definitionProvenance && <AiProvenanceBadge provenance={concept.definitionProvenance} target={conceptReviewTarget(concept.id, 'description', concept.definitionProvenance.provenanceId)} title="Concept definition" />}
-            </div>
-          ) : (
-            <SectionEmpty title="No definition yet." hint="Write a provisional one before treating this concept as stable." />
-          )}
-          {(concept?.aiReviewHistory || []).length > 0 && (
-            <div className="mt-4">
-              <AiAssistedHistory entries={concept?.aiReviewHistory || []} onChange={async (aiReviewHistory) => { if (concept && !await onUpdateConcept({ ...concept, aiReviewHistory })) throw new Error('Review history was not saved.'); }} />
-            </div>
-          )}
-        </RecordSection>
-
-        <RecordSection id="con-boundary" title="Boundary" description="Sort cases into what fits, what sits at the edge, and what does not." here={conceptHereId === 'con-boundary'}>
+        <RecordSection id="con-boundary" title="Boundary" description="Try examples to see where your definition fits and where it breaks down." here={conceptHereId === 'con-boundary'}>
           {concept
             ? <ConceptBoundaryBench key={concept.id} concept={concept} onSave={onUpdateConcept} onReviewDefinition={reviewDefinition} />
             : <SectionEmpty title="Save the concept first." hint="The boundary bench opens once the concept exists." />}
@@ -957,7 +938,6 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                     : <p className="mb-3 text-xs italic text-muted-foreground">No entries yet.</p>}
                   <div className="noesis-add">
                     <Input
-                      ref={section.field === 'notSameAs' ? distinctionInput : undefined}
                       value={conceptListDrafts[section.field]}
                       onChange={(event) => setConceptListDrafts((prev) => ({ ...prev, [section.field]: event.target.value }))}
                       onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addConceptListItem(section.field); } }}
@@ -974,7 +954,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
           </div>
         </RecordSection>
 
-        <RecordSection id="con-stands" title="Where it stands" description="How clear it is, what it rests on, and where it is already at work." here={conceptHereId === 'con-stands'}>
+        <RecordSection id="con-stands" title="Where it stands" description="An overview of the definition, linked material, and activity. Links alone do not establish support or contradiction." here={conceptHereId === 'con-stands'}>
           <ConceptDiagnosisBars diagnosis={diagnosis} />
           <p className="mt-3 font-body text-sm italic text-muted-foreground">{diagnosis.why}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -999,6 +979,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
 
           <RecordFooter>
             <FooterSection title="Connections">
+            <p className="mb-2 text-xs text-muted-foreground">Includes direct matches and records related through shared sources, positions or works.</p>
             {/* Every other record page lists what it is attached to with the
                 shared Connections: one coloured pill per kind, carrying its
                 count, opening to the items. This page used to hand-roll six
@@ -1016,11 +997,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
             </FooterSection>
 
 
-            <FooterSection title="History">
-            {/* Evolution over time */}
+            {!!concept?.aiReviewHistory?.length && <FooterSection title="Saved AI notes"><AiAssistedHistory entries={concept.aiReviewHistory} onChange={async aiReviewHistory => { if (!await onUpdateConcept({ ...concept, aiReviewHistory })) throw new Error('Review history was not saved.'); }} /></FooterSection>}
             {sortedEvents.length > 0 && (
+              <FooterSection title="Related activity">
               <section className="mb-10">
-                <h2 className="noesis-eyebrow text-foreground/60 font-bold mb-6">Evolution Over Time</h2>
                 <div className="relative pl-6 border-l-2 border-border/20 space-y-6">
                   {sortedEvents.map((event) => (
                     <div key={event.id} className="relative">
@@ -1034,12 +1014,13 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   ))}
                 </div>
               </section>
+              </FooterSection>
             )}
-            </FooterSection>
             <FooterSection title="Record">
-              <p className="text-sm text-muted-foreground">{r.sources.length} sources · {r.annotations.length} annotations · {r.questions.length} inquiries · {r.beliefs.length} positions · {r.drafts.length} works{concept?.dateCreated ? ` · created ${new Date(concept.dateCreated).toLocaleDateString()}` : ''}</p>
+              <p className="text-sm text-muted-foreground">{conceptConnectionCounts(r).map(({ count, label }) => `${count} ${label.toLowerCase()}`).join(' · ')}{concept?.dateCreated ? ` · created ${new Date(concept.dateCreated).toLocaleDateString()}` : ''}</p>
             </FooterSection>
           </RecordFooter>
+        </ItemWorkspace>
         {conceptEditorDialog}
         {conceptDeleteDialog}
       </RecordPage>
@@ -1051,34 +1032,12 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
       <PageHeader
         title="Concepts"
         description="Build the vocabulary lab for definitions, boundaries, consistency, and conceptual drift."
-        meta={<p className="noesis-eyebrow text-muted-foreground/60">{maturitySummary}</p>}
         actions={
           <Button onClick={() => openEditor()} size="sm" className="bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 rounded-full h-9">
             <Plus className="size-4 mr-1.5" /> New Concept
           </Button>
         }
       />
-
-      {conceptRows.length > 0 && (() => {
-        const bands: Array<[string, string, string, number]> = [
-          ['stable', 'Mature', 'act', conceptRows.filter((row) => row.maturity.label === 'stable').length],
-          ['usable', 'Developing', 'outline', conceptRows.filter((row) => row.maturity.label === 'usable').length],
-          ['emerging', 'Emerging', 'examine', conceptRows.filter((row) => row.maturity.label === 'emerging').length],
-          ['beginning', 'Beginning', 'more', conceptRows.filter((row) => row.maturity.label === 'beginning').length],
-        ];
-        return (
-          <section className="noesis-flowbar mb-6" aria-label="How developed your vocabulary is">
-            <div className="noesis-instrument__label">How developed your vocabulary is · {conceptRows.length}</div>
-            <div className="noesis-flowbar__bar" role="img" aria-label={bands.map(([, label, , count]) => `${label} ${count}`).join(', ')}>
-              {bands.filter((band) => band[3]).map(([key, label, tone, count]) => <span key={key} data-stage-tone={tone} style={{ flexGrow: count }} title={`${label}: ${count}`} />)}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {bands.map(([key, label, tone, count]) => <span key={key} data-stage-tone={tone} className="noesis-flowbar__key"><i />{label} {count}</span>)}
-              <button type="button" aria-pressed={listView === 'needs_attention'} onClick={() => setListView(listView === 'needs_attention' ? 'all' : 'needs_attention')} className="ml-auto rounded-full border border-[hsl(var(--stage-claim)/.5)] px-3 py-1 text-sm text-[hsl(var(--stage-claim))]">{needsAttentionRows.length} need attention</button>
-            </div>
-          </section>
-        );
-      })()}
 
       <FilterToolbar
         search={search}
@@ -1087,7 +1046,10 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         searchLabel="Search concepts"
         resultCount={conceptRows.length}
         resultLabel="concepts"
-        sortLabel={listView === 'recent' || listView === 'transformed' ? 'Recently changed first' : listView === 'connected' ? 'Most connected first' : 'Alphabetical'}
+        sortControl={<SortPill label="Sort concepts" value={conceptOrder} onChange={setConceptOrder} options={[
+          { value: 'auto', label: listView === 'all' ? 'Default (alphabetical)' : 'Default for this filter' },
+          { value: 'name', label: 'Alphabetical' }, { value: 'newest', label: 'Recently changed' }, { value: 'connected', label: 'Most connected' },
+        ]} />}
         activeFilterLabels={activeConceptFilterLabels}
         onClear={clearConceptFilters}
         clearDisabled={!conceptFiltersActive}
@@ -1147,7 +1109,7 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
         <section className="min-w-0 rounded-lg border border-border/60 bg-card">
           <Table className="table-fixed xl:table-auto">
             <caption className="sr-only">Concepts</caption>
-            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Concept</TableHead><TableHead className="w-24 sm:w-32 xl:w-40">Maturity</TableHead><TableHead className="hidden w-20 xl:table-cell">Links</TableHead><TableHead className="hidden xl:table-cell">Missing requirements</TableHead><TableHead className="hidden w-16 sm:table-cell"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Concept</TableHead><TableHead className="w-24 sm:w-32 xl:w-40">Maturity</TableHead><TableHead className="hidden xl:table-cell">Related records</TableHead><TableHead className="hidden xl:table-cell">Missing requirements</TableHead><TableHead className="hidden w-16 sm:table-cell"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
             <TableBody>
               {conceptRows.map(({ name, concept, diagnosis: diag, connectionCount, repairFlags }) => (
                 <TableRow key={name} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openConceptDetail(name, concept); }}>
@@ -1182,15 +1144,14 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
               <article className="noesis-concept-split__card" data-stage-tone="outline">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="rounded-full">{maturityName(current.maturity.label)}</Badge>
-                  <Badge variant="outline" className="rounded-full">{current.connectionCount} links</Badge>
+                  <ConceptConnectionsButton name={current.name} related={current.related} count={current.connectionCount} />
                   {current.attentionReason && <Badge variant="outline" className="rounded-full" tone="caution">{current.attentionReason}</Badge>}
                 </div>
-                {/* text-4xl is 36px, which is not a step on the type scale.
-                    Every other record names itself with .noesis-page-title. */}
-                <h2 className="noesis-page-title mt-2">{current.name}</h2>
+                <h2 className="mt-2 break-words font-headline text-xl font-bold italic leading-snug text-primary">{current.name}</h2>
                 {current.concept?.description?.trim()
                   ? <blockquote className="noesis-concept-split__quote">{current.concept.description}</blockquote>
                   : <p className="mt-2 text-sm text-muted-foreground">No definition yet. Mark a definition in a source or Works, or open the workbench to write one.</p>}
+                <div className="mt-3"><ConceptConnectionStrip related={current.related} /></div>
                 <Button type="button" onClick={() => openConceptDetail(current.name, current.concept)} className="mt-3 rounded-full">Open the workbench</Button>
               </article>
               <div className="noesis-instrument-pair">
@@ -1232,66 +1193,55 @@ export function ConceptEncyclopedia(props: ConceptEncyclopediaProps) {
                   );
                 })()}
               </div>
-              {current.concept && <ConceptCaliper concept={current.concept} />}
+              {current.concept && <ConceptBoundaryMap concept={current.concept} />}
             </div>
           </div>
         );
       })()}
 
       <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 2xl:grid-cols-4', splitView && viewMode !== 'table' && 'hidden')}>
-        {viewMode !== 'table' && conceptRows.map(({ name, concept, related, diagnosis: diag, maturity, connectionCount, possibleDuplicates, repairFlags }) => {
+        {viewMode !== 'table' && conceptRows.map(({ name, concept, related, connectionCount, possibleDuplicates }) => {
 
           return (
             <Card
               key={name}
-              className="rounded-xl p-4 cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group bg-card shadow-md border border-accent/20 md:p-5"
-              onClick={() => {
-                openConceptDetail(name, concept);
-              }}
+              className="noesis-concept-card group relative flex min-w-0 flex-col self-start rounded-[var(--radius-panel)] p-4 transition-colors hover:border-accent/60 focus-within:border-accent md:p-5"
             >
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="flex-1">
-                  <div className="flex gap-2 items-start">
-                    <h2 className="font-headline text-xl font-bold flex-1 group-hover:text-accent transition-colors leading-tight">{name}</h2>
-                    {concept && (
-                      <Button variant="ghost" size="icon" aria-label={`Edit ${name}`} className="size-10 opacity-100 transition-opacity md:size-9 md:opacity-0 md:group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); openEditor(concept); }}>
-                        <Edit className="size-3" />
-                      </Button>
-                    )}
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
                     <StageBadge type="concept" stage={concept?.stage} status={concept?.philosophyStatus} />
-                    <span className={cn('noesis-eyebrow noesis-eyebrow--sm font-bold px-2 py-0.5 rounded-full border', CLARITY_BG[diag.level])}>
-                      {diag.level}
-                    </span>
-                    <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground font-bold">
-                      {connectionCount} {connectionCount === 1 ? 'link' : 'links'}
-                    </span>
+                    <ConceptConnectionsButton name={name} related={related} count={connectionCount} />
+                  </div>
+                  <div className="flex items-start gap-1">
+                  <h2 className="min-w-0 font-headline text-xl font-bold italic leading-snug text-primary">
+                    <button type="button" className="w-full cursor-pointer text-left [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-[var(--radius-panel)] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring" onClick={() => openConceptDetail(name, concept)}>{name}</button>
+                  </h2>
+                  {possibleDuplicates.length > 0 && <Popover>
+                    <PopoverTrigger asChild><IconButton label={`Review possible overlap for ${name}`} variant="ghost" size="sm" className="relative z-10 shrink-0 text-caution"><AlertTriangle aria-hidden="true" /></IconButton></PopoverTrigger>
+                    <PopoverContent align="start" className="max-h-[60dvh] w-72 max-w-[calc(100vw-2rem)] overflow-y-auto">
+                      <p className="text-sm font-semibold">Possible overlap</p>
+                      <ul className="my-2 list-disc space-y-1 pl-4 text-sm">{possibleDuplicates.map(candidate => <li key={candidate} className="break-words">{candidate}</li>)}</ul>
+                      <p className="text-sm text-muted-foreground">Compare these before merging or marking them as distinct.</p>
+                    </PopoverContent>
+                  </Popover>}
                   </div>
                 </div>
-                <div className="size-8 rounded-full flex items-center justify-center transition-colors shadow-sm bg-primary/10 text-primary">
-                  <BookOpen className="size-4" />
+                <div className="flex shrink-0 items-center">
+                {concept && (
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${name}`} title="Edit concept" className="relative z-10 size-11 shrink-0" onClick={() => openEditor(concept)}>
+                    <Edit className="size-4" aria-hidden="true" />
+                  </Button>
+                )}
                 </div>
               </div>
 
               <p className="text-xs leading-relaxed text-muted-foreground font-body line-clamp-2 italic mb-5">
-                {concept?.description || 'Inspect linked sources, positions, works, inquiries, and practices.'}
+                {concept?.description?.trim() || 'No definition yet.'}
               </p>
 
-              {possibleDuplicates.length > 0 && (
-                <div className="mb-4 rounded-xl border border-caution/40 bg-caution/10 px-3 py-2">
-                  <div className="noesis-eyebrow noesis-eyebrow--sm text-caution font-bold">Duplicate Review</div>
-                  <p className="mt-1 text-xs leading-5 text-foreground">
-                    Compare with {possibleDuplicates.join(', ')} before merging or treating these as separate concepts.
-                  </p>
-                </div>
-              )}
-
-              <div className="border-t border-border/30 pt-3">
-                <ConceptDiagnosisBars diagnosis={diag} compact />
-                <div className="mt-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
-                  {related.sources.length} sources · {related.beliefs.length} positions · {related.drafts.length} works
-                </div>
+              <div className="mt-auto border-t border-border/30 pt-3">
+                <ConceptConnectionStrip related={related} />
               </div>
             </Card>
           );

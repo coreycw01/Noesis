@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from 'react';
-import { Check, Settings2, Shuffle } from 'lucide-react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Link2, ListFilter, ListOrdered, ShieldAlert, TextCursorInput } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Panel } from '@/components/ui/panel';
@@ -30,7 +30,33 @@ function MatchGame({ concepts, seed }: { concepts: Concept[]; seed: string }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [joined, setJoined] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState(false);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [lines, setLines] = useState<Array<{ id: string; color: number; path: string }>>([]);
+  const labelOf = (id: string) => String.fromCharCode(65 + pairs.findIndex(pair => pair.id === id));
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const buttons = Array.from(board.querySelectorAll<HTMLButtonElement>('[data-match-side]'));
+    const measure = () => {
+      const rect = board.getBoundingClientRect();
+      setLines(Object.entries(joined).flatMap(([term, definition]) => {
+        const start = buttons.find(b => b.dataset.matchSide === 'term' && b.dataset.matchId === term)?.getBoundingClientRect();
+        const end = buttons.find(b => b.dataset.matchSide === 'definition' && b.dataset.matchId === definition)?.getBoundingClientRect();
+        if (!start || !end) return [];
+        const x1 = start.right - rect.left, x2 = end.left - rect.left;
+        const y1 = start.top + start.height / 2 - rect.top, y2 = end.top + end.height / 2 - rect.top;
+        const mid = (x1 + x2) / 2;
+        return [{ id: term, color: pairs.findIndex(pair => pair.id === term), path: `M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}` }];
+      }));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(board);
+    buttons.forEach(button => observer.observe(button));
+    return () => observer.disconnect();
+  }, [joined, pairs]);
   if (pairs.length < 3) return <SectionEmpty title="Not enough defined concepts yet." hint="Define three concepts and this game opens." />;
+  const pairMark = (id: string) => <span className="noesis-match__mark" data-pair={labelOf(id)}><span className="sr-only">Pair </span>{labelOf(id)}</span>;
   const right = Object.entries(joined).filter(([term, definition]) => term === definition).length;
   const join = (definitionId: string) => {
     if (!picked) return;
@@ -39,32 +65,40 @@ function MatchGame({ concepts, seed }: { concepts: Concept[]; seed: string }) {
   };
   return (
     <div className="noesis-game">
-      <div className="noesis-game__cols">
+      <div className="noesis-game__cols noesis-match" ref={boardRef}>
+        <svg className="noesis-match__lines" aria-hidden="true">
+          {lines.map(line => <path key={line.id} data-pair={String.fromCharCode(65 + line.color)} d={line.path} />)}
+        </svg>
+        <div className="min-w-0"><h2 className="mb-2 text-sm font-semibold">Terms</h2>
         <ul className="grid gap-2" aria-label="Terms">
           {pairs.map((pair) => (
             <li key={pair.id}>
-              <button type="button" aria-pressed={picked === pair.id}
+              <button type="button" data-match-side="term" data-match-id={pair.id} aria-pressed={picked === pair.id}
                 className={cn('noesis-game__card noesis-game__card--term', joined[pair.id] && 'is-joined', checked && joined[pair.id] && (joined[pair.id] === pair.id ? 'is-right' : 'is-wrong'))}
-                onClick={() => { if (joined[pair.id]) { setJoined((c) => { const next = { ...c }; delete next[pair.id]; return next; }); setChecked(false); return; } setPicked(picked === pair.id ? null : pair.id); }}>
-                {pair.term}
+                onClick={() => { if (joined[pair.id]) { setJoined((c) => { const next = { ...c }; delete next[pair.id]; return next; }); setChecked(false); setPicked(pair.id); return; } setPicked(picked === pair.id ? null : pair.id); }}>
+                {joined[pair.id] && pairMark(pair.id)}<span>{pair.term}</span>
               </button>
             </li>
           ))}
-        </ul>
+        </ul></div>
+        <div className="min-w-0"><h2 className="mb-2 text-sm font-semibold">Definitions</h2>
         <ul className="grid gap-2" aria-label="Definitions">
           {definitions.map((pair) => {
             const joinedTo = Object.entries(joined).find(([, value]) => value === pair.id)?.[0];
             return (
               <li key={pair.id}>
-                <button type="button" disabled={!picked && !joinedTo}
+                <button type="button" data-match-side="definition" data-match-id={pair.id} disabled={!picked && !joinedTo}
                   className={cn('noesis-game__card', joinedTo && 'is-joined', checked && joinedTo && (joinedTo === pair.id ? 'is-right' : 'is-wrong'))}
-                  onClick={() => join(pair.id)}>
-                  {pair.definition}
+                  onClick={() => {
+                    if (picked) join(pair.id);
+                    else if (joinedTo) { setJoined(current => Object.fromEntries(Object.entries(current).filter(([id]) => id !== joinedTo))); setPicked(joinedTo); setChecked(false); }
+                  }}>
+                  {joinedTo && pairMark(joinedTo)}<span>{pair.definition}</span>
                 </button>
               </li>
             );
           })}
-        </ul>
+        </ul></div>
       </div>
       <div className="noesis-game__bar">
         <Button variant="primary" size="sm" disabled={Object.keys(joined).length < pairs.length} onClick={() => setChecked(true)}>Check my matches</Button>
@@ -233,97 +267,31 @@ function OddGame({ positions, seed }: { positions: VaultEntry[]; seed: string })
   );
 }
 
-const GAMES = [
-  { id: 'match', title: 'Match the term', hint: 'Tap a term, then the definition you wrote for it.' },
-  { id: 'blanks', title: 'Fill the blanks', hint: 'Put the missing words back into your own definition.' },
-  { id: 'sort', title: 'What kind of statement is it?', hint: 'Drag each card into a bin, or tap a card and then a bin.' },
-  { id: 'chain', title: 'Build the argument', hint: 'Order the grounds so they lead to the claim.' },
-  { id: 'odd', title: 'Spot the objection', hint: 'Among a claim\u2019s grounds, one is the challenge you recorded against it.' },
+export const QUICK_EXERCISES = [
+  { id: 'match', title: 'Match the term', hint: 'Pair each concept with its definition.', icon: Link2 },
+  { id: 'blanks', title: 'Fill the blanks', hint: 'Recall the missing words in a definition.', icon: TextCursorInput },
+  { id: 'sort', title: 'Sort the statements', hint: 'Sort your records by what kind of statement they make.', icon: ListFilter },
+  { id: 'chain', title: 'Build the argument', hint: 'Order the grounds that lead to a claim.', icon: ListOrdered },
+  { id: 'odd', title: 'Spot the objection', hint: 'Find the challenge hidden among a claim’s grounds.', icon: ShieldAlert },
 ] as const;
 
-/**
- * Five exercises played on the person's own records. They are games, not
- * worksheets: everything here is tapped, dragged or reordered, and every
- * answer is one the workspace already knows.
- */
-export function ExerciseGames({ concepts, inquiries, positions, practices, seed, rotation, onRotationChange }: {
+export type QuickExerciseId = (typeof QUICK_EXERCISES)[number]['id'];
+
+export function ExerciseGame({ game, concepts, inquiries, positions, practices, seed }: {
+  game: QuickExerciseId;
   concepts: Concept[];
   inquiries: Question[];
   positions: VaultEntry[];
   practices: Practice[];
   seed: string;
-  /** The ids in the random rotation. An empty list means all of them. */
-  rotation?: string[];
-  onRotationChange?: (ids: string[]) => void;
 }) {
-  const inRotation = GAMES.filter((game) => !rotation?.length || rotation.includes(game.id));
-  const [open, setOpen] = useState<(typeof GAMES)[number]['id']>(inRotation[0]?.id || 'match');
-  const [picking, setPicking] = useState(false);
-  const current = inRotation.find((game) => game.id === open) || inRotation[0];
-  // Deal: a game you are not already on, from the ones you chose. With one
-  // game chosen it re-deals the same one rather than pretending to shuffle.
-  const deal = () => {
-    const pool = inRotation.filter((game) => game.id !== current?.id);
-    const pick = (pool.length ? pool : inRotation)[Math.floor(Math.random() * (pool.length || inRotation.length))];
-    if (pick) setOpen(pick.id);
-  };
-  const toggle = (id: string) => {
-    const now = rotation?.length ? rotation : GAMES.map((game) => game.id);
-    const next = now.includes(id) ? now.filter((value) => value !== id) : [...now, id];
-    onRotationChange?.(next.length ? next : GAMES.map((game) => game.id));
-  };
   return (
-    <section aria-label="Exercises">
-      {/* One row to choose a game. The rotation used to be a second control on
-          a line of its own, listing the same five games a second time, and the
-          game then announced its own title a third time in a panel heading
-          directly under the tab already carrying it. The row is the only place
-          you pick a game; the rotation opens from the end of it; and the game
-          keeps the one line that is not a repeat — how to play it. */}
-      <div className="noesis-game__tabs" role="tablist" aria-label="Choose an exercise">
-        {inRotation.map((game) => (
-          <button key={game.id} role="tab" type="button" aria-selected={open === game.id} className="noesis-pill" onClick={() => setOpen(game.id)}>{game.title}</button>
-        ))}
-        <span className="flex-1" />
-        {onRotationChange && (
-          <Button variant="ghost" size="sm" aria-pressed={picking} aria-expanded={picking}
-            title={picking ? 'Done' : `Choose which games Deal me one draws from \u00b7 ${inRotation.length} of ${GAMES.length}`}
-            onClick={() => setPicking((shown) => !shown)}>
-            {picking ? <Check className="size-3.5" aria-hidden="true" /> : <Settings2 className="size-3.5" aria-hidden="true" />}
-            {picking ? 'Done' : `${inRotation.length} of ${GAMES.length}`}
-          </Button>
-        )}
-        <Button variant="secondary" size="sm" onClick={deal}><Shuffle className="size-3.5" aria-hidden="true" /> Deal me one</Button>
-      </div>
-
-      {onRotationChange && picking && (
-        <div className="noesis-fold__body mt-2">
-          <p className="noesis-fold__hint">Deal me one picks from the games you tick here. Untick the ones you are tired of; they come back whenever you want them.</p>
-          <ul className="grid gap-1.5 sm:grid-cols-2">
-            {GAMES.map((game) => {
-              const on = !rotation?.length || rotation.includes(game.id);
-              return (
-                <li key={game.id}>
-                  <label className="noesis-check">
-                    <input type="checkbox" checked={on} disabled={on && inRotation.length === 1} onChange={() => toggle(game.id)} />
-                    <span><b>{game.title}</b><small className="block text-muted-foreground">{game.hint}</small></span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      {current && (
-        <Panel key={current.id} size="lg" className="mt-3" description={current.hint}>
-          {current.id === 'match' && <MatchGame concepts={concepts} seed={seed} />}
-          {current.id === 'blanks' && <BlanksGame concepts={concepts} seed={seed} />}
-          {current.id === 'sort' && <SortGame concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={seed} />}
-          {current.id === 'chain' && <ChainGame positions={positions} seed={seed} />}
-          {current.id === 'odd' && <OddGame positions={positions} seed={seed} />}
-        </Panel>
-      )}
-    </section>
+    <Panel size="lg">
+      {game === 'match' && <MatchGame concepts={concepts} seed={seed} />}
+      {game === 'blanks' && <BlanksGame concepts={concepts} seed={seed} />}
+      {game === 'sort' && <SortGame concepts={concepts} inquiries={inquiries} positions={positions} practices={practices} seed={seed} />}
+      {game === 'chain' && <ChainGame positions={positions} seed={seed} />}
+      {game === 'odd' && <OddGame positions={positions} seed={seed} />}
+    </Panel>
   );
 }

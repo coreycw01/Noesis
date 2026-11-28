@@ -1,10 +1,11 @@
 'use client';
 
 import { useContext, useRef, useState } from 'react';
-import { doc, getDocFromServer, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase/provider';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
-import { commitDemoChanges, readDemoSession } from '@/lib/demo-session';
+import { commitDemoChanges } from '@/lib/demo-session';
+import { readAiProvenance } from '@/lib/ai-provenance-read';
 import { requireWorkspaceConnection } from '@/lib/workspace-connectivity';
 import { CONTEXTUAL_AI_LABELS } from '@/lib/contextual-ai';
 import { sourceAnnotationReviewTarget, type AiProvenanceRecord, type AnnotationOrigin, type ProvenanceRef } from '@/lib/ai-provenance';
@@ -49,14 +50,9 @@ export function AiProvenanceBadge({ provenance, target, title, label = 'AI-assis
     const current = ++request.current;
     setState('loading');
     try {
-      if (!uid) throw new Error('Workspace unavailable');
-      const data = (workspace?.endsWith(':demo')
-        ? readDemoSession(uid).aiProvenance?.find(({ id }) => id === provenance.provenanceId)
-        : (await getDocFromServer(doc(db, 'users', uid, 'aiProvenance', provenance.provenanceId))).data()) as AiProvenanceRecord | undefined;
+      const data = await readAiProvenance(db, workspace, provenance, target);
       if (current !== request.current) return;
-      setState(data?.userId === uid && data.targets?.some((entry) =>
-        entry.type === target.type && entry.id === target.id && entry.fieldPath === target.fieldPath
-        && entry.subrecordId === target.subrecordId) ? data : 'unavailable');
+      setState(data || 'unavailable');
     } catch {
       if (current === request.current) setState('unavailable');
     }

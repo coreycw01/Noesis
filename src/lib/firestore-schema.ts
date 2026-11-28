@@ -43,6 +43,7 @@ export const READEX_COLLECTIONS = {
   insights: 'insights',
   thinkingEvents: 'thinkingEvents',
   aiProvenance: 'aiProvenance',
+  assistanceExchanges: 'assistanceExchanges',
   beliefProfiles: 'beliefProfiles',
   unknowns: 'unknowns',
   thinkingPatterns: 'thinkingPatterns',

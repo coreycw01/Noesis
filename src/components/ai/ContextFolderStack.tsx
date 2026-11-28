@@ -1,15 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Check, Pencil, Plus, Settings2, Trash2, X } from 'lucide-react';
-import { doc, runTransaction } from 'firebase/firestore';
-import { initializeFirebase } from '@/firebase';
-import { useDoc } from '@/firebase/firestore/use-doc';
+import { useContextShelf } from '@/components/ai/use-context-shelf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import {
-  MAX_FOLDERS, MAX_FOLDER_ITEMS, folderAdditions, readFolders, replaceFolder, toggleFolderItem,
+  MAX_FOLDERS, MAX_FOLDER_ITEMS, folderAdditions, replaceFolder, toggleFolderItem,
   type ContextFolder,
 } from '@/lib/context-folders';
 
@@ -32,9 +30,7 @@ export function ContextFolderStack({ uid, onDesk, labelFor, onAdd, onRemove, fil
   filing?: string | null;
   onFiled?: () => void;
 }) {
-  const ref = useMemo(() => doc(initializeFirebase().firestore, 'users', uid, 'settings', 'contextFolders'), [uid]);
-  const { data, loading, error } = useDoc(ref);
-  const folders = useMemo(() => readFolders(data?.folders), [data]);
+  const { entries: folders, loading, error, update } = useContextShelf(uid, 'folder');
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [manage, setManage] = useState(false);
@@ -50,11 +46,7 @@ export function ContextFolderStack({ uid, onDesk, labelFor, onAdd, onRemove, fil
     if (lock.current) return;
     lock.current = true; setBusy(true); setMessage('');
     try {
-      await runTransaction(ref.firestore, async (transaction) => {
-        const snapshot = await transaction.get(ref);
-        const updated = replaceFolder(readFolders(snapshot.data()?.folders), id, prior?.revision ?? null, next);
-        transaction.set(ref, { schemaVersion: 1, folders: updated });
-      });
+      await update(current => replaceFolder(current, id, prior?.revision ?? null, next));
       setMessage(note);
     } catch (problem) {
       setMessage(problem instanceof Error ? problem.message : 'Could not update your folders.');

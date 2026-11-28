@@ -51,8 +51,7 @@ export function computeConceptDiagnosis(conceptName: string, related: RelatedDat
   const evidence: ClarityLevel = evidencePts < 2 ? 'beginning' : evidencePts < 4 ? 'developing' : evidencePts < 5 ? 'strong' : 'integrated';
 
   const openQs = questions.filter(q => !q.answer && q.status !== 'answered');
-  const tensionPts = (openQs.length > 0 ? 1 : 0) + (hasOpposition ? 1 : 0) + (beliefs.length > 1 ? 1 : 0);
-  const tension: 'low' | 'medium' | 'high' = tensionPts < 1 ? 'low' : tensionPts < 2 ? 'medium' : 'high';
+  const tension: 'low' | 'medium' | 'high' = hasOpposition || openQs.length > 0 || beliefs.length > 1 ? 'medium' : 'low';
 
   const embodiment: 'untested' | 'planned' | 'active' =
     practices.some(p => p.status === 'active' || p.status === 'completed') ? 'active' :
@@ -98,7 +97,7 @@ export function computeConceptDiagnosis(conceptName: string, related: RelatedDat
 
   const why = whyParts.length > 0
     ? `At the ${level} stage because the ${whyParts.join(', ')}.`
-    : `Developing well — focus on deepening evidence and expression.`;
+    : 'These readings describe connected material and activity, not whether the definition is well supported.';
 
   return { level, clarity, evidence, tension, embodiment, expression, evolving, growthAreas: growthAreas.slice(0, 4), areasToReview, suggestedNextAction, why };
 }

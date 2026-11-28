@@ -657,7 +657,7 @@ export function AtlasTerritoryCanvas({ regions, concepts, positions, inquiries, 
           path = new Path2D();
           path.rect(Number(a.x), Number(a.y), Number(a.width), Number(a.height));
         }
-        if (filled) ctx.fill(path); else ctx.stroke(path);
+        if (filled) ctx.fill(path, a.fillRule === 'evenodd' ? 'evenodd' : 'nonzero'); else ctx.stroke(path);
         ctx.globalAlpha = ctx.globalAlpha / (typeof a.opacity === 'number' ? a.opacity : 1);
       }
       ctx.restore();

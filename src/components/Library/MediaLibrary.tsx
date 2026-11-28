@@ -2,7 +2,7 @@
 "use client";
 
 import { markupTone } from '@/lib/markup-kinds';
-import { iconForNoesisView } from '@/lib/noesis-icons';
+import { iconForNoesisView, NOESIS_ICONS } from '@/lib/noesis-icons';
 import { MarkupVoice } from '@/components/shared/MarkupVoice';
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useState, useRef, useId } from 'react';
@@ -12,29 +12,30 @@ import { usePathname } from 'next/navigation';
 import { ArrowLeft, ChevronDown, Edit, Plus, Trash2, MessageSquare, Triangle, BookOpen, Link2, Clock, Pause, Play, Square, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useSectionDisclosure } from '@/components/shared/SectionDisclosure';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { AiSettings, Annotation, Concept, Media, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
-import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid, conceptKey } from '@/lib/readex';
+import type { AiSettings, Annotation, Concept, Media, MediaCapture, MediaStatus, MediaType, VaultEntry, Draft, Question, TimelineEvent, Practice, PhilosophicalLink, ReadingSession } from '@/lib/types';
+import { MEDIA_LABELS, MEDIA_STATUS_LABELS, MEDIA_TYPES, MEDIA_ICONS_COMP, normalizeConceptTags, today, uid } from '@/lib/readex';
 import { cn } from '@/lib/utils';
 import { StageBadge } from '@/components/shared/StageBadge';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { buildCatalogSummary } from '@/lib/source-intake';
 import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
-import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
+import { FilterToolbar, SortPill } from '@/components/shared/FilterToolbar';
+import { COLLECTION_SORT_OPTIONS, sortCollection, type CollectionOrder } from '@/lib/collection-sort';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
+import { ItemHistoryTrigger } from '@/components/shared/record/ItemWorkspace';
+import { History } from '@/components/shared/record/RecordParts';
 import { noesisUserError } from '@/lib/user-facing-errors';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
@@ -49,6 +50,10 @@ import { inquirySourceIds } from '@/lib/inquiry-state';
 import { viewToPath } from '@/lib/noesis-routes';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ConceptDetailDialog } from '@/components/Concepts/ConceptDetailDialog';
+import { ContextDeskFiling } from '@/components/ai/ContextDeskFiling';
+import { sourceReflectionDeskKey } from '@/lib/context-desk-selection';
+import { sourceConnections, type SourceConnection } from '@/lib/source-connections';
+import { recentSourceSessionExcerpts, SOURCE_SESSION_REFLECTION_PROMPTS, sourceSessionDate, sourceSessionReflectionEntries, sourceSessionSeconds, stopSourceSession } from '@/lib/source-session';
 
 const MarkupIcon = iconForNoesisView('annotations');
 const SourcePagePhotos = dynamic(() => import('./SourcePagePhotos').then(m => m.SourcePagePhotos));
@@ -73,7 +78,6 @@ interface MediaLibraryProps {
   onAttachSourcePhoto: (sourceId: string, photo: import('@/lib/types').StoredAsset) => Promise<void>;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   focusedSourceId?: string | null;
   onFocusedSourceHandled?: () => void;
@@ -82,8 +86,10 @@ interface MediaLibraryProps {
 }
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
+const connectionLabels = { concept: 'Concept', position: 'Position', inquiry: 'Inquiry', work: 'Work', practice: 'Practice' } as const;
 type LibraryViewFilter = 'all' | 'continue' | 'needs_intent' | 'needs_session' | 'needs_annotations' | 'awaiting_reflection' | 'inquiry_driven' | 'recently_added' | 'paused_or_abandoned' | 'influential';
-type SourceWorkbenchStep = 'overview' | 'capture' | 'annotations' | 'connections';
+type SourceWorkbenchStep = 'overview' | 'capture' | 'annotations' | 'connections' | 'history';
+type ReflectionPhase = 'before' | 'sessions' | 'after';
 
 const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
   all: 'All Attention',
@@ -95,7 +101,7 @@ const LIBRARY_VIEW_LABELS: Record<LibraryViewFilter, string> = {
   inquiry_driven: 'Connected to Inquiry',
   recently_added: 'Recently Added',
   paused_or_abandoned: 'Paused / Abandoned',
-  influential: 'Influential',
+  influential: 'Linked to other records',
 };
 
 function sourceNeedsReflection(item: Media) {
@@ -166,7 +172,6 @@ export function MediaLibrary({
   onAttachSourcePhoto,
   onDeleteMedia, 
   onAddConcept,
-  onCreateClaim,
   onDeleteVaultEntry,
   focusedSourceId,
   onFocusedSourceHandled,
@@ -181,7 +186,8 @@ export function MediaLibrary({
   const [statusFilter, setStatusFilter] = usePersistentView<MediaStatus | 'active' | 'all'>('noesis:library-status', 'all', ['all', 'active', ...statuses]);
   const [viewFilter, setViewFilter] = usePersistentView<LibraryViewFilter>('noesis:library-view-filter', 'all', Object.keys(LIBRARY_VIEW_LABELS) as LibraryViewFilter[]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useEntityViewPreference('library');
+  const [covers, setCovers] = usePersistentView('noesis:library-covers', 'shown', ['shown', 'hidden']);
+  const [sourceOrder, setSourceOrder] = usePersistentView<CollectionOrder>('noesis:library-sort', 'newest', ['newest', 'oldest', 'name']);
   const [readingRoomOpen, setReadingRoomOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sourceWorkbenchStep, setSourceWorkbenchStep] = useState<SourceWorkbenchStep>('overview');
@@ -194,7 +200,7 @@ export function MediaLibrary({
     writeBrowserPreference('noesis:source-open-step', '', 'sessionStorage');
     setSourceWorkbenchStep('annotations');
   }, [focusedSourceId]);
-  const [engagementPhase, setEngagementPhase] = useState<'before' | 'sessions' | 'after'>('before');
+  const [engagementPhase, setEngagementPhase] = useState<ReflectionPhase>('before');
   const [editorOpen, setEditorOpen] = useState(Boolean(addSourceRequested));
   useEffect(() => {
     if (addSourceRequested) onAddSourceRequestHandled?.();
@@ -206,24 +212,30 @@ export function MediaLibrary({
   const [markupSelection, setMarkupSelection] = useState('');
   const [savingMark, setSavingMark] = useState(false);
   const markLock = useRef(false);
-  const [insightOpen, setInsightOpen] = useState(false);
-  const [claimSaving, setClaimSaving] = useState(false);
-  const claimSaveLock = useRef(false);
-  const [insightDraft, setInsightDraft] = useState({ title: '', body: '', tags: [] as string[] });
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
-  const [showSourceConceptPicker, setShowSourceConceptPicker] = useState(false);
+  const [savingSourceConcepts, setSavingSourceConcepts] = useState(false);
+  const sourceConceptSaveLock = useRef(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'source'; item: Media } | { type: 'claim'; item: VaultEntry } | null>(null);
   const { toast } = useToast();
 
   const selected = media.find((item) => item.id === (onOpenSourceRoute ? focusedSourceId : selectedId)) || null;
   const selectedRef = useRef<Media | null>(selected);
   selectedRef.current = selected;
-  const [captureDraft, setCaptureDraft] = useState<Media['capture'] | null>(null);
+  const [beforeDraft, setBeforeDraft] = useState<MediaCapture['before']>();
+  const [afterDraft, setAfterDraft] = useState<MediaCapture['after']>();
+  const [savingPhase, setSavingPhase] = useState<'before' | 'after' | 'consumed' | null>(null);
   const [activeSession, setActiveSession] = useState<ReadingSession | null>(null);
+  const sessionHeading = useRef<HTMLHeadingElement>(null);
+  const focusSessionHeading = useRef(false);
   const [sessionTick, setSessionTick] = useState(0);
   const [sessionTargetMinutes, setSessionTargetMinutes] = useState('');
-  const [endSessionOpen, setEndSessionOpen] = useState(false);
+  const [sessionSection, setSessionSection] = useState('');
+  const [sessionIntent, setSessionIntent] = useState('');
+  const [reflectionSession, setReflectionSession] = useState<ReadingSession | null>(null);
   const [endSessionNotes, setEndSessionNotes] = useState('');
+  const [endSessionReflection, setEndSessionReflection] = useState<NonNullable<ReadingSession['reflection']>>({});
+  const [savingReflection, setSavingReflection] = useState(false);
+  const reflectionLock = useRef(false);
   const [targetAlerted, setTargetAlerted] = useState(false);
   
   const filtered = useMemo(() => media.filter((item) => {
@@ -355,13 +367,27 @@ export function MediaLibrary({
       });
   };
 
+  const saveSourceConcepts = async (tags: string[]) => {
+    if (sourceConceptSaveLock.current) return false;
+    sourceConceptSaveLock.current = true;
+    setSavingSourceConcepts(true);
+    try {
+      return await updateSelected({ tags });
+    } finally {
+      sourceConceptSaveLock.current = false;
+      setSavingSourceConcepts(false);
+    }
+  };
+
   useEffect(() => {
-    setCaptureDraft(selected?.capture || { sessions: [] });
-    setInsightDraft({ title: '', body: '', tags: selected?.tags || [] });
-    setEngagementPhase(selected?.status === 'Finished' ? 'after' : 'before');
+    setBeforeDraft(undefined);
+    setAfterDraft(undefined);
+    setEngagementPhase('before');
     setActiveSession(null);
     setSessionTargetMinutes('');
-    setEndSessionOpen(false);
+    setSessionSection('');
+    setSessionIntent('');
+    setReflectionSession(null);
   }, [selected?.id]);
 
   useEffect(() => {
@@ -370,15 +396,7 @@ export function MediaLibrary({
     return () => window.clearInterval(interval);
   }, [activeSession?.id, activeSession?.status]);
 
-  const sessionElapsedSeconds = (session: ReadingSession | null) => {
-    if (!session?.startedAt) return 0;
-    const started = new Date(session.startedAt).getTime();
-    const now = session.status === 'paused' && session.pauseStartedAt ? new Date(session.pauseStartedAt).getTime() : Date.now();
-    const wallSeconds = Math.max(0, Math.floor((now - started) / 1000));
-    return Math.max(0, wallSeconds - (session.totalPausedSeconds || 0));
-  };
-
-  const elapsed = sessionElapsedSeconds(activeSession);
+  const elapsed = sourceSessionSeconds(activeSession);
 
   useEffect(() => {
     if (!activeSession?.countdownTargetSeconds || activeSession.status !== 'active' || targetAlerted) return;
@@ -389,21 +407,37 @@ export function MediaLibrary({
   }, [activeSession, elapsed, targetAlerted, toast]);
 
   const startSession = () => {
-    if (!selected) return;
+    if (!selected || activeSession) return;
     const target = Number(sessionTargetMinutes);
     setActiveSession({
       id: uid(),
       sourceId: selected.id,
       startedAt: today(),
       status: 'active',
-      countdownTargetSeconds: target > 0 ? target * 60 : 0,
+      countdownTargetSeconds: Number.isFinite(target) && target >= 1 ? Math.min(1440, target) * 60 : 0,
       totalPausedSeconds: 0,
+      ...(sessionSection.trim() && { section: sessionSection.trim() }),
+      ...(sessionIntent.trim() && { intent: sessionIntent.trim() }),
       createdAt: today(),
       updatedAt: today(),
     });
     setTargetAlerted(false);
     setSessionTick(0);
   };
+
+  const openSessionFromShortcut = () => {
+    if (!activeSession) startSession();
+    focusSessionHeading.current = true;
+    setEngagementPhase('sessions');
+    setSourceWorkbenchStep('capture');
+  };
+
+  useEffect(() => {
+    if (focusSessionHeading.current && sourceWorkbenchStep === 'capture' && engagementPhase === 'sessions') {
+      focusSessionHeading.current = false;
+      sessionHeading.current?.focus();
+    }
+  }, [sourceWorkbenchStep, engagementPhase]);
 
   const pauseSession = () => {
     if (!activeSession || activeSession.status !== 'active') return;
@@ -424,43 +458,69 @@ export function MediaLibrary({
 
   const openEndSession = () => {
     if (!activeSession) return;
-    setEndSessionNotes('');
-    setEndSessionOpen(true);
+    const stopped = stopSourceSession(activeSession);
+    if (activeSession.status === 'active') setActiveSession({ ...activeSession, status: 'paused', pauseStartedAt: stopped.endedAt });
+    openSessionReflection(stopped);
   };
 
-  const saveSession = async (notes?: string) => {
-    if (!selected || !activeSession) return;
-    const completed: ReadingSession = {
-      ...activeSession,
-      endedAt: today(),
-      date: today(),
-      durationSeconds: elapsed,
-      totalElapsedSeconds: activeSession.startedAt ? Math.floor((Date.now() - new Date(activeSession.startedAt).getTime()) / 1000) : elapsed,
-      notes: notes || '',
-      status: 'completed',
-      updatedAt: today(),
-    };
-    const capture = captureDraft || selected.capture || { sessions: [] };
-    const nextCapture = { ...capture, sessions: [completed, ...(capture.sessions || [])] };
-    if (!await updateSelected({ capture: nextCapture })) return;
-    setCaptureDraft(nextCapture);
-    setActiveSession(null);
-    setEndSessionOpen(false);
-    setSessionTargetMinutes('');
-    toast({ title: 'Session saved', description: `${formatDuration(completed.durationSeconds)} added to this source history.` });
+  const openSessionReflection = (session: ReadingSession) => {
+    setEndSessionNotes(session.notes || '');
+    setEndSessionReflection(session.reflection || {});
+    setReflectionSession(session);
   };
 
-  useEffect(() => {
-    if (!selected || !captureDraft) return;
-    if (JSON.stringify(captureDraft) === JSON.stringify(selected.capture || { sessions: [] })) return;
-    const timeout = window.setTimeout(() => {
-      updateSelected({ capture: captureDraft });
-    }, 900);
-    return () => window.clearTimeout(timeout);
-  }, [captureDraft, selected?.id]);
+  const saveSession = async (skipReflection = false) => {
+    const current = selectedRef.current;
+    if (!current || !reflectionSession || reflectionLock.current) return;
+    reflectionLock.current = true;
+    setSavingReflection(true);
+    try {
+      const { reflection: _previousReflection, ...session } = reflectionSession;
+      const entries = skipReflection ? [] : sourceSessionReflectionEntries(endSessionReflection);
+      const completed: ReadingSession = {
+        ...session,
+        notes: skipReflection ? '' : endSessionNotes.trim(),
+        ...(entries.length ? { reflection: Object.fromEntries(entries.map(({ key, value }) => [key, value])) } : {}),
+        updatedAt: today(),
+      };
+      const capture = current.capture || { sessions: [] };
+      const savedSessions = capture.sessions || [];
+      const existing = savedSessions.some(session => session.id === completed.id);
+      const sessions = existing ? savedSessions.map(session => session.id === completed.id ? completed : session) : [completed, ...savedSessions];
+      const nextCapture = { ...capture, sessions };
+      if (!await updateSelected({ capture: nextCapture })) return;
+      if (selectedRef.current?.id !== current.id) return;
+      if (activeSession?.id === completed.id) {
+        setActiveSession(null);
+        setSessionTargetMinutes('');
+        setSessionSection('');
+        setSessionIntent('');
+      }
+      setReflectionSession(null);
+      toast({ title: existing ? 'Session reflection saved' : 'Session saved' });
+    } finally { reflectionLock.current = false; setSavingReflection(false); }
+  };
 
-  const updateCaptureDraft = (capture: Media['capture']) => {
-    setCaptureDraft({ ...capture, sessions: capture?.sessions || [] });
+  const saveSourceReflection = async (phase: 'before' | 'after', markConsumed = false) => {
+    const current = selectedRef.current;
+    if (!current || reflectionLock.current) return;
+    const pending = phase === 'before' ? beforeDraft : afterDraft;
+    if (!pending && !markConsumed) return;
+    const saved = current.capture || { sessions: [] };
+    const capture = phase === 'before' && beforeDraft ? { ...saved, before: { ...saved.before, ...beforeDraft } }
+      : phase === 'after' && afterDraft ? { ...saved, after: { ...saved.after, ...afterDraft } } : undefined;
+    reflectionLock.current = true;
+    setSavingPhase(markConsumed ? 'consumed' : phase);
+    try {
+      if (!await updateSelected({ ...(capture && { capture }), ...(markConsumed && { status: 'Finished' }) })) return;
+      if (selectedRef.current?.id !== current.id) return;
+      if (phase === 'before') setBeforeDraft(draft => draft === beforeDraft ? undefined : draft);
+      else setAfterDraft(draft => draft === afterDraft ? undefined : draft);
+      toast({ title: markConsumed ? 'Source marked consumed' : phase === 'before' ? 'Preparation saved' : 'Reflection saved' });
+    } finally {
+      reflectionLock.current = false;
+      setSavingPhase(null);
+    }
   };
 
   const openSelectedSource = (id: string) => {
@@ -507,32 +567,22 @@ export function MediaLibrary({
     } finally { markLock.current = false; setSavingMark(false); }
   };
 
-  const saveClaim = async () => {
-    if (!selected || !insightDraft.title.trim() || claimSaveLock.current) return;
-    claimSaveLock.current = true;
-    setClaimSaving(true);
-    try {
-      await onCreateClaim({
-        ...insightDraft,
-        sourceIds: [selected.id]
-      });
-      setInsightDraft({ title: '', body: '', tags: selected.tags || [] });
-      setInsightOpen(false);
-      toast({ title: 'Position saved', description: 'A developing position was linked to this source for later review.' });
-    } catch {
-      toast({ title: 'Position not saved', description: 'Your draft is still here. Please retry.', variant: 'destructive' });
-    } finally { claimSaveLock.current = false; setClaimSaving(false); }
-  };
-
   if (selected) {
-    const linkedInsights = vault.filter((entry) => (entry.sourceIds || []).includes(selected.id));
-    const linkedConcepts = concepts.filter((concept) => (selected.tags || []).some((tag) => conceptKey(tag) === conceptKey(concept.name) || (concept.aliases || []).some((alias) => conceptKey(tag) === conceptKey(alias))))
-      .sort((a, b) => new Date(b.dateUpdated || b.dateCreated).getTime() - new Date(a.dateUpdated || a.dateCreated).getTime())
-      .slice(0, 3);
-    const capture = captureDraft || selected.capture || { sessions: [] };
-    const relatedQuestions = questions.filter((question) => inquirySourceIds(question).includes(selected.id));
-    const relatedDrafts = drafts.filter((draft) => (draft.sourceIds || []).includes(selected.id));
-    const relatedPractices = practices.filter((practice) => (practice.sourceIds || []).includes(selected.id));
+    const connections = sourceConnections(selected, { concepts, positions: vault, inquiries: questions, works: drafts, practices });
+    const highlights = connections.slice(0, 3);
+    const reviewMode = /^\/(demo|review)(\/|$)/.test(pathname);
+    const connectionHref = ({ kind, id }: SourceConnection) => {
+      switch (kind) {
+        case 'concept': return viewToPath('concepts', { reviewMode, conceptId: id });
+        case 'position': return viewToPath('vault', { reviewMode, positionId: id });
+        case 'inquiry': return viewToPath('questions', { reviewMode, questionId: id });
+        case 'work': return viewToPath('writing', { reviewMode, workId: id });
+        case 'practice': return viewToPath('labs', { reviewMode, practiceId: id });
+      }
+    };
+    const capture = selected.capture || { sessions: [] };
+    const before = { ...capture.before, ...beforeDraft };
+    const after = { ...capture.after, ...afterDraft };
     const catalogSummary = selected.catalogSummary || buildCatalogSummary(selected.description);
     const sourcePurpose = capture.before?.reasonForAdding || capture.before?.openQuestion || capture.before?.expectation || selected.sourceNotes || 'This source still needs a clear reason for being studied.';
     
@@ -542,45 +592,46 @@ export function MediaLibrary({
           <button type="button" onClick={closeSelectedSource} className="noesis-back-link">
             <ArrowLeft aria-hidden="true" /> Library
           </button>
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(8.5rem,1fr)_2.5rem] items-center gap-2 sm:flex sm:flex-wrap">
-            <div className="min-w-0 [&>span]:flex [&>span]:w-full [&>span>button:first-child]:min-w-0 [&>span>button:first-child]:flex-1 [&>span>button:first-child]:justify-center [&>span>button:first-child]:truncate">
-              <ContextualAiPanel
-              actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
-              enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
-              showContextBeforeSending={aiSettings?.showContextBeforeSending}
-              reasoningDepth={aiDepthFor(aiSettings, 'library')}
-              buildEnvelope={(action: ContextualAiAction) => ({
-                action,
-                targetType: 'source',
-                targetId: selected.id,
-                scope: 'linked_items',
-                itemMemory: [
-                  `Source: ${selected.title}${selected.creator ? ` by ${selected.creator}` : ''}`,
-                  `Description: ${selected.description || 'None.'}`,
-                  `Reason for engaging: ${selected.capture?.before?.reasonForAdding || 'Not recorded.'}`,
-                  `Question brought to the source: ${selected.capture?.before?.openQuestion || 'Not recorded.'}`,
-                  `Prior view: ${selected.capture?.before?.priorBeliefs || 'Not recorded.'}`,
-                  `Main idea: ${selected.capture?.after?.coreArgument || 'Not recorded.'}`,
-                  `Strongest point: ${selected.capture?.after?.strongestArgument || 'Not recorded.'}`,
-                  `Weakest point: ${selected.capture?.after?.weakestArgument || 'Not recorded.'}`,
-                  `What stays with me: ${selected.capture?.after?.lasting || 'Not recorded.'}`,
-                  `What remains open: ${selected.capture?.after?.remainsUnanswered || 'Not recorded.'}`,
-                  `How my view changed: ${selected.capture?.after?.beliefChange || 'Not recorded.'}`,
-                  ...((selected.capture?.sessions || []).slice(0, 4).map((session) => `Source session: ${session.notes || 'No session note.'}`)),
-                  ...(selected.annotations || []).slice(0, 8).map((annotation) => `${annotation.type}: ${annotation.text}`),
-                ],
-                linkedMemory: [
-                  ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 6).map((entry) => `Position (${entry.confidence}% confidence): ${entry.statement || entry.title}; support: ${(entry.evidenceFor || []).length}; challenges: ${(entry.evidenceAgainst || []).length}`),
-                  ...questions.filter((question) => inquirySourceIds(question).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
-                ],
-              })}
-              onAccept={async (result, text) => { await onUpdateMedia(selected, undefined, { result, text, baseline: selected }); }}
-              />
-            </div>
+          <div className="noesis-record__top-actions">
             <Select value={selected.status} onValueChange={(value) => updateSelected({ status: value as MediaStatus })}>
-              <SelectTrigger aria-label="Source status" className="h-10 w-full min-w-0 rounded-md border-border/60 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-sm sm:w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger aria-label="Source status" className="h-9 w-32 min-w-0 rounded-md border-border/60 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-sm sm:w-36"><SelectValue /></SelectTrigger>
               <SelectContent>{statuses.map((status) => <SelectItem key={status} value={status} className="noesis-eyebrow">{MEDIA_STATUS_LABELS[status]}</SelectItem>)}</SelectContent>
             </Select>
+            <ContextualAiPanel
+            key={selected.id}
+            itemHistory={selected.aiReviewHistory || []}
+            actions={['summarize_source', 'extract_source_claims', 'propose_inquiry_prompts']}
+            iconOnly
+            enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+            showContextBeforeSending={aiSettings?.showContextBeforeSending}
+            reasoningDepth={aiDepthFor(aiSettings, 'library')}
+            buildEnvelope={(action: ContextualAiAction) => ({
+              action,
+              targetType: 'source',
+              targetId: selected.id,
+              scope: 'linked_items',
+              itemMemory: [
+                `Source: ${selected.title}${selected.creator ? ` by ${selected.creator}` : ''}`,
+                `Description: ${selected.description || 'None.'}`,
+                `Reason for engaging: ${selected.capture?.before?.reasonForAdding || 'Not recorded.'}`,
+                `Question brought to the source: ${selected.capture?.before?.openQuestion || 'Not recorded.'}`,
+                `Prior view: ${selected.capture?.before?.priorBeliefs || 'Not recorded.'}`,
+                `Main idea: ${selected.capture?.after?.coreArgument || 'Not recorded.'}`,
+                `Strongest point: ${selected.capture?.after?.strongestArgument || 'Not recorded.'}`,
+                `Weakest point: ${selected.capture?.after?.weakestArgument || 'Not recorded.'}`,
+                `What stays with me: ${selected.capture?.after?.lasting || 'Not recorded.'}`,
+                `What remains open: ${selected.capture?.after?.remainsUnanswered || 'Not recorded.'}`,
+                `How my view changed: ${selected.capture?.after?.beliefChange || 'Not recorded.'}`,
+                ...recentSourceSessionExcerpts(selected.capture?.sessions),
+                ...(selected.annotations || []).slice(0, 8).map((annotation) => `${annotation.type}: ${annotation.text}`),
+              ],
+              linkedMemory: [
+                ...vault.filter((entry) => (entry.sourceIds || []).includes(selected.id)).slice(0, 6).map((entry) => `Position (${entry.confidence}% confidence): ${entry.statement || entry.title}; support: ${(entry.evidenceFor || []).length}; challenges: ${(entry.evidenceAgainst || []).length}`),
+                ...questions.filter((question) => inquirySourceIds(question).includes(selected.id)).slice(0, 6).map((question) => `Inquiry: ${question.text}`),
+              ],
+            })}
+            onAccept={async (result, text) => { await onUpdateMedia(selected, undefined, { result, text, baseline: selected }); }}
+            />
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label="Source actions" className="size-10"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -591,54 +642,49 @@ export function MediaLibrary({
           </div>
         </header>
 
-        <section className="mb-5 grid grid-cols-[5.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b border-border/60 pb-5 sm:flex sm:gap-5 sm:rounded-lg sm:border sm:border-border/50 sm:bg-card sm:p-6 sm:shadow-sm">
-          <div className="h-28 w-[5.25rem] shrink-0 overflow-hidden rounded-md border border-border/40 bg-accent/5 sm:size-44 sm:rounded-lg">
+        <section className="mb-5 grid grid-cols-[5.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b border-border/60 pb-5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-5 sm:rounded-lg sm:border sm:border-border/50 sm:bg-card sm:p-6 sm:shadow-sm">
+          <div className="h-28 w-[5.25rem] shrink-0 overflow-hidden rounded-md border border-border/40 bg-accent/5 sm:row-span-3 sm:size-44 sm:rounded-lg">
             <SourceCover item={selected} eager />
           </div>
           <div className="min-w-0 flex-1 self-center sm:self-auto">
             <DetailLabel view="library" kind="Source" status={MEDIA_LABELS[selected.type]} />
             <h1 className="noesis-page-title noesis-detail-title mb-2 break-words sm:mb-3">{selected.title}</h1>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:mb-5">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="font-body text-base italic text-muted-foreground sm:text-xl">{selected.creator || 'Unknown creator'}</span>
               {selected.year && <span className="noesis-figure font-bold tracking-widest text-muted-foreground sm:text-xs">{selected.year}</span>}
             </div>
-            <p className="mt-2 hidden max-w-3xl font-body text-base italic leading-relaxed text-primary/80 sm:block sm:text-lg">
-              {catalogSummary || 'No provider summary recorded yet.'}
-            </p>
-            <div className="mt-4 hidden flex-wrap gap-2.5 sm:flex">
-              {(selected.tags || []).map(tag => (
-                <button
-                  key={tag}
-                  onClick={() => setConceptPopupName(tag)}
-                  className="inline-flex items-center rounded-full border px-4 py-1.5 noesis-eyebrow noesis-eyebrow--sm font-bold bg-card text-muted-foreground border-border/60 shadow-sm hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all"
-                >
-                  {tag}
-                </button>
-              ))}
-              <Badge variant="outline" className="noesis-eyebrow noesis-eyebrow--sm px-4 py-1.5 bg-card border-border/60 shadow-sm rounded-full font-bold">
-                {selected.annotations?.length || 0} NOTES
-              </Badge>
-            </div>
           </div>
-          <p className="col-span-2 text-sm italic leading-6 text-foreground/75 sm:hidden">
+          <p className="col-span-2 max-w-3xl text-sm italic leading-6 text-foreground/75 sm:col-span-1 sm:col-start-2 sm:text-lg">
             {catalogSummary || 'No provider summary recorded yet.'}
           </p>
-          <div className="col-span-2 flex flex-wrap gap-2 sm:hidden">
+          <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 sm:col-span-1 sm:col-start-2">
             {(selected.tags || []).map(tag => (
-              <button key={tag} onClick={() => setConceptPopupName(tag)} className="min-h-9 rounded-md border border-border/60 bg-card px-3 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">
+              <button key={tag} type="button" onClick={() => setConceptPopupName(tag)} className="noesis-source-concept-pill min-h-9 max-w-full break-words px-3 py-1 noesis-eyebrow noesis-eyebrow--sm font-bold">
                 {tag}
               </button>
             ))}
-            <Badge variant="outline" className="min-h-9 rounded-md border-border/60 bg-card px-3 noesis-eyebrow noesis-eyebrow--sm font-bold">
+            <ConceptTagPicker key={selected.id} concepts={concepts} value={selected.tags || []} onChange={saveSourceConcepts}
+              onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} triggerOnly
+              triggerClassName="noesis-source-concept-pill min-h-9 border-solid" disabled={savingSourceConcepts} />
+            <Badge variant="outline" className="min-h-9 border-border/60 bg-card px-3 noesis-eyebrow noesis-eyebrow--sm font-bold">
               {selected.annotations?.length || 0} notes
             </Badge>
           </div>
         </section>
 
         <Tabs value={sourceWorkbenchStep} onValueChange={(value) => setSourceWorkbenchStep(value as SourceWorkbenchStep)} className="w-full">
-          <TabsList aria-label="Source sections" className="mb-5 flex h-auto w-fit max-w-full flex-wrap">
-            {([['overview', 'Overview'], ['capture', 'Reflection'], ['annotations', 'Markup'], ['connections', 'Connections']] as const).map(([id, label]) => <TabsTrigger key={id} value={id}>{id === 'annotations' && <MarkupIcon className="mr-1.5 size-4" aria-hidden="true" />}{label}</TabsTrigger>)}
-          </TabsList>
+          <div className="mb-5 flex min-w-0 flex-wrap items-center gap-2">
+            <TabsList aria-label="Source sections" className="flex h-auto w-fit max-w-full flex-wrap">
+              {([['overview', 'Overview'], ['capture', 'Reflection'], ['annotations', 'Markup'], ['connections', 'Connections']] as const).map(([id, label]) => <TabsTrigger key={id} value={id}>{id === 'annotations' && <MarkupIcon className="mr-1.5 size-4" aria-hidden="true" />}{label}</TabsTrigger>)}
+              <ItemHistoryTrigger />
+            </TabsList>
+            {(sourceWorkbenchStep !== 'capture' || engagementPhase !== 'sessions') && (
+              <Button type="button" size="sm" variant="secondary" onClick={openSessionFromShortcut}>
+                {activeSession ? <Clock aria-hidden="true" /> : <Play aria-hidden="true" />}
+                {activeSession ? 'View session' : 'Start session'}
+              </Button>
+            )}
+          </div>
 
           <TabsContent value="overview" className="space-y-5 sm:space-y-8">
             <AiAssistedHistory
@@ -677,8 +723,7 @@ export function MediaLibrary({
               ];
               const filled = rows.filter((row) => row[1]?.trim());
               return (
-                <Card className="noesis-workbench-panel">
-                  <div className="noesis-workbench-panel__eyebrow mb-3">YOUR THINKING ON THIS SOURCE</div>
+                <SourceOverviewPanel title="Your thinking on this source">
                   {filled.length ? (
                     <dl className="grid gap-3">
                       {filled.map(([label, value, emphasis]) => (
@@ -691,12 +736,11 @@ export function MediaLibrary({
                   ) : (
                     <p className="text-sm text-muted-foreground">Nothing recorded yet. <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Open Reflection</button> to note why you came, the central idea in your words, and what changed.</p>
                   )}
-                </Card>
+                </SourceOverviewPanel>
               );
             })()}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-                <Card className="noesis-workbench-panel">
-                <div className="noesis-workbench-panel__eyebrow mb-3">MEDIA SUMMARY</div>
+              <SourceOverviewPanel title="Media summary">
                 <div className="grid gap-1 text-sm">
                   {[
                     { label: 'Type', value: MEDIA_LABELS[selected.type] },
@@ -712,15 +756,13 @@ export function MediaLibrary({
                     </div>
                   ))}
                 </div>
-              </Card>
+              </SourceOverviewPanel>
 
-              <Card className="noesis-workbench-panel">
-                <div className="noesis-workbench-panel__eyebrow mb-3">SOURCE PURPOSE</div>
-                <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{sourcePurpose}</p>
+              <SourceOverviewPanel title="Source purpose" description={sourcePurpose}>
                 <p className="mt-4 text-sm leading-6 text-muted-foreground sm:mt-6">
                   Open <button type="button" className="font-medium text-accent underline underline-offset-4" onClick={() => setSourceWorkbenchStep('capture')}>Reflection</button> to record your purpose, sessions, and reflection.
                 </p>
-              </Card>
+              </SourceOverviewPanel>
             </div>
 
             {/* sourceJourney() measured four fathoms of the reader's own work
@@ -732,67 +774,51 @@ export function MediaLibrary({
               state={sourceJourney(selected, sourceInfluenceCount(selected, vault, drafts, practices, questions))}
             />
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-              <Card className="noesis-workbench-panel">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="noesis-workbench-panel__eyebrow">MOST IMPORTANT CONNECTIONS</div>
-                  <span className="text-xs text-muted-foreground">Latest {linkedConcepts.length}</span>
-                </div>
-                <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {linkedConcepts.map((concept) => {
-                    const key = concept.name.trim().toLowerCase();
-                    const has = (tags?: string[]) => (tags || []).some((tag) => tag.trim().toLowerCase() === key);
-                    const positionsCount = vault.filter((entry) => has(entry.tags)).length;
-                    const inquiriesCount = questions.filter((question) => has((question as typeof question & { conceptTags?: string[] }).conceptTags) || (question.conceptIds || []).includes(concept.id)).length;
-                    const notesHere = (selected.annotations || []).filter((note) => has(note.conceptTags)).length;
-                    return (
-                      <button key={concept.id} type="button" onClick={() => setConceptPopupName(concept.name)} className="noesis-connection-card">
-                        <b>{concept.name}</b>
-                        <span>{positionsCount} position{positionsCount === 1 ? '' : 's'} · {inquiriesCount} inquir{inquiriesCount === 1 ? 'y' : 'ies'} · {notesHere} note{notesHere === 1 ? '' : 's'} from here</span>
-                      </button>
-                    );
+            <div className="noesis-source-connection-grid grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <SourceOverviewPanel title="Most important connections">
+                {highlights.length ? <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {highlights.map(connection => {
+                    const Icon = NOESIS_ICONS[connection.kind];
+                    return <Link key={`${connection.kind}:${connection.id}`} href={connectionHref(connection)} data-tone={connection.kind} className="noesis-connection-card noesis-source-connection min-w-0 break-words hover:bg-muted">
+                      <span className="flex items-center gap-1.5 !text-tone"><Icon className="size-4" aria-hidden="true" />{connectionLabels[connection.kind]}</span>
+                      <b>{connection.label}</b>
+                      <span>{connection.reason}</span>
+                    </Link>;
                   })}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowSourceConceptPicker((value) => !value)} className="h-8 rounded-full px-3 text-xs"><Plus className="mr-1 size-3.5" /> Add concept</Button>
-                </div>
-                {showSourceConceptPicker && <div className="mt-4 max-w-md"><ConceptTagPicker concepts={concepts} value={selected.tags || []} onChange={(tags) => updateSelected({ tags })} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></div>}
-              </Card>
+                </div> : <p className="text-sm text-muted-foreground">No connections recorded yet.</p>}
+              </SourceOverviewPanel>
 
-              <Card className="noesis-workbench-panel">
-                <div className="noesis-workbench-panel__eyebrow mb-2">CURRENT TAKEAWAY</div>
+              <SourceOverviewPanel title="Current takeaway">
                 <p className="font-body text-lg italic leading-7 text-foreground/85">
                   {capture.after?.lasting || capture.after?.coreArgument || 'No takeaway saved yet.'}
                 </p>
-                <p className="mt-4 text-sm leading-6 text-muted-foreground">
-                  {capture.after?.remainsUnanswered || 'After engaging with this source, name the question that is still worth carrying forward.'}
-                </p>
-                <Button variant="outline" onClick={() => setInsightOpen(true)} className="mt-5 w-full rounded-md bg-card sm:w-auto sm:rounded-full">Create position from this source</Button>
-              </Card>
+                {capture.after?.remainsUnanswered && <p className="mt-4 text-sm leading-6 text-muted-foreground">{capture.after.remainsUnanswered}</p>}
+              </SourceOverviewPanel>
             </div>
           </TabsContent>
 
           <TabsContent value="capture" className="space-y-8 sm:space-y-12">
             <WorkspaceTabs value={engagementPhase} onChange={setEngagementPhase} label="Engagement phase" variant="segmented" items={[
-              { id: 'before', label: 'Prepare' },
+              { id: 'before', label: 'Before engaging' },
               { id: 'sessions', label: 'Sessions' },
-              { id: 'after', label: 'Reflect' },
+              { id: 'after', label: 'After engaging' },
             ]} />
 
             <section hidden={engagementPhase !== 'before'}>
-              <h3 className="readex-kicker flex items-center gap-3 mb-6 opacity-40 font-bold">
-                <Plus className="size-2.5" /> BEFORE ENGAGING
-              </h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-headline text-lg font-semibold">Before engaging</h3>
+                <Button type="button" size="sm" disabled={!beforeDraft || !!savingPhase || savingReflection} onClick={() => void saveSourceReflection('before')}>{savingPhase === 'before' ? 'Saving...' : 'Save preparation'}</Button>
+              </div>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
-                <CaptureRow label="WHAT BROUGHT YOU HERE?" value={capture.before?.reasonForAdding} placeholder={`What made you choose to ${sourceEngagementVerb(selected.type)} this source?`} onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, reasonForAdding: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT DO YOU EXPECT?" value={capture.before?.expectation} placeholder="What do you expect this source to argue, reveal, or help you notice?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, expectation: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT QUESTION MAKES THIS WORTH YOUR ATTENTION?" value={capture.before?.openQuestion} placeholder="Name the question you want to carry into this source." onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, openQuestion: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT BROUGHT YOU HERE?" value={before?.reasonForAdding} placeholder={`What made you choose to ${sourceEngagementVerb(selected.type)} this source?`} onChange={(val) => setBeforeDraft(draft => ({ ...draft, reasonForAdding: val }))} />
+                <CaptureRow label="WHAT DO YOU EXPECT?" value={before?.expectation} placeholder="What do you expect this source to argue, reveal, or help you notice?" onChange={(val) => setBeforeDraft(draft => ({ ...draft, expectation: val }))} />
+                <CaptureRow label="WHAT QUESTION MAKES THIS WORTH YOUR ATTENTION?" value={before?.openQuestion} placeholder="Name the question you want to carry into this source." onChange={(val) => setBeforeDraft(draft => ({ ...draft, openQuestion: val }))} />
                 <details className="border-t border-border/30 bg-background/30 px-4 py-3 text-sm text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">More context (optional)</summary>
                   <div className="mt-3 overflow-hidden rounded-lg border border-border/30 bg-card">
-                    <CaptureRow label="WHAT DO YOU CURRENTLY THINK?" value={capture.before?.priorBeliefs} placeholder="Record your current view so you can recognize what changes." onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, priorBeliefs: val }, sessions: capture.sessions || [] })} />
-                    <CaptureRow label="POSITION THAT MAY CHANGE" value={capture.before?.affectedPosition} placeholder="Which position could this complicate or strengthen?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, affectedPosition: val }, sessions: capture.sessions || [] })} />
-                    <CaptureRow label="WHAT WOULD COUNT AS VALUE?" value={capture.before?.worthwhileIf} placeholder="What would make the time you give this source worthwhile?" onChange={(val) => updateCaptureDraft({ ...capture, before: { ...capture.before, worthwhileIf: val }, sessions: capture.sessions || [] })} />
+                    <CaptureRow label="WHAT DO YOU CURRENTLY THINK?" value={before?.priorBeliefs} placeholder="Record your current view so you can recognize what changes." onChange={(val) => setBeforeDraft(draft => ({ ...draft, priorBeliefs: val }))} />
+                    <CaptureRow label="POSITION THAT MAY CHANGE" value={before?.affectedPosition} placeholder="Which position could this complicate or strengthen?" onChange={(val) => setBeforeDraft(draft => ({ ...draft, affectedPosition: val }))} />
+                    <CaptureRow label="WHAT WOULD COUNT AS VALUE?" value={before?.worthwhileIf} placeholder="What would make the time you give this source worthwhile?" onChange={(val) => setBeforeDraft(draft => ({ ...draft, worthwhileIf: val }))} />
                   </div>
                 </details>
               </div>
@@ -800,26 +826,32 @@ export function MediaLibrary({
 
             <section hidden={engagementPhase !== 'sessions'}>
               <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="readex-kicker flex items-center gap-3 opacity-40 font-bold">
+                <h3 ref={sessionHeading} tabIndex={-1} className="readex-kicker flex items-center gap-3 opacity-40 font-bold focus-visible:outline focus-visible:outline-ring">
                   <Plus className="size-2.5" /> SESSIONS
                 </h3>
                 {!activeSession && (
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Target min"
-                      value={sessionTargetMinutes}
-                      onChange={(event) => setSessionTargetMinutes(event.target.value)}
-                      className="h-10 w-full rounded-md text-right noesis-figure sm:h-8 sm:w-28 sm:rounded-full"
-                    />
-                    <Button variant="outline" size="sm" onClick={startSession} className="sm:h-8 sm:rounded-full sm:px-5 sm:text-label">
-                      <Play className="mr-2 size-3.5" /> Start Session
-                    </Button>
-                  </div>
+                  <Button type="button" onClick={startSession}>
+                    <Play className="size-4" aria-hidden="true" />Start session
+                  </Button>
                 )}
               </div>
               <div className="space-y-4">
+                {!activeSession && (
+                  <section className="noesis-record-instrument" data-tone="source" aria-label="Prepare for this session">
+                    <h4 className="noesis-eyebrow font-bold text-tone">Prepare for this session</h4>
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+                      <label className="grid min-w-0 gap-1.5 text-sm">Section or chapter (optional)
+                        <Input value={sessionSection} onChange={event => setSessionSection(event.target.value)} maxLength={160} placeholder="Whole source, or e.g. Chapter 3" />
+                      </label>
+                      <label className="grid min-w-0 gap-1.5 text-sm">Target minutes
+                        <Input type="number" min={1} max={1440} value={sessionTargetMinutes} onChange={event => setSessionTargetMinutes(event.target.value)} placeholder="Optional" />
+                      </label>
+                    </div>
+                    <label className="grid gap-1.5 text-sm">What do you want to pay attention to? (optional)
+                      <Textarea value={sessionIntent} onChange={event => setSessionIntent(event.target.value)} maxLength={1500} rows={2} />
+                    </label>
+                  </section>
+                )}
                 {activeSession && (
                   <Card className="rounded-xl border-accent/25 bg-accent/[0.04] p-5 shadow-sm">
                     <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -832,7 +864,8 @@ export function MediaLibrary({
                             {activeSession.status === 'paused' ? 'Paused' : 'Session Active'}
                           </div>
                           <div className="font-headline text-3xl font-bold italic">{formatDuration(elapsed)}</div>
-                          {activeSession.countdownTargetSeconds && (
+                          <p className="break-words text-sm">{activeSession.section || 'Whole source'}</p>
+                          {!!activeSession.countdownTargetSeconds && (
                             <p className="text-xs italic text-muted-foreground">
                               Target {formatDuration(activeSession.countdownTargetSeconds)} {elapsed >= activeSession.countdownTargetSeconds ? 'reached' : 'remaining target active'}
                             </p>
@@ -845,7 +878,7 @@ export function MediaLibrary({
                         ) : (
                           <Button variant="outline" onClick={pauseSession}><Pause className="mr-2 size-4" /> Pause</Button>
                         )}
-                        <Button variant="destructive" onClick={openEndSession}><Square className="mr-2 size-4" /> End</Button>
+                        <Button onClick={openEndSession}><Square className="size-4" aria-hidden="true" />Stop &amp; reflect</Button>
                       </div>
                     </div>
                   </Card>
@@ -854,7 +887,7 @@ export function MediaLibrary({
                 {(capture.sessions || []).length > 0 ? (
                   <div className="space-y-3">
                     {[...(capture.sessions || [])]
-                      .sort((a, b) => new Date(b.endedAt || b.date || b.startedAt || '').getTime() - new Date(a.endedAt || a.date || a.startedAt || '').getTime())
+                      .sort((a, b) => (Date.parse(sourceSessionDate(b)) || 0) - (Date.parse(sourceSessionDate(a)) || 0))
                       .map((session) => (
                         <Card key={session.id} className="rounded-xl border-border/40 bg-card p-4 shadow-sm">
                           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -866,7 +899,13 @@ export function MediaLibrary({
                             </div>
                             <Badge variant="outline" className="rounded-full bg-card noesis-eyebrow noesis-eyebrow--sm">{session.status || 'completed'}</Badge>
                           </div>
-                          {session.notes && <p className="mt-3 text-sm italic leading-6 text-muted-foreground">{session.notes}</p>}
+                          <p className="mt-2 break-words font-medium">{session.section || 'Whole source'}</p>
+                          {session.intent && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground"><strong>Preparation:</strong> {session.intent}</p>}
+                          {sourceSessionReflectionEntries(session.reflection).map(({ key, label, value }) => (
+                            <p key={key} className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground"><strong>{label}:</strong> {value}</p>
+                          ))}
+                          {session.notes && <p className="mt-3 whitespace-pre-wrap break-words text-sm italic leading-6 text-muted-foreground">{session.notes}</p>}
+                          <Button variant="ghost" size="sm" onClick={() => openSessionReflection(session)}>{session.notes || sourceSessionReflectionEntries(session.reflection).length ? 'Edit reflection' : 'Add reflection'}</Button>
                         </Card>
                       ))}
                   </div>
@@ -879,20 +918,25 @@ export function MediaLibrary({
             </section>
 
             <section hidden={engagementPhase !== 'after'}>
-              <h3 className="readex-kicker flex items-center gap-3 mb-6 opacity-40 font-bold">
-                <Plus className="size-2.5" /> AFTER ENGAGING
-              </h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-headline text-lg font-semibold">After engaging</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" size="sm" disabled={!afterDraft || !!savingPhase || savingReflection} onClick={() => void saveSourceReflection('after')}>{savingPhase === 'after' ? 'Saving...' : 'Save reflection'}</Button>
+                  {selected.status === 'Finished' ? <Badge variant="outline">{MEDIA_STATUS_LABELS.Finished}</Badge> :
+                    <Button type="button" size="sm" variant="outline" disabled={!!savingPhase || savingReflection} onClick={() => void saveSourceReflection('after', true)}>{savingPhase === 'consumed' ? 'Marking consumed...' : 'Mark consumed'}</Button>}
+                </div>
+              </div>
               <div className="bg-muted/5 border border-border/30 rounded-xl overflow-hidden shadow-sm">
-                <CaptureRow label="WHAT IS THE CENTRAL IDEA IN YOUR OWN WORDS?" value={capture.after?.coreArgument} placeholder="State what you think the source is actually saying." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, coreArgument: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT STRENGTHENED, CHALLENGED, OR CHANGED YOUR THINKING?" value={capture.after?.beliefChange} placeholder="Describe the movement in your thinking, even if your view did not fully change." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, beliefChange: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT EVIDENCE, EXAMPLE, OR MOMENT MATTERED MOST?" value={capture.after?.strongestArgument} placeholder="Record the specific part that carried the most intellectual weight." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, strongestArgument: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT DID NOT HOLD UP FOR YOU?" value={capture.after?.weakestArgument} placeholder="Name what seemed weak, unsupported, incomplete, or unconvincing." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, weakestArgument: val }, sessions: capture.sessions || [] })} />
-                <CaptureRow label="WHAT QUESTION REMAINS WORTH CARRYING FORWARD?" value={capture.after?.remainsUnanswered} placeholder="Keep the uncertainty that still deserves attention." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, remainsUnanswered: val }, sessions: capture.sessions || [] })} />
+                <CaptureRow label="WHAT IS THE CENTRAL IDEA IN YOUR OWN WORDS?" value={after?.coreArgument} placeholder="State what you think the source is actually saying." onChange={(val) => setAfterDraft(draft => ({ ...draft, coreArgument: val }))} />
+                <CaptureRow label="WHAT STRENGTHENED, CHALLENGED, OR CHANGED YOUR THINKING?" value={after?.beliefChange} placeholder="Describe the movement in your thinking, even if your view did not fully change." onChange={(val) => setAfterDraft(draft => ({ ...draft, beliefChange: val }))} />
+                <CaptureRow label="WHAT EVIDENCE, EXAMPLE, OR MOMENT MATTERED MOST?" value={after?.strongestArgument} placeholder="Record the specific part that carried the most intellectual weight." onChange={(val) => setAfterDraft(draft => ({ ...draft, strongestArgument: val }))} />
+                <CaptureRow label="WHAT DID NOT HOLD UP FOR YOU?" value={after?.weakestArgument} placeholder="Name what seemed weak, unsupported, incomplete, or unconvincing." onChange={(val) => setAfterDraft(draft => ({ ...draft, weakestArgument: val }))} />
+                <CaptureRow label="WHAT QUESTION REMAINS WORTH CARRYING FORWARD?" value={after?.remainsUnanswered} placeholder="Keep the uncertainty that still deserves attention." onChange={(val) => setAfterDraft(draft => ({ ...draft, remainsUnanswered: val }))} />
                 <details className="border-t border-border/30 bg-background/30 px-4 py-3 text-sm text-muted-foreground">
                   <summary className="cursor-pointer font-medium text-foreground">Go deeper (optional)</summary>
                   <div className="mt-3 overflow-hidden rounded-lg border border-border/30 bg-card">
-                    <CaptureRow label="WHAT WILL YOU CARRY FORWARD?" value={capture.after?.lasting} placeholder="Name the idea, distinction, or question you expect to keep using." onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, lasting: val }, sessions: capture.sessions || [] })} />
-                    <CaptureRow label="NEXT STEP" value={capture.after?.nextAction} placeholder="What should you do with this next?" onChange={(val) => updateCaptureDraft({ ...capture, after: { ...capture.after, nextAction: val }, sessions: capture.sessions || [] })} />
+                    <CaptureRow label="WHAT WILL YOU CARRY FORWARD?" value={after?.lasting} placeholder="Name the idea, distinction, or question you expect to keep using." onChange={(val) => setAfterDraft(draft => ({ ...draft, lasting: val }))} />
+                    <CaptureRow label="NEXT STEP" value={after?.nextAction} placeholder="What should you do with this next?" onChange={(val) => setAfterDraft(draft => ({ ...draft, nextAction: val }))} />
                   </div>
                 </details>
               </div>
@@ -903,11 +947,15 @@ export function MediaLibrary({
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">Use your saved notes to surface what you learned, what changed, and what remains uncertain.</p>
                   </div>
                   <ContextualAiPanel
+                    key={selected.id}
+                    itemHistory={selected.aiReviewHistory || []}
                     actions={['reflect_on_source']}
+                    showDeskFiling={false}
+                    actionPromptLabel="How should Noesis review your notes on this source?"
                     enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
                     showContextBeforeSending={aiSettings?.showContextBeforeSending}
                     reasoningDepth={aiDepthFor(aiSettings, 'library')}
-                    buttonLabel="Reflect on this source"
+                    iconOnly
                     promptLabel="What do you want to understand about your response to this source?"
                     promptPlaceholder="For example: What tension keeps appearing in my notes, and what should I examine next?"
                     buildEnvelope={(_action, userPrompt) => ({
@@ -926,7 +974,7 @@ export function MediaLibrary({
                         `What stays with me: ${capture.after?.lasting || 'Not recorded.'}`,
                         `What remains open: ${capture.after?.remainsUnanswered || 'Not recorded.'}`,
                         `How my view changed: ${capture.after?.beliefChange || 'Not recorded.'}`,
-                        ...(capture.sessions || []).slice(0, 4).map((session) => `Source session: ${session.notes || 'No session note.'}`),
+                        ...recentSourceSessionExcerpts(capture.sessions),
                       ],
                       linkedMemory: [
                         ...(selected.annotations || []).slice(0, 8).map((annotation) => `${annotation.type}: ${annotation.text}`),
@@ -940,18 +988,18 @@ export function MediaLibrary({
                 </div>
                 {selected.capture?.after?.aiReflection && (
                   <div className="mt-4 space-y-3 border-t border-accent/15 pt-4">
-                    {selected.reflectionProvenance
-                      ? <AiProvenanceBadge provenance={selected.reflectionProvenance} target={sourceReviewTarget(selected.id, 'aiReflection', selected.reflectionProvenance.provenanceId)} title="Source reflection" />
-                      : <Badge variant="outline">AI-assisted</Badge>}
+                    <div className="flex items-center justify-between gap-2">
+                      {selected.reflectionProvenance
+                        ? <AiProvenanceBadge provenance={selected.reflectionProvenance} target={sourceReviewTarget(selected.id, 'aiReflection', selected.reflectionProvenance.provenanceId)} title="Source reflection" />
+                        : <Badge variant="outline">AI-assisted</Badge>}
+                      <ContextDeskFiling recordKey={sourceReflectionDeskKey(selected.id)} label="File this reflection in Context Desk" />
+                    </div>
                     <ContextualAiDocument content={selected.capture.after.aiReflection} />
                   </div>
                 )}
               </div>
             </section>
 
-            <div className="flex gap-4 border-t border-border/30 pt-6 sm:pt-10">
-              <Button onClick={async () => { if (await updateSelected({ capture })) toast({ title: 'Engagement notes saved' }); }} className="h-11 w-full rounded-md bg-accent px-10 noesis-eyebrow font-bold sm:w-auto sm:rounded-full">Save notes</Button>
-            </div>
           </TabsContent>
 
           {(sourceWorkbenchStep === 'annotations' || markupSourceId === selected.id) && (
@@ -1000,28 +1048,35 @@ export function MediaLibrary({
           </TabsContent>
           )}
 
+          <TabsContent value="history">
+            <History entries={[
+              ...timeline.filter(event => event.entityType === 'media' && event.entityId === selected.id && event.eventType !== 'created')
+                .map(event => ({ id: event.id, date: event.date, title: event.eventType.replace(/_/g, ' '), text: event.reason })),
+              ...(selected.capture?.sessions || []).filter(session => session.status === 'completed' || session.status === 'abandoned')
+                .map(session => ({ id: `session:${session.id}`, date: session.endedAt || session.date, title: session.status === 'completed' ? 'Session finished' : 'Session stopped', text: session.section })),
+              ...(selected.dateAdded ? [{ id: 'added', date: selected.dateAdded, title: 'Source added', text: undefined }] : []),
+            ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))} empty="No source activity recorded yet." />
+          </TabsContent>
           <TabsContent value="connections" className="space-y-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-              <div>
-                <h3 className="readex-kicker font-bold text-muted-foreground">WHERE THIS SOURCE IS USED</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">These are the objects that explicitly cite, question, test, or develop this source. A source claim stays separate from your position until you create one.</p>
-              </div>
-              <Button onClick={() => setInsightOpen(true)} className="w-full rounded-md sm:w-auto sm:rounded-full">Create position</Button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {[
-                { label: 'Positions', items: linkedInsights.map((item) => ({ id: item.id, label: item.statement || item.title, href: viewToPath('vault', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), positionId: item.id }) })), empty: 'No positions have been created from this source.' },
-                { label: 'Inquiries', items: relatedQuestions.map((item) => ({ id: item.id, label: item.text, href: viewToPath('questions', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), questionId: item.id }) })), empty: 'No inquiries are linked to this source.' },
-                { label: 'Works', items: relatedDrafts.map((item) => ({ id: item.id, label: item.title, href: viewToPath('writing', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), workId: item.id }) })), empty: 'No works use this source.' },
-                { label: 'Practices', items: relatedPractices.map((item) => ({ id: item.id, label: item.title, href: viewToPath('labs', { reviewMode: /^\/(demo|review)(\/|$)/.test(pathname), practiceId: item.id }) })), empty: 'No practices test ideas from this source.' },
-              ].map((group) => (
-                <Card key={group.label} className="noesis-workbench-panel">
-                  <div className="flex items-center justify-between gap-3 text-sm font-medium"><span>{group.label}</span><span className="tabular-nums text-muted-foreground">{group.items.length}</span></div>
-                  {group.items.length ? (
-                    <ul className="mt-3 max-h-64 divide-y divide-border/40 overflow-y-auto overscroll-contain text-sm leading-6 text-foreground/85">{group.items.map((item) => <li key={item.id}><Link href={item.href} className="block min-h-11 break-words py-3 hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">{item.label}</Link></li>)}</ul>
+            <h3 className="readex-kicker font-bold text-muted-foreground">WHERE THIS SOURCE IS USED</h3>
+            <div className="noesis-source-connection-grid grid gap-4 md:auto-rows-fr md:grid-cols-2">
+              {([
+                { kind: 'position', label: 'Positions', empty: 'No positions use this source.' },
+                { kind: 'inquiry', label: 'Inquiries', empty: 'No inquiries are linked to this source.' },
+                { kind: 'work', label: 'Works', empty: 'No works use this source.' },
+                { kind: 'practice', label: 'Practices', empty: 'No practices test ideas from this source.' },
+              ] as const).map(group => {
+                const items = connections.filter(item => item.kind === group.kind);
+                const Icon = NOESIS_ICONS[group.kind];
+                return <Card key={group.label} data-tone={group.kind} className="noesis-workbench-panel noesis-source-connection min-w-0">
+                  <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-2 text-sm font-semibold text-tone">
+                    <h4 className="flex items-center gap-2"><Icon className="size-4" aria-hidden="true" />{group.label}</h4><span className="tabular-nums">{items.length}</span>
+                  </div>
+                  {items.length ? (
+                    <ul className="mt-2 max-h-64 divide-y divide-border/40 overflow-y-auto overscroll-contain text-sm leading-6 text-foreground/85">{items.map(item => <li key={item.id}><Link href={connectionHref(item)} className="block min-h-11 break-words py-3 hover:text-tone hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset">{item.label}</Link></li>)}</ul>
                   ) : <p className="mt-3 text-sm leading-6 text-muted-foreground">{group.empty}</p>}
-                </Card>
-              ))}
+                </Card>;
+              })}
             </div>
           </TabsContent>
 
@@ -1039,47 +1094,33 @@ export function MediaLibrary({
           timeline={timeline}
         />
 
-        <Dialog open={endSessionOpen} onOpenChange={setEndSessionOpen}>
-          <DialogContent className="max-w-lg border-none bg-card shadow-2xl rounded-2xl">
+        <Dialog open={Boolean(reflectionSession)} onOpenChange={open => { if (!open && !reflectionLock.current) setReflectionSession(null); }}>
+          <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto border-none bg-card shadow-2xl rounded-2xl">
             <DialogHeader>
-              <DialogTitle className="font-headline text-3xl italic">End Source Session</DialogTitle>
-              <p className="text-sm italic text-muted-foreground">Total active time: {formatDuration(elapsed)}</p>
+              <DialogTitle className="font-headline text-2xl italic">Reflect on this session</DialogTitle>
+              <DialogDescription className="break-words">{reflectionSession?.section || 'Whole source'} · {formatDuration(reflectionSession?.durationSeconds || 0)} active</DialogDescription>
+              {reflectionSession?.intent && <p className="break-words text-sm text-muted-foreground">You wanted to pay attention to: {reflectionSession.intent}</p>}
             </DialogHeader>
-            <div className="space-y-3 pt-3">
-              <Label className="readex-kicker text-label-sm font-bold uppercase">Reflection Notes</Label>
-              <Textarea
-                value={endSessionNotes}
-                onChange={(event) => setEndSessionNotes(event.target.value)}
-                placeholder="What did you encounter, notice, question, or connect?"
-                className="min-h-[130px] italic"
-              />
-            </div>
+            <fieldset disabled={savingReflection} className="grid min-w-0 gap-3 pt-2">
+              <legend className="text-xs text-muted-foreground">All questions are optional.</legend>
+              {SOURCE_SESSION_REFLECTION_PROMPTS.map(({ key, label }) => (
+                <label key={key} className="grid gap-1.5 text-sm font-medium">
+                  {label}
+                  <Textarea value={endSessionReflection[key] ?? ''} maxLength={1000} rows={2}
+                    onChange={event => setEndSessionReflection(draft => ({ ...draft, [key]: event.target.value }))} />
+                </label>
+              ))}
+              {reflectionSession?.notes && <label className="grid gap-1.5 text-sm font-medium">
+                Existing reflection notes
+                <Textarea value={endSessionNotes} maxLength={4000} rows={3} onChange={event => setEndSessionNotes(event.target.value)} />
+              </label>}
+            </fieldset>
             <DialogFooter className="gap-2 pt-4">
-              <Button variant="ghost" onClick={() => setEndSessionOpen(false)} className="rounded-full">Cancel</Button>
-              <Button variant="outline" onClick={() => saveSession('')} className="rounded-full bg-card">Skip Notes</Button>
-              <Button onClick={() => saveSession(endSessionNotes)} className="rounded-full bg-accent px-8">Save Session</Button>
+              {reflectionSession?.id === activeSession?.id
+                ? <Button variant="outline" disabled={savingReflection} onClick={() => void saveSession(true)}>Save without reflection</Button>
+                : <Button variant="outline" disabled={savingReflection} onClick={() => setReflectionSession(null)}>Cancel</Button>}
+              <Button disabled={savingReflection} onClick={() => void saveSession()}>{savingReflection ? 'Saving...' : 'Save reflection'}</Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={insightOpen} onOpenChange={setInsightOpen}>
-          <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl">
-            <DialogHeader><DialogTitle className="font-headline text-3xl italic">New Position</DialogTitle></DialogHeader>
-            <div className="space-y-6 pt-4">
-              <div className="space-y-2">
-                <Label className="readex-kicker">Position statement</Label>
-                <Input aria-label="Position statement" value={insightDraft.title} onChange={(e) => setInsightDraft(prev => ({ ...prev, title: e.target.value }))} placeholder="What do you now think is true?" />
-              </div>
-              <div className="space-y-2">
-                <Label className="readex-kicker">Reasoning (optional)</Label>
-                <Textarea aria-label="Position reasoning" value={insightDraft.body} onChange={(e) => setInsightDraft(prev => ({ ...prev, body: e.target.value }))} className="min-h-[140px]" placeholder="Which part of this source supports your view, and why?" />
-              </div>
-              <div className="space-y-2">
-                <Label className="readex-kicker">Concepts</Label>
-                <ConceptTagPicker concepts={concepts} value={insightDraft.tags} onChange={(tags) => setInsightDraft(prev => ({ ...prev, tags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
-              </div>
-            </div>
-            <DialogFooter className="pt-6"><Button onClick={saveClaim} disabled={claimSaving || !insightDraft.title.trim()}>{claimSaving ? 'Saving…' : 'Save developing claim'}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -1150,7 +1191,8 @@ export function MediaLibrary({
         resultLabel="sources"
         onClear={clearLibraryFilters}
         clearDisabled={!libraryFiltersActive}
-        viewControl={<ViewModeToggle value={viewMode === 'table' ? 'table' : 'grid'} modes={['grid', 'table']} onChange={(value) => setViewMode(value === 'table' ? 'table' : 'cards')} label="Library view" />}
+        sortControl={<SortPill label="Sort sources" value={sourceOrder} onChange={setSourceOrder} options={COLLECTION_SORT_OPTIONS} />}
+        viewControl={<Button type="button" variant="outline" size="sm" aria-pressed={covers === 'shown'} onClick={() => setCovers(covers === 'shown' ? 'hidden' : 'shown')}>Covers</Button>}
         className="mb-6"
       >
         <Select value={viewFilter} onValueChange={(value) => setViewFilter(value as LibraryViewFilter)}>
@@ -1247,47 +1289,27 @@ export function MediaLibrary({
         </div>}
       </section>
 
-      {viewMode === 'table' && filtered.length > 0 && (
-        <section className="min-w-0 rounded-lg border border-border/60 bg-card">
-          <Table className="table-fixed xl:table-auto">
-            <caption className="sr-only">Library sources</caption>
-            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Source</TableHead><TableHead className="hidden w-28 lg:table-cell">Type</TableHead><TableHead className="w-28 sm:w-40">Status</TableHead><TableHead className="hidden xl:table-cell">Concept focus</TableHead><TableHead className="hidden w-28 xl:table-cell">Annotations</TableHead><TableHead className="hidden w-28 xl:table-cell">Connections</TableHead></TableRow></TableHeader>
-            <TableBody>{filtered.map((item) => {
-              const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
-              return <TableRow key={item.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openSelectedSource(item.id); }}>
-                <TableCell className="max-w-xl py-2 [overflow-wrap:anywhere]"><button type="button" className="min-h-11 w-full rounded-sm text-left font-headline text-base font-semibold text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openSelectedSource(item.id)} onKeyDown={(event) => activateEntityOnKey(event, () => openSelectedSource(item.id))}>{item.title}</button><div className="pb-2 text-xs text-muted-foreground">{item.creator || 'Creator not added'}<span className="block lg:hidden">{MEDIA_LABELS[item.type]}</span></div></TableCell>
-                <TableCell className="hidden noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground lg:table-cell">{MEDIA_LABELS[item.type]}</TableCell>
-                <TableCell><div className="flex flex-wrap gap-1.5"><Badge>{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div></TableCell>
-                <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{item.tags?.length ? item.tags.slice(0, 3).join(' · ') : 'No concept linked'}</TableCell>
-                <TableCell className="hidden noesis-figure tabular-nums text-muted-foreground xl:table-cell">{item.annotations?.length || 0}</TableCell>
-                <TableCell className="hidden noesis-figure tabular-nums text-muted-foreground xl:table-cell">{influence}</TableCell>
-              </TableRow>;
-            })}</TableBody>
-          </Table>
-        </section>
-      )}
-
-      <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
-        {viewMode !== 'table' && filtered.map((item) => {
+      <div className={covers === 'shown' ? 'grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}>
+        {sortCollection(filtered, sourceOrder, item => item.title, item => item.dateUpdated || item.dateAdded).map((item) => {
           const influence = sourceInfluenceCount(item, vault, drafts, practices, questions);
           return (
           <Card
             key={item.id}
-            className="group relative border-none bg-transparent shadow-none"
+            className={covers === 'shown' ? 'group relative border-none bg-transparent shadow-none' : 'group relative min-w-0 border border-border bg-card p-3'}
           >
-            <div className="aspect-[4/5] overflow-hidden rounded-lg border border-border/30 bg-card shadow-sm mb-3 transition-all group-hover:-translate-y-1 group-hover:shadow-lg">
+            {covers === 'shown' && <div className="aspect-[4/5] overflow-hidden rounded-lg border border-border/30 bg-card shadow-sm mb-3 transition-all group-hover:-translate-y-1 group-hover:shadow-lg">
               <SourceCover item={item} />
-            </div>
+            </div>}
             <div className="space-y-1.5">
-              <div className="readex-kicker text-muted-foreground font-bold text-label-sm">{MEDIA_LABELS[item.type].toUpperCase()}</div>
+              <div className="flex items-center justify-between gap-1">
+                <div className="readex-kicker text-muted-foreground font-bold text-label-sm">{MEDIA_LABELS[item.type].toUpperCase()}</div>
+              </div>
               <h2 className="font-headline text-base font-bold italic leading-snug text-foreground transition-colors group-hover:text-accent">
                 <button type="button" onClick={() => openSelectedSource(item.id)} className="line-clamp-2 text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-2 focus-visible:after:ring-ring">{item.title}</button>
               </h2>
               <p className="readex-kicker text-muted-foreground truncate text-label-sm font-bold tracking-widest">{item.creator.toUpperCase()}</p>
-              {!!item.tags?.[0] && (
-                <div className="line-clamp-1 text-sm font-semibold text-accent">{item.tags[0]}</div>
-              )}
-              <div className="flex items-center justify-between pt-1">
+              {!!item.tags?.length && <div className="flex flex-wrap gap-1">{item.tags.slice(0, 3).map(tag => <Badge key={tag} tone="concept">{tag}</Badge>)}</div>}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <div className="flex flex-wrap gap-1"><Badge>{MEDIA_STATUS_LABELS[item.status]}</Badge><StageBadge type="source" stage={item.stage} status={item.status} /></div>
                 <div className="flex items-center gap-3 text-muted-foreground/70">
                   {item.annotations?.length > 0 && <span className="flex items-center gap-1" title={`${item.annotations.length} annotations`} aria-label={`${item.annotations.length} annotations`}><MessageSquare className="size-3.5" /><span className="noesis-figure noesis-figure--sm font-bold">{item.annotations.length}</span></span>}
@@ -1299,7 +1321,7 @@ export function MediaLibrary({
           );
         })}
 
-        <button type="button"
+        {covers === 'shown' && filtered.length > 0 && <button type="button"
           className="aspect-[2/3] rounded-xl border-2 border-dashed border-border/50 bg-card/50 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-card transition-all group shadow-sm hover:shadow-xl hover:-translate-y-2"
           onClick={() => openEditor()}
         >
@@ -1307,7 +1329,7 @@ export function MediaLibrary({
             <Plus className="size-6 text-muted-foreground" />
           </div>
           <span className="readex-kicker text-muted-foreground font-bold text-label">Add source</span>
-        </button>
+        </button>}
 
         {filtered.length === 0 && (
           <div className="col-span-full">
@@ -1329,6 +1351,18 @@ export function MediaLibrary({
       {editorOpen && <MediaEditor open onOpenChange={setEditorOpen} draft={draft} setDraft={setDraft} onSave={saveMedia} saving={savingSource} />}
     </div>
   );
+}
+
+function SourceOverviewPanel({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  const { toggle, body } = useSectionDisclosure(title);
+  return <Card className="noesis-workbench-panel self-start">
+    <div className="flex items-center justify-between gap-2">
+      <h3 className="noesis-workbench-panel__eyebrow">{title}</h3>
+      {toggle}
+    </div>
+    {description && <p className="font-headline text-xl italic leading-snug text-primary/90 sm:text-2xl">{description}</p>}
+    <div {...body} className="pt-2">{children}</div>
+  </Card>;
 }
 
 function SourceCover({ item, eager = false }: { item: Media; eager?: boolean }) {

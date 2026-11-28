@@ -9,15 +9,20 @@ import type { BadgeTone } from '@/components/ui/badge';
 interface ConceptTagPickerProps {
   concepts: Concept[];
   value: string[];
-  onChange: (tags: string[]) => void;
+  onChange: (tags: string[]) => void | boolean | Promise<void | boolean> | undefined;
   onCreateConcept?: (name: string) => void | boolean | Promise<void | boolean>;
   compact?: boolean;
   inline?: boolean;
   selectedTone?: BadgeTone;
+  triggerOnly?: boolean;
+  triggerLabel?: string;
+  emptySelectedLabel?: string;
+  triggerClassName?: string;
+  disabled?: boolean;
   className?: string;
 }
 
-export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact, inline, selectedTone, className }: ConceptTagPickerProps) {
+export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, compact, inline, selectedTone, triggerOnly, triggerLabel, emptySelectedLabel = 'Unsorted Ideas', triggerClassName, disabled, className }: ConceptTagPickerProps) {
   const selected = normalizeConceptTags(value);
   const items = useMemo(() => {
     const byId = new Map<string, { id: string; label: string; secondary?: string; searchText?: string[] }>();
@@ -43,8 +48,7 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
   const create = async (query: string) => {
     const name = conceptKey(query);
     if (await onCreateConcept?.(name) === false) return false;
-    onChange(normalizeConceptTags([...selected.filter((tag) => tag !== UNSORTED_CONCEPT), name]));
-    return true;
+    return await onChange(normalizeConceptTags([...selected.filter((tag) => tag !== UNSORTED_CONCEPT), name])) !== false;
   };
 
   return (
@@ -52,14 +56,17 @@ export function ConceptTagPicker({ concepts, value, onChange, onCreateConcept, c
       items={items}
       selectedIds={selected}
       onToggle={toggle}
-      triggerLabel="Concept"
+      triggerLabel={triggerLabel ?? (triggerOnly ? 'Add concept' : 'Concept')}
       searchPlaceholder="Find or create concept..."
-      emptySelectedLabel="Unsorted Ideas"
+      emptySelectedLabel={emptySelectedLabel}
       onCreate={onCreateConcept ? create : undefined}
       createLabel={(query) => `Create "${query}"`}
       compact={compact}
       inline={inline}
       selectedTone={selectedTone}
+      triggerOnly={triggerOnly}
+      triggerClassName={triggerClassName}
+      disabled={disabled}
       className={className}
     />
   );

@@ -1,5 +1,9 @@
 export const MAX_CONTEXT_ITEMS = 12;
 
+export function sourceReflectionDeskKey(id: string) {
+  return `source:${id}:reflection`;
+}
+
 export function contextDeskReviewKey(records: ReadonlyArray<{ key: string }>) {
   // Keep every ID and its position: the first record supplies the primary context.
   return JSON.stringify(records.map(({ key }) => key));

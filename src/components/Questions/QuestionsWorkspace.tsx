@@ -25,7 +25,8 @@ import { useToast } from '@/hooks/use-toast';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
 import { ToolOption, ToolOptions, WorkbenchPanel } from '@/components/shared/WorkbenchPanel';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { COLLECTION_SORT_OPTIONS, sortCollection, type CollectionOrder } from '@/lib/collection-sort';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { PageEmptyState } from '@/components/shared/PageState';
@@ -34,7 +35,6 @@ import { ContextRail, EntityMeta, IntellectualRoleLabel } from '@/components/sha
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope } from '@/lib/contextual-ai';
 import type { InquiryAiReview } from '@/lib/inquiry-ai-review';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -77,6 +77,7 @@ interface QuestionsWorkspaceProps {
   onOpenWork: (id: string) => void;
   onOpenPractice: (id: string) => void;
   onOpenPosition: (id: string) => void;
+  onOpenAnnotation: (sourceId: string, annotationId: string) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
   focusedQuestionId?: string | null;
   onFocusedQuestionHandled?: () => void;
@@ -132,14 +133,16 @@ function conceptReferenceLabel(reference: string, concepts: Concept[]) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onSaveAiReview, onDeleteQuestion, onAddVaultEntry, onAddDraft, onLinkItem, onAddPractice, onOpenWork, onOpenPractice, onOpenPosition, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
+const EMPTY_INQUIRY_DRAFT = { text: '', whyItMatters: '', uncertainty: '', sourceIds: [] as string[] };
+
+export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts, practices, concepts, onAddQuestion, onUpdateQuestion, onSaveAiReview, onDeleteQuestion, onAddVaultEntry, onAddDraft, onLinkItem, onAddPractice, onOpenWork, onOpenPractice, onOpenPosition, onOpenAnnotation, onFormPositionFromInquiry, focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute }: QuestionsWorkspaceProps) {
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = usePersistentView<CollectionOrder>('noesis:inquiry-sort', 'newest', ['newest', 'oldest', 'name']);
   const [viewMode, setViewMode] = useEntityViewPreference('inquiries');
   const [filter, setFilter] = usePersistentView<FilterType>('noesis:inquiries-filter', 'all', Object.keys(INQUIRY_FILTER_LABELS) as FilterType[]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detailSection, setDetailSection] = useState<'investigation' | 'answer'>('investigation');
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newQuestion, setNewQuestion] = useState({ text: '', sourceIds: [] as string[] });
+  const [newQuestion, setNewQuestion] = useState(EMPTY_INQUIRY_DRAFT);
   const [creatingQuestion, setCreatingQuestion] = useState(false);
   const questionCreationLock = useRef(false);
   const { toast } = useToast();
@@ -154,7 +157,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     setSelectedId(focusedQuestionId);
     onFocusedQuestionHandled?.();
   }, [focusedQuestionId, onFocusedQuestionHandled, onOpenQuestionRoute]);
-  const filtered = all.filter((question) => {
+  const filtered = sortCollection(all.filter((question) => {
     let typeOk = true;
     if (filter === 'active') typeOk = isInquiryActive(question);
     if (filter === 'complete') typeOk = inquiryFormation(question).fullyFormed;
@@ -187,11 +190,10 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
       ...relatedConcepts.map((concept) => ({ value: concept.name, label: 'concept' })),
     ]);
     return typeOk && searchOk;
-  });
+  }), sortOrder, item => item.text, item => item.dateUpdated || item.dateCreated);
   const selected = all.find((question) => question.id === (onOpenQuestionRoute ? focusedQuestionId : selectedId)) || null;
 
-  const openQuestion = (id: string, section: 'investigation' | 'answer' = 'investigation') => {
-    setDetailSection(section);
+  const openQuestion = (id: string) => {
     setSelectedId(id);
     onOpenQuestionRoute?.(id);
   };
@@ -206,8 +208,14 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     questionCreationLock.current = true;
     setCreatingQuestion(true);
     try {
-      const created = await onAddQuestion({ text: newQuestion.text.trim(), status: 'captured', sourceIds: newQuestion.sourceIds });
-      setNewQuestion({ text: '', sourceIds: [] });
+      const created = await onAddQuestion({
+        text: newQuestion.text.trim(),
+        whyItMatters: newQuestion.whyItMatters.trim(),
+        uncertainty: newQuestion.uncertainty.trim(),
+        status: 'captured',
+        sourceIds: newQuestion.sourceIds,
+      });
+      setNewQuestion(EMPTY_INQUIRY_DRAFT);
       setIsAddOpen(false);
       openQuestion(created.id);
     } catch {
@@ -232,7 +240,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
     const conceptNames = conceptReferences.map((value) => conceptReferenceLabel(value, concepts));
     const relatedBeliefs = vault.filter((entry) => selected.beliefIds?.includes(entry.id) || entry.sourceInquiryId === selected.id
       || (entry.tags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))) || (entry.sourceIds || []).some((id) => sourceIds.includes(id)));
-    const relatedDrafts = drafts.filter((draft) => (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
+    const relatedDrafts = drafts.filter((draft) => selected.draftIds?.includes(draft.id) || (draft.questionIds || []).includes(selected.id) || (draft.conceptTags || []).some((tag) => conceptNames.map(conceptKey).includes(conceptKey(tag))));
     const relatedPractices = practices.filter((practice) => practice.questionIds?.includes(selected.id) || selected.practiceIds?.includes(practice.id));
     return (
         <InquiryDetail
@@ -261,9 +269,9 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
           onOpenWork={onOpenWork}
           onOpenPractice={onOpenPractice}
           onOpenPosition={onOpenPosition}
+          onOpenAnnotation={onOpenAnnotation}
           onFormPositionFromInquiry={onFormPositionFromInquiry}
           onAiFeedback={(title, description, variant) => toast({ title, description, ...(variant ? { variant } : {}) })}
-          initialSection={detailSection}
         />
     );
   }
@@ -303,6 +311,7 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         onSearchChange={setSearch}
         searchPlaceholder="Search inquiries, answers, evidence..."
         resultCount={filtered.length}
+        sortControl={<SortPill label="Sort inquiries" value={sortOrder} onChange={setSortOrder} options={COLLECTION_SORT_OPTIONS} />}
         resultLabel="inquiries"
         activeFilterLabels={activeFilterLabels}
         onClear={clearInquiryFilters}
@@ -354,16 +363,14 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         <section className="min-w-0 rounded-lg border border-border/60 bg-card">
           <Table className="table-fixed xl:table-auto">
             <caption className="sr-only">Inquiries</caption>
-            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Inquiry</TableHead><TableHead className="w-24 sm:w-32 xl:w-40">State</TableHead><TableHead className="hidden w-48 xl:table-cell">Source context</TableHead><TableHead className="hidden xl:table-cell">Next step</TableHead><TableHead className="hidden w-32 xl:table-cell"><span className="sr-only">Action</span></TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow className="bg-muted/25 hover:bg-muted/25"><TableHead>Inquiry</TableHead><TableHead className="w-24 sm:w-32 xl:w-40">State</TableHead><TableHead className="hidden w-48 xl:table-cell">Source context</TableHead><TableHead className="hidden xl:table-cell">Next step</TableHead></TableRow></TableHeader>
             <TableBody>{filtered.map((question) => {
               const sources = media.filter((source) => inquirySourceIds(question).includes(source.id));
-              const closed = isInquiryClosed(question);
               return <TableRow key={question.id} className="cursor-pointer" onClick={(event) => { if (isEntitySurfaceClick(event)) openQuestion(question.id); }}>
                 <TableCell className="max-w-xl py-2 font-headline text-base font-semibold leading-6"><button type="button" className="min-h-11 w-full rounded-sm text-left [overflow-wrap:anywhere] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openQuestion(question.id)} onKeyDown={(event) => activateEntityOnKey(event, () => openQuestion(question.id))}>{question.text}</button><p className="pb-2 text-xs font-normal text-muted-foreground xl:hidden">{inquiryCardNextStep(question)}</p></TableCell>
                 <TableCell><StageBadge type="inquiry" stage={question.stage} status={question.status} /></TableCell>
                 <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{sources.length ? sources.map((source) => source.title).join(', ') : 'No source linked'}</TableCell>
                 <TableCell className="hidden text-xs leading-5 text-muted-foreground xl:table-cell">{inquiryCardNextStep(question)}</TableCell>
-                <TableCell className="hidden xl:table-cell"><Button size="sm" variant={closed ? 'outline' : 'default'} onClick={() => openQuestion(question.id, closed ? 'answer' : 'investigation')} className="min-h-9 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm">{closed ? 'Review' : 'Investigate'}</Button></TableCell>
               </TableRow>;
             })}</TableBody>
           </Table>
@@ -374,14 +381,17 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         {viewMode !== 'table' && filtered.map((question) => {
           const sources = media.filter(m => inquirySourceIds(question).includes(m.id));
           const nextStep = inquiryCardNextStep(question);
-          const closed = isInquiryClosed(question);
 
           return (
-            <Card key={question.id} className="noesis-inquiry-card p-4">
+            <Card key={question.id} className="noesis-inquiry-card relative self-start rounded-[var(--radius-panel)] p-4 transition-colors hover:border-accent/60 focus-within:border-accent">
+              <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
               <StageBadge type="inquiry" stage={question.stage} status={question.status} className="mb-2" />
               <h2 className="mb-3 font-headline text-xl font-bold italic leading-snug text-primary">
-                <button type="button" className="w-full text-left transition-colors hover:text-accent" onClick={() => openQuestion(question.id)}>{question.text}</button>
+                <button type="button" className="w-full text-left [overflow-wrap:anywhere] after:absolute after:inset-0 after:rounded-[var(--radius-panel)] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring" onClick={() => openQuestion(question.id)}>{question.text}</button>
               </h2>
+              </div>
+              </div>
 
               <div className="font-body text-xs text-muted-foreground italic flex items-center gap-2 border-t border-border/20 pt-3 mb-3">
                 {sources.length > 0 ? (
@@ -391,33 +401,8 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
                 )}
               </div>
 
-              <div className="mb-4" title={nextStep}>
-                <InquiryLean question={question} />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border/50 pt-3">
-                <div className="flex flex-wrap gap-2">
-                  {closed ? (
-                    <Button size="sm" variant="outline" onClick={() => openQuestion(question.id, 'answer')} className="h-8 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm">
-                      Review inquiry
-                    </Button>
-                  ) : (
-                    <>
-                      <Button size="sm" onClick={() => openQuestion(question.id, 'investigation')} className="h-8 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm">
-                        Investigate
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={question.id.startsWith('open:') || question.id.startsWith('annotation:')}
-                        onClick={() => openQuestion(question.id, 'answer')}
-                        className="h-8 rounded-full px-4 noesis-eyebrow noesis-eyebrow--sm"
-                      >
-                        Write answer
-                      </Button>
-                    </>
-                  )}
-                </div>
+              <div title={nextStep}>
+                <InquiryLean question={question} sources={sources.length} />
               </div>
             </Card>
           );
@@ -434,30 +419,39 @@ export function QuestionsWorkspace({ aiSettings, questions, media, vault, drafts
         )}
       </div>
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-xl border-none shadow-2xl rounded-2xl">
+      <Dialog open={isAddOpen} onOpenChange={open => { if (!questionCreationLock.current) setIsAddOpen(open); }}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-headline text-3xl italic">Formulate Inquiry</DialogTitle>
-            <DialogDescription className="sr-only">Enter the question you want to investigate. Sources are optional.</DialogDescription>
+            <DialogTitle className="font-headline text-2xl italic">New inquiry</DialogTitle>
+            <DialogDescription>Only the question is required.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-8 pt-4">
-            <div className="space-y-2">
-              <Label className="readex-kicker">THE QUESTION</Label>
-              <Textarea
-                value={newQuestion.text}
-                onChange={(event) => setNewQuestion(prev => ({ ...prev, text: event.target.value }))}
-                placeholder="What core problem or mystery are you exploring?"
-                className="min-h-[140px] font-body text-xl italic bg-muted/5 leading-relaxed"
-              />
-            </div>
-            <SourceLinker
-              media={media}
-              selectedIds={newQuestion.sourceIds}
-              onToggle={toggleNewQuestionSource}
-              label="INFLUENCED BY SOURCE(S)"
-            />
-          </div>
-          <DialogFooter className="pt-8"><Button onClick={createQuestion} disabled={creatingQuestion || !newQuestion.text.trim()} className="w-full">{creatingQuestion ? 'Saving…' : 'Open Investigation'}</Button></DialogFooter>
+          <form className="grid gap-4" onSubmit={event => { event.preventDefault(); void createQuestion(); }}>
+            <fieldset className="grid min-w-0 gap-4" disabled={creatingQuestion}>
+              <div className="grid gap-2">
+                <Label htmlFor="new-inquiry-question">What are you trying to find out?</Label>
+                <Textarea
+                  id="new-inquiry-question"
+                  value={newQuestion.text}
+                  onChange={(event) => setNewQuestion(prev => ({ ...prev, text: event.target.value }))}
+                  placeholder="Write one question."
+                  required
+                  className="min-h-20"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="new-inquiry-stakes">Why does this matter? <span className="text-muted-foreground">(optional)</span></Label>
+                  <Textarea id="new-inquiry-stakes" value={newQuestion.whyItMatters} onChange={event => setNewQuestion(prev => ({ ...prev, whyItMatters: event.target.value }))} placeholder="What might the answer change for you?" className="min-h-20" />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="new-inquiry-uncertainty">What are you still unsure about? <span className="text-muted-foreground">(optional)</span></Label>
+                  <Textarea id="new-inquiry-uncertainty" value={newQuestion.uncertainty} onChange={event => setNewQuestion(prev => ({ ...prev, uncertainty: event.target.value }))} placeholder="Name one thing you haven't figured out yet." className="min-h-20" />
+                </div>
+              </div>
+              <SourceLinker media={media} selectedIds={newQuestion.sourceIds} onToggle={toggleNewQuestionSource} label="Related sources (optional)" />
+            </fieldset>
+            <DialogFooter><Button type="submit" disabled={creatingQuestion || !newQuestion.text.trim()}>{creatingQuestion ? 'Saving...' : 'Create inquiry'}</Button></DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import type { Draft, Media, MediaStatus, MediaType, Practice, Question, VaultEntry } from '@/lib/types';
 import { MEDIA_LABELS, MEDIA_STATUS_LABELS, conceptKey } from '@/lib/readex';
@@ -20,7 +20,6 @@ import { searchMatches } from '@/lib/search';
 import { inquirySourceIds } from '@/lib/inquiry-state';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { usePersistentView } from '@/hooks/use-persistent-view';
-import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Checkbox } from '@/components/ui/checkbox';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 import { activateEntityOnKey, isEntitySurfaceClick } from '@/lib/entity-activation';
@@ -39,36 +38,21 @@ interface SourceIndexProps {
   headerActions?: React.ReactNode;
 }
 
-function SourceIndexCover({ source }: { source: Media }) {
-  const [failedUrl, setFailedUrl] = useState<string>();
-  const url = source.thumbnailUrl;
-  if (url && failedUrl !== url) {
-    return <img src={url} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" onError={() => setFailedUrl(url)} />;
-  }
-  const hue = Array.from(source.title || '').reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 360, 7);
-  return (
-    <div className="noesis-proto-cover" style={{ '--h': hue } as React.CSSProperties}>
-      <span className="line-clamp-4 font-headline text-base font-semibold italic leading-tight">{source.title}</span>
-      <span className="noesis-eyebrow noesis-eyebrow--sm opacity-80">{source.creator || source.type}</span>
-    </div>
-  );
-}
-
-type SourceIndexView = 'table' | 'covers' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
+type SourceIndexView = 'table' | 'timeline' | 'influence' | 'domains' | 'unfinished' | 'recent';
 type SortKey = 'creator' | 'dateAdded' | 'title' | 'year' | 'influence' | 'annotations' | 'connected' | 'progress';
 type SortOption = 'date_desc' | 'date_asc' | 'title_asc' | 'creator_asc' | 'connected_desc' | 'influence_desc' | 'health_asc' | 'manual';
 type CatalogFilter = 'all' | 'missing_metadata' | 'no_annotations' | 'high_influence' | 'unfinished' | 'recent';
 
 const statuses: MediaStatus[] = ['Want to Read', 'Consuming', 'Finished', 'Paused', 'Abandoned'];
 const PRIMARY_SOURCE_TYPE_FILTERS: MediaType[] = ['book', 'article', 'paper', 'video', 'podcast'];
-const PRIMARY_SOURCE_SORTS: SortOption[] = ['date_desc', 'title_asc', 'creator_asc', 'connected_desc', 'influence_desc', 'health_asc'];
+const PRIMARY_SOURCE_SORTS: SortOption[] = ['date_desc', 'date_asc', 'title_asc', 'creator_asc', 'connected_desc', 'influence_desc', 'health_asc', 'manual'];
 const SOURCE_SORT_LABELS: Record<SortOption, string> = {
   date_desc: 'Newest',
   date_asc: 'Oldest',
   title_asc: 'Title A-Z',
   creator_asc: 'Author A-Z',
   connected_desc: 'Most Connected',
-  influence_desc: 'Highest Influence',
+  influence_desc: 'Most source activity',
   health_asc: 'Catalog Health',
   manual: 'Column Sort',
 };
@@ -203,17 +187,7 @@ function sourceCatalogState(m: Media) {
 }
 
 export function SourceIndex({ media, vault, drafts, practices, questions, onOpenSource, headerActions }: SourceIndexProps) {
-  const [collectionView, setCollectionView] = useEntityViewPreference('source-index');
-  const [specializedView, setSpecializedView] = useState<Exclude<SourceIndexView, 'table' | 'covers'> | null>(null);
-  const view: SourceIndexView = specializedView || (collectionView === 'table' ? 'table' : 'covers');
-  const setView = (nextView: SourceIndexView) => {
-    if (nextView === 'table' || nextView === 'covers') {
-      setSpecializedView(null);
-      setCollectionView(nextView === 'table' ? 'table' : 'cards');
-      return;
-    }
-    setSpecializedView(nextView);
-  };
+  const [view, setView] = useState<SourceIndexView>('table');
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = usePersistentView<MediaType | 'all'>('noesis:source-index-type', 'all', ['all', ...PRIMARY_SOURCE_TYPE_FILTERS]);
   const [filterStatus, setFilterStatus] = usePersistentView<MediaStatus | 'all'>('noesis:source-index-status', 'all', ['all', ...statuses]);
@@ -554,13 +528,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
         clearDisabled={!filtersActive}
-        viewControl={
-          <ViewModeToggle
-            value={view === 'table' ? 'table' : 'grid'}
-            modes={['grid', 'table']}
-            onChange={(value) => setView(value === 'table' ? 'table' : 'covers')}
-          />
-        }
+        sortControl={<SortPill label="Sort source index" value={sortOption} onChange={setSortOption} options={PRIMARY_SOURCE_SORTS.map(value => ({ value, label: SOURCE_SORT_LABELS[value] }))} />}
         className="mb-3"
       >
           <Select value={filterType} onValueChange={(v) => setFilterType(v as MediaType | 'all')}>
@@ -584,17 +552,9 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               <SelectItem value="all" className="noesis-eyebrow">Catalog Health: All</SelectItem>
               <SelectItem value="missing_metadata" className="noesis-eyebrow">Missing Metadata</SelectItem>
               <SelectItem value="no_annotations" className="noesis-eyebrow">No Annotations</SelectItem>
-              <SelectItem value="high_influence" className="noesis-eyebrow">High Influence</SelectItem>
+              <SelectItem value="high_influence" className="noesis-eyebrow">High source activity</SelectItem>
               <SelectItem value="unfinished" className="noesis-eyebrow">Unfinished Sources</SelectItem>
               <SelectItem value="recent" className="noesis-eyebrow">Recently Added</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
-            <SelectTrigger className="w-44 h-9 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60"><SelectValue placeholder="Sort" /></SelectTrigger>
-            <SelectContent>
-              {PRIMARY_SOURCE_SORTS.map((value) => (
-                <SelectItem key={value} value={value} className="noesis-eyebrow">{SOURCE_SORT_LABELS[value]}</SelectItem>
-              ))}
             </SelectContent>
           </Select>
       </FilterToolbar>
@@ -626,7 +586,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           { label: 'Needs cleanup', value: media.filter((item) => sourceMetadataGaps(item).length > 0).length, filter: 'missing_metadata' as CatalogFilter },
           { label: 'Unfinished', value: media.filter((item) => ['Want to Read', 'Consuming', 'Paused'].includes(item.status)).length, filter: 'unfinished' as CatalogFilter },
           { label: 'No annotations', value: media.filter((item) => !(item.annotations || []).length).length, filter: 'no_annotations' as CatalogFilter },
-          { label: 'High influence', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, filter: 'high_influence' as CatalogFilter },
+          { label: 'High source activity', value: sourceRows.filter((row) => row.influence >= HIGH_INFLUENCE_SCORE).length, filter: 'high_influence' as CatalogFilter },
           { label: 'Recently added', value: sourceRows.filter((row) => Date.now() - new Date(row.source.dateAdded || row.source.dateUpdated || '').getTime() <= 30 * 24 * 60 * 60 * 1000).length, filter: 'recent' as CatalogFilter },
         ].map((stat) => (
           <button
@@ -642,36 +602,6 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
           </button>
         ))}
       </div>
-
-      {view === 'covers' && (
-        <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          {sourceRows.map(({ source: m, influence, connected, catalogState }) => (
-            <article key={m.id} className={cn("group relative min-w-0 rounded-lg border bg-card p-2.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md", selectedSourceSet.has(m.id) ? "border-accent ring-1 ring-accent/30" : "border-border/40 hover:border-accent/40")}>
-              <Checkbox
-                checked={selectedSourceSet.has(m.id)}
-                onCheckedChange={() => toggleSourceSelection(m.id)}
-                aria-label={`Select ${m.title} for export`}
-                className="absolute right-4 top-4 z-10 size-5 border-background bg-background/90 shadow-sm"
-              />
-              <button type="button" onClick={() => previewSource(m)} className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
-                <div className="mb-2.5 aspect-[4/5] overflow-hidden rounded-md border border-border/30 bg-muted/20">
-                  <SourceIndexCover source={m} />
-                </div>
-                <div className="line-clamp-2 font-headline text-base font-bold leading-5 text-foreground group-hover:text-accent">{m.title}</div>
-                <div className="mt-1 truncate text-xs text-muted-foreground">{m.creator || 'Unknown creator'}</div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  <Badge variant="outline" className="rounded-full px-2 py-0 text-label-sm">{MEDIA_LABELS[m.type]}</Badge>
-                  <Badge variant="outline" className="rounded-full px-2 py-0 text-label-sm">{connected} links</Badge>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">
-                  <span className="truncate">{catalogState.label}</span>
-                  <span className="shrink-0">{influence} influence</span>
-                </div>
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
 
       {view === 'domains' && (
         <div className="mb-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -694,7 +624,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  ['Influence', domain.influence],
+                  ['Activity score', domain.influence],
                   ['Notes', domain.annotations],
                   ['Inquiries', domain.questions],
                   ['Positions', domain.positions],
@@ -736,7 +666,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="rounded-full">{period.rows.length} sources</Badge>
                   <Badge variant="outline" className="rounded-full">{period.annotations} annotations</Badge>
-                  <Badge variant="outline" className="rounded-full">{period.influence} influence</Badge>
+                  <Badge variant="outline" className="rounded-full">{period.influence} activity points</Badge>
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -755,7 +685,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       <Badge variant="outline" className="shrink-0 rounded-full">{MEDIA_STATUS_LABELS[source.status]}</Badge>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      <Badge variant="secondary" className="rounded-full text-label-sm">{influence} influence</Badge>
+                      <Badge variant="secondary" className="rounded-full text-label-sm">{influence} activity points</Badge>
                       <Badge variant="secondary" className="rounded-full text-label-sm">{connected} links</Badge>
                       <Badge variant="secondary" className="rounded-full text-label-sm">{countLabel(source.annotations?.length || 0, 'note')}</Badge>
                     </div>
@@ -775,7 +705,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
         </div>
       )}
 
-      {!['covers', 'domains', 'timeline'].includes(view) && <div className="bg-card rounded-xl border border-border/40 shadow-md overflow-hidden">
+      {!['domains', 'timeline'].includes(view) && <div className="bg-card rounded-xl border border-border/40 shadow-md overflow-hidden">
         <Table aria-label="Source Index table" className="table-fixed">
           <TableHeader className="bg-muted/5 noesis-eyebrow noesis-eyebrow--sm font-bold">
             <TableRow>
@@ -830,7 +760,7 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                       )}
                       {influence >= HIGH_INFLUENCE_SCORE && (
                         <Badge variant="outline" className="noesis-status-badge noesis-eyebrow noesis-eyebrow--sm rounded-full">
-                          influential
+                          high activity
                         </Badge>
                       )}
                     </div>
@@ -850,12 +780,12 @@ export function SourceIndex({ media, vault, drafts, practices, questions, onOpen
                     )}
                   </TableCell>
                   <TableCell className="hidden py-2.5 xl:table-cell">
-                    <div className="text-xs text-muted-foreground" title={`Influence ${influence}; ${connected} total linked objects`}>
+                    <div className="text-xs text-muted-foreground" title={`${connected} linked records`}>
                       <MessageSquare className="mr-1 inline size-3.5" />{countLabel((m.annotations || []).length, 'note')} · {countLabel(linkedQuestions, 'inquiry', 'inquiries')} · {countLabel(linkedPositions, 'position')} · {countLabel(linkedWorks, 'work')} · {countLabel(linkedPractices, 'practice', 'practices')}
                     </div>
                   </TableCell>
                   <TableCell className="hidden xl:table-cell">
-                    <div className="flex items-center gap-2" title={`Influence ${influence} · Connected ${connected} · Progress ${progress}%`}>
+                    <div className="flex items-center gap-2" title={`Activity score ${influence} (notes, links, and reflection fields) · ${connected} linked records · Progress ${progress}%`}>
                       <div className="w-16 h-1 bg-muted rounded-full overflow-hidden">
                         <div 
                           className="noesis-status-progress h-full transition-all"

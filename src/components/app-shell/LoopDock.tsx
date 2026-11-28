@@ -44,7 +44,7 @@ const LOOP_STAGES: NoesisNavSection[] = [...NOESIS_LOOP_STAGES];
 
 /**
  * The Loop: a floating dock that lays navigation out as the thinking cycle.
- * Each stage is a ring; opening one shows its pages. Today sits on the left,
+ * Each stage is a ring; opening one shows its pages. My Desk sits on the left,
  * More (Works, Noesis AI, Settings, Profile, Find) on the right, and the
  * whole dock folds down to a single pill when it is in the way.
  */
@@ -88,7 +88,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
 
   const pageSection = (id: string) => NOESIS_PAGE_BY_VIEW[id as keyof typeof NOESIS_PAGE_BY_VIEW]?.section;
   const activeSection = pageSection(activeView === 'goals' ? 'labs' : activeView);
-  const itemsIn = (section: NoesisNavSection) => items.filter((item) => pageSection(item.id) === section && !(section === 'More' && item.id === 'context-desk'));
+  const itemsIn = (section: NoesisNavSection) => items.filter((item) => pageSection(item.id) === section && (section !== 'More' || item.id === 'settings'));
   const aiItem = items.find((item) => item.id === 'context-desk');
   const go = (view: string) => { setOpen(null); onNavigate(view); };
   const today = items.find((item) => item.id === 'home');
@@ -114,7 +114,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
     const label = NOESIS_LOOP_LABELS[section];
     const total = section === 'More' ? 0 : group.reduce((sum, item) => sum + (item.count || 0), 0);
     return (
-      <div key={section} className="noesis-loop__stage" data-stage={tone}>
+      <div key={section} className="noesis-loop__stage" data-stage={tone} data-loop-section={section}>
         <button
           type="button"
           aria-expanded={open === section}
@@ -126,7 +126,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
           className="noesis-loop__stage-button"
         >
           <span className="noesis-loop__ring" aria-hidden="true">
-            {section === 'More' ? <MoreHorizontal className="size-4" /> : group[0] && (() => { const Icon = group[0].icon; return <Icon className="size-4" />; })()}
+            {section === 'More' && <MoreHorizontal className="size-4" />}
           </span>
           {section === 'More'
             ? <span className="sr-only">More</span>
@@ -135,17 +135,6 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
         {open === section && (
           <div className="noesis-loop__pop" role="menu" aria-label={`${label} pages`}>
             <div className="noesis-loop__pop-label">{label}</div>
-            {group.map((item) => {
-              const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
-              const Icon = item.icon;
-              return (
-                <button key={item.id} type="button" role="menuitem" className="noesis-loop__pop-item" aria-current={activeView === item.id ? 'page' : undefined} onClick={() => go(item.id)}>
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  <span className="flex-1 text-left">{page.title}</span>
-                  {typeof item.count === 'number' && <span className="noesis-figure opacity-60">{item.count}</span>}
-                </button>
-              );
-            })}
             {section === 'More' && (
               <>
                 <button type="button" role="menuitem" className="noesis-loop__pop-item" onClick={() => { setOpen(null); onOpenProfile(); }}>
@@ -157,6 +146,17 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
                 </button>
               </>
             )}
+            {group.map((item) => {
+              const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
+              const Icon = item.icon;
+              return (
+                <button key={item.id} type="button" role="menuitem" className="noesis-loop__pop-item" aria-current={activeView === item.id ? 'page' : undefined} onClick={() => go(item.id)}>
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="flex-1 text-left">{page.title}</span>
+                  {typeof item.count === 'number' && <span className="noesis-figure opacity-60">{item.count}</span>}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -168,7 +168,7 @@ export function LoopDock({ items, activeView, attention, onNavigate, onFind, onO
       {today && (
         <button type="button" className="noesis-loop__today" data-stage="encounter" aria-current={activeView === 'home' ? 'page' : undefined} onClick={() => go('home')}>
           <today.icon className="size-4" aria-hidden="true" />
-          <span>Today</span>
+          <span>{NOESIS_PAGE_BY_VIEW.home.title}</span>
           {attention > 0 && <span className="noesis-loop__badge" aria-label={`${attention} items need attention`}>{attention > 9 ? '9+' : attention}</span>}
         </button>
       )}

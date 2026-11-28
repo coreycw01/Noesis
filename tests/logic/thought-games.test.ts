@@ -145,5 +145,25 @@ test('a specifically chosen inquiry works outside the daily sample', () => {
   const card = buildInquiryExercise(chosen);
   assert.deepEqual(card.target, { view: 'questions', targetId: 'specific' });
   assert.equal(card.prompt, chosen.text);
-  assert.match(card.reveal, /Commitments can be revised/);
+  assert.deepEqual(card.savedNotes, ['Commitments can be revised.']);
+  assert.equal(card.answer, undefined);
+});
+
+test('inquiry practice offers a worked example even without saved assumptions', () => {
+  const inquiry = { id: 'open', text: 'When is a promise worth keeping?', assumptions: [' '] } as Parameters<typeof buildInquiryExercise>[0];
+  const card = buildInquiryExercise(inquiry);
+  assert.match(card.instruction, /already feels open/);
+  assert.match(card.reveal, /avoids? conflict|avoid it/);
+  assert.deepEqual(card.savedNotes, []);
+  assert.equal(card.answer, undefined);
+});
+
+test('calibration shows saved arguments without counting source links as support', () => {
+  const [card] = buildThoughtGames({
+    concepts: [], inquiries: [], media: [], links: [], dayKey: '2026-10-29',
+    positions: [{ id: 'p1', title: 'A claim', confidence: 80, sourceIds: ['s1'], evidenceAgainst: ['One exception'] }] as never,
+  }).filter(game => game.kind === 'confidence_calibration');
+  assert.match(card.reveal, /Recorded challenge: One exception/);
+  assert.doesNotMatch(card.reveal, /support/i);
+  assert.equal(card.answer, undefined);
 });

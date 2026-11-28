@@ -54,10 +54,11 @@ test('rejects cross-page or overly broad contextual action combinations', () => 
   assert.equal(isContextualAiRequestCompatible({ action: 'find_position_assumptions', targetType: 'position', scope: 'current_item' }), false);
 });
 
-test('exposes only the approved detail-level assistance tools', () => {
+test('exposes only the approved contextual assistance tools', () => {
   assert.deepEqual(Object.keys(CONTEXTUAL_AI_POLICIES).sort(), [
     'clarify_concept_boundaries',
     'compare_selected_positions',
+    'explore_thought_draft',
     'extract_source_claims',
     'find_position_assumptions',
     'generate_position_counterargument',
@@ -77,7 +78,7 @@ test('exposes only the approved detail-level assistance tools', () => {
 });
 
 test('loads AI settings only on routes that expose contextual assistance', () => {
-  for (const view of ['concepts', 'questions', 'library', 'annotations', 'vault', 'labs', 'evolution', 'profile', 'context-desk'] as const) {
+  for (const view of ['home', 'concepts', 'questions', 'library', 'annotations', 'vault', 'labs', 'evolution', 'profile', 'context-desk'] as const) {
     assert.ok(NOESIS_PAGE_DATA_REQUIREMENTS[view].includes('aiSettings'), `${view} must load AI settings`);
   }
 
@@ -85,7 +86,6 @@ test('loads AI settings only on routes that expose contextual assistance', () =>
     assert.ok(NOESIS_DETAIL_DATA_REQUIREMENTS[target].includes('aiSettings'), `${target} details must load AI settings`);
   }
 
-  assert.equal(NOESIS_PAGE_DATA_REQUIREMENTS.home.includes('aiSettings'), false);
   assert.equal(NOESIS_PAGE_DATA_REQUIREMENTS.atlas.includes('aiSettings'), false);
   assert.equal(NOESIS_PAGE_DATA_REQUIREMENTS.writing.includes('aiSettings'), false);
 });
@@ -103,6 +103,10 @@ test('parses assumptions into independently reviewable suggestions', () => {
 test('provides a concise editable question set for every contextual action', () => {
   assert.deepEqual(Object.keys(CONTEXTUAL_AI_SUGGESTED_PROMPTS).sort(), Object.keys(CONTEXTUAL_AI_POLICIES).sort());
   for (const [action, prompts] of Object.entries(CONTEXTUAL_AI_SUGGESTED_PROMPTS)) {
+    if (action === 'explore_thought_draft') {
+      assert.deepEqual(prompts, [], 'The thought starter sends only the thought, without a separate prompt');
+      continue;
+    }
     assert.ok(prompts.length >= 4 && prompts.length <= 6, `${action} should expose four to six suggested questions`);
     assert.equal(new Set(prompts).size, prompts.length, `${action} prompts should be unique`);
     assert.ok(prompts.every((prompt) => prompt.endsWith('?')), `${action} prompts should read as questions`);

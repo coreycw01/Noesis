@@ -11,9 +11,23 @@ import {
   inquiryNeedsEvidence,
   inquirySourceIds,
   isInquiryActive,
+  isCompleteManualInquiryLink,
+  isManualInquiryLink,
+  inquiryConnectionKey,
   indexAnnotationInquiries,
 } from '../../src/lib/inquiry-state';
 import type { InquiryEvidence, Question } from '../../src/lib/types';
+
+test('manual inquiry links are distinct from existing connections and scoped by record type', () => {
+  const inquiry: Question = { id: 'q1', text: 'Why?', status: 'open', evidenceIds: [], conceptIds: [], dateCreated: '2026-11-26', draftIds: ['record'], practiceIds: ['record'] };
+  const record = { id: 'record', questionIds: ['q1'] };
+  assert.equal(isCompleteManualInquiryLink(inquiry, 'work', record), false);
+  const linked: Question = { ...inquiry, manualConnectionKeys: [inquiryConnectionKey('work', record.id)] };
+  assert.equal(isManualInquiryLink(linked, 'work', record.id), true);
+  assert.equal(isManualInquiryLink(linked, 'practice', record.id), false);
+  assert.equal(isCompleteManualInquiryLink(linked, 'work', record), true);
+  assert.equal(isCompleteManualInquiryLink(linked, 'work', { id: record.id }), false);
+});
 
 test('annotation inquiry connections include evidence, prefer the created inquiry, and ignore stale links', () => {
   const lookup = indexAnnotationInquiries([

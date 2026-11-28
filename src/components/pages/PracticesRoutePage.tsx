@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import type { PraxisMethod } from '@/components/Practices/PraxisMethodPicker';
-import { PracticesWorkspace, practicePraxisMethod } from '@/components/Practices/PracticesWorkspace';
+import { PracticesWorkspace } from '@/components/Practices/PracticesWorkspace';
+import { practicePraxisMethod } from '@/lib/practice-state';
 import type { AiSettings, Concept, Draft, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
 
@@ -20,7 +21,7 @@ export interface PracticesRoutePageProps {
   focusedPracticeId?: string | null;
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
   onAddQuestion?: (data: Partial<Question>) => unknown;
-  onUpdatePractice: (practice: Practice, approval?: import('@/lib/practice-ai-review').PracticeReviewApproval) => void | Promise<Practice | void>;
+  onUpdatePractice: (practice: Practice, approval?: import('@/lib/practice-ai-review').PracticeReviewApproval, checkInWrite?: import('@/lib/practice-observations').PracticeCheckInWrite) => void | Promise<Practice | void>;
   onDeletePractice: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
   onCreateLink: (data: Partial<PhilosophicalLink>) => void;

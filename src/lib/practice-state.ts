@@ -1,6 +1,11 @@
-import type { Practice, Question, VaultEntry } from './types';
+import type { Practice, PracticeType, Question, VaultEntry } from './types';
 import { localDateKey, previousCalendarDay, recordDateKey } from './calendar';
 import { normalizePracticeStatusForSave } from './workflow-integrity';
+
+export function practicePraxisMethod(type?: PracticeType) {
+  return type === 'experiment' || type === 'challenge' || type === 'exposure' || type === 'decision_rule'
+    ? 'experiments' : 'practices';
+}
 
 export function isPracticeConcluded(practice: Partial<Practice>) {
   return ['completed', 'concluded', 'failed', 'failed_productively', 'integrated', 'abandoned'].includes(practice.status || '');
@@ -50,11 +55,22 @@ export function practiceRecentlyConcluded(practice: Practice, now = new Date()) 
   return Number.isFinite(updated) && age >= 0 && age <= 30 * 86_400_000;
 }
 
+export function practiceCheckInDays(practice: Pick<Practice, 'logs' | 'logDates'>) {
+  const days = new Map<string, { kept: boolean; note?: string }>();
+  for (const value of practice.logDates ?? []) {
+    const day = practiceCalendarDate(value);
+    if (day) days.set(day, { kept: true });
+  }
+  const logs = [...(practice.logs ?? [])].sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0));
+  for (const log of logs) {
+    const day = practiceCalendarDate(log.date);
+    if (day && typeof log.actionCompleted === 'boolean') days.set(day, { kept: log.actionCompleted, note: log.observations?.trim() || log.outcome?.trim() });
+  }
+  return days;
+}
+
 export function practiceLogDates(practice: Pick<Practice, 'logs' | 'logDates'>) {
-  return [...new Set([
-    ...(practice.logDates || []),
-    ...(practice.logs || []).filter((log) => log.actionCompleted).map((log) => log.date),
-  ].map(practiceCalendarDate).filter(Boolean))].sort();
+  return [...practiceCheckInDays(practice)].filter(([, entry]) => entry.kept).map(([day]) => day).sort();
 }
 
 export function practiceCurrentStreak(dates: string[], now = new Date()) {

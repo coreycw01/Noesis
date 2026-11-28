@@ -9,10 +9,6 @@ import { NoesisWorkspaceKeyContext, useNoesisRoute } from '@/lib/noesis-route-co
 import { loadDemoSession } from '@/lib/demo-session';
 import { REVIEW_WORKSPACE_UID } from '@/lib/review-workspace-config';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
-import '../globals.css';
-import '../prototype-skin.css';
-import '../tokens.css';
-import '../record.css';
 
 const localDemoPreference = 'noesis:open-local-demo';
 let workspaceModule: Promise<typeof import('./noesis-home-page')> | undefined;

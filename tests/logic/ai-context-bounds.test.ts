@@ -1,8 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedAiContext, validAiSelection, type AiContextEnvelope } from '../../src/lib/contextual-ai';
+import { boundedAiContext, isContextualAiRequestCompatible, THOUGHT_DRAFT_LIMIT, thoughtDraftEnvelope, validAiSelection, type AiContextEnvelope } from '../../src/lib/contextual-ai';
 
 const base: AiContextEnvelope = { action: 'socratic_inquiry_challenge', targetType: 'inquiry', targetId: 'q1', scope: 'linked_items', itemMemory: ['Question?'], linkedMemory: [] };
+
+test('optional thought assistance accepts only one unsaved thought and no workspace context', () => {
+  const input = thoughtDraftEnvelope('  What makes a habit worth keeping?  ');
+  assert.deepEqual(input.itemMemory, ['What makes a habit worth keeping?']);
+  assert.deepEqual(input.linkedMemory, []);
+  assert.equal(isContextualAiRequestCompatible(input), true);
+  assert.equal(isContextualAiRequestCompatible({ ...input, scope: 'linked_items' }), false);
+  assert.equal(validAiSelection(input), true);
+  assert.equal(validAiSelection({ ...input, linkedMemory: ['A workspace record'] }), false);
+  assert.equal(validAiSelection({ ...input, targetId: 'a-record' }), false);
+  assert.equal(validAiSelection({ ...input, itemMemory: ['Thought', 'Another record'] }), false);
+  assert.equal(validAiSelection(thoughtDraftEnvelope('   ')), false);
+  assert.equal(thoughtDraftEnvelope('x'.repeat(THOUGHT_DRAFT_LIMIT + 1)).itemMemory[0].length, THOUGHT_DRAFT_LIMIT);
+});
 test('AI context prioritizes the current item and stays within line and total limits', () => {
   const input = { ...base, itemMemory: Array(10).fill('x'.repeat(5000)), linkedMemory: ['linked'], userPrompt: 'y'.repeat(1200) };
   const bounded = boundedAiContext(input);

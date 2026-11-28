@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { iconForNoesisView } from '@/lib/noesis-icons';
@@ -24,10 +25,10 @@ export function PageHeader({ title, description, actions, meta, className, child
   const { view } = parseNoesisRoute(pathname);
   const PageIcon = iconForNoesisView(view);
   const section = ({
-    home: 'Today', atlas: 'Map', concepts: 'Vocabulary', questions: 'Investigation', library: 'Encounter',
+    home: '', atlas: 'Map', concepts: 'Vocabulary', questions: 'Investigation', library: 'Source collection',
     'source-index': 'Research index', annotations: 'Marginalia', vault: 'Argument', writing: 'Studio',
-    'context-desk': 'Synthesis', labs: 'Praxis', evolution: 'History', profile: 'Portrait',
-    goals: 'Commitment', exercises: 'Card table', settings: 'System',
+    'context-desk': 'Synthesis', labs: 'Ideas in practice', evolution: 'History', profile: 'Portrait',
+    goals: 'Commitment', exercises: 'Thinking practice', settings: 'System',
   } satisfies Record<NoesisView, string>)[view];
   const pageSection = NOESIS_PAGE_BY_VIEW[view].section;
   // Index pages for records get a strip of the ones last opened on this device.
@@ -39,8 +40,7 @@ export function PageHeader({ title, description, actions, meta, className, child
   // its own stage something the navigation under it never said: a header
   // reading NOTICE above a dock reading Encounter, OUTLINE above Define,
   // SURVEY above Perspective. NOESIS_LOOP_LABELS is the one vocabulary.
-  // It also removes a stutter: Library's stage and section are both Encounter,
-  // so the label is now one word instead of the same word twice.
+  // Don't repeat the stage when it already matches the page label.
   const stageLabel = pageSection ? NOESIS_LOOP_LABELS[pageSection] : null;
   const stage = stageLabel && pageSection !== 'More' && stageLabel !== section ? stageLabel : null;
 
@@ -52,10 +52,10 @@ export function PageHeader({ title, description, actions, meta, className, child
       <div className="noesis-page-header__title-row">
         <span className="noesis-margin-marker"><PageIcon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
         <h1 className="noesis-page-title min-w-0">{title}</h1>
-        <span className="noesis-route-label">
+        {section && <span className="noesis-route-label">
           {stage && <><span className="noesis-route-label__section">{stage}</span><span className="noesis-route-label__divider" aria-hidden="true" /></>}
           {section}
-        </span>
+        </span>}
       </div>
       <p className="noesis-page-description mt-2 max-w-3xl text-sm leading-6 md:text-base md:leading-7">{description}</p>
       {meta && <div className="noesis-page-header__meta">{meta}</div>}
@@ -78,8 +78,8 @@ export function PageHeader({ title, description, actions, meta, className, child
  * the same accent rule, margin marker, and label line as an index page header,
  * naming the kind of record and its current state.
  */
-export function DetailLabel({ view, kind, status, extra }: { view: string; kind: string; status?: React.ReactNode; extra?: React.ReactNode }) {
-  const Icon = iconForNoesisView(view);
+export function DetailLabel({ view, kind, status, extra, icon }: { view: string; kind: string; status?: React.ReactNode; extra?: React.ReactNode; icon?: LucideIcon }) {
+  const Icon = icon || iconForNoesisView(view);
   const pageSection = NOESIS_PAGE_BY_VIEW[view as NoesisView]?.section;
   return (
     <div className="noesis-detail-label" data-stage-tone={pageSection ? NOESIS_NAV_SECTION_TONE[pageSection] : undefined}>

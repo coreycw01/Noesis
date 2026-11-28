@@ -1,19 +1,18 @@
 "use client";
 
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
-import { readBrowserPreference, workspacePreferenceKey, writeBrowserPreference } from '@/lib/browser-preferences';
+import React, { useMemo, useRef, useState } from 'react';
+import { writeBrowserPreference } from '@/lib/browser-preferences';
+import { recordDateKey } from '@/lib/calendar';
+import { evidenceBalance, positionReviewCue, resolvePositionGrounds } from '@/lib/position-grounds';
 import { useToast } from '@/hooks/use-toast';
-import { practiceLogDates } from '@/lib/practice-state';
 import { useLocalDay } from '@/hooks/use-local-day';
 import { deriveWorkspaceAttention } from '@/lib/workspace-attention';
-import { deriveGoalProgress, goalCategories, goalItems } from '@/lib/goal-progress';
+import { deriveGoalProgress, goalCategories, goalItems, goalMeasureLabel } from '@/lib/goal-progress';
 import {
   ArrowRight,
   AlertTriangle,
   ChevronRight,
   Compass,
-  GitBranch,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,17 +21,10 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { Progress } from '@/components/ui/progress';
 import { allAnnotations } from '@/lib/readex';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
-import { NOESIS_ICONS } from '@/lib/noesis-icons';
+import { NOESIS_SOLID_DESK_ICONS } from '@/lib/noesis-icons';
+import { isRepeatablePractice } from '@/lib/workflow-integrity';
 
-const BookOpen = NOESIS_ICONS.source;
-const ClipboardCheck = NOESIS_ICONS.annotation;
-const Lightbulb = NOESIS_ICONS.concept;
-const HelpCircle = NOESIS_ICONS.inquiry;
-const ShieldCheck = NOESIS_ICONS.position;
-const PenTool = NOESIS_ICONS.work;
-const Repeat = NOESIS_ICONS.practice;
-const Target = NOESIS_ICONS.commitment;
-const History = NOESIS_ICONS.evolution;
+const { annotation: ClipboardCheck, concept: Lightbulb } = NOESIS_SOLID_DESK_ICONS;
 import type {
   Concept,
   Draft,
@@ -42,18 +34,17 @@ import type {
   PhilosophicalLink,
   Practice,
   Question,
-  ThinkingEvent,
-  TimelineEvent,
   Unknown,
   UserProfile,
   VaultEntry,
 } from '@/lib/types';
 import type { NoesisView } from '@/lib/noesis-routes';
-import { weeklyReviewEvents } from '@/lib/weekly-review';
-import { homeHistoryTarget, recentHomeHistory, type HomeHistoryTarget } from '@/lib/home-history';
+import { NOESIS_PAGE_BY_VIEW } from '@/lib/noesis-page-definitions';
+import type { HomeHistoryTarget } from '@/lib/home-history';
 import { thinkingHistoryDate } from '@/lib/evolution-history';
-import { ThoughtGamePreview } from '@/components/Home/ThoughtGamePreview';
 import { PositionsUnderHeat, PraxisCheckIn, positionHeat } from '@/components/Home/TodayInstruments';
+import { PraxisDeskTabs } from '@/components/Home/PraxisDeskTabs';
+import { DeskThoughtStarter, type DeskThoughtKind } from '@/components/Home/DeskThoughtStarter';
 
 type HomeTarget = HomeHistoryTarget;
 
@@ -64,29 +55,11 @@ type DeskItem = HomeTarget & {
   reason: string;
   action: string;
   priority: number;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  kind: 'position' | 'inquiry' | 'work' | 'source' | 'practice' | 'concept';
 };
-
-type HomeMode = 'continue' | 'challenge' | 'unfinished' | 'recent' | 'neglected' | 'rediscover';
-
-type PulseObservation = HomeTarget & {
-  id: string;
-  title: string;
-  observation: string;
-  evidence: string;
-  tone: 'pressure' | 'balance' | 'movement';
-};
-
-type ReturnMoment = HomeTarget & {
-  id: string;
-  label: string;
-  detail: string;
-  kind: 'change' | 'reflection' | 'practice';
-};
-
-const HOME_VISIT_KEY = 'noesis:home-last-visit';
 
 interface ThinkingDeskProps {
+  aiEnabled: boolean;
   profile: UserProfile;
   concepts: Concept[];
   media: Media[];
@@ -94,26 +67,23 @@ interface ThinkingDeskProps {
   positions: VaultEntry[];
   works: Draft[];
   practices: Practice[];
-  timeline: TimelineEvent[];
-  thinkingEvents: ThinkingEvent[];
   unknowns: Unknown[];
   links: PhilosophicalLink[];
   goal: GoalSettings;
   showCommitments: boolean;
   goalProgress: Partial<Record<MediaType, number>>;
   onNavigate: (target: HomeTarget) => void;
-  onCreateInquiry?: (data: Partial<Question>) => Promise<Question>;
+  onCreateInquiry: (data: Partial<Question>) => Promise<Question>;
+  onCreateWork: (data: Partial<Draft>) => Promise<Draft>;
+  onCreatePosition: (data: Partial<VaultEntry>) => Promise<VaultEntry>;
+  onCreateConcept: (data: Partial<Concept>) => Promise<boolean>;
+  onCreatePractice: (data: Partial<Practice>) => Promise<Practice>;
   onUpdatePractice: (practice: Practice) => void | Promise<Practice | void>;
 }
 
 function recentDate(value?: unknown) {
   const time = thinkingHistoryDate(value);
   return Number.isFinite(time) ? time : 0;
-}
-
-function firstName(profile: UserProfile) {
-  const label = profile.displayName || profile.email || 'there';
-  return label.split(/\s+/)[0] || 'there';
 }
 
 function uniqueDeskItems(items: DeskItem[]) {
@@ -127,15 +97,13 @@ function uniqueDeskItems(items: DeskItem[]) {
 }
 
 export function ThinkingDesk({
-  profile,
+  aiEnabled,
   concepts,
   media,
   inquiries,
   positions,
   works,
   practices,
-  timeline,
-  thinkingEvents,
   unknowns,
   links,
   goal,
@@ -143,10 +111,13 @@ export function ThinkingDesk({
   goalProgress,
   onNavigate,
   onCreateInquiry,
+  onCreateWork,
+  onCreatePosition,
+  onCreateConcept,
+  onCreatePractice,
   onUpdatePractice,
 }: ThinkingDeskProps) {
   const day = useLocalDay();
-  const mode = useMemo<HomeMode>(() => 'continue', []);
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
   const [creatingInquiry, setCreatingInquiry] = useState(false);
@@ -154,20 +125,11 @@ export function ThinkingDesk({
   const { toast } = useToast();
   const [irrelevantReason, setIrrelevantReason] = useState('');
   const [provocationDismissed, setProvocationDismissed] = useState(false);
-  const [discoveryMode, setDiscoveryMode] = useState(false);
-  const [lastHomeVisit, setLastHomeVisit] = useState<string | null>(null);
-  const workspaceKey = useContext(NoesisWorkspaceKeyContext);
   const annotations = useMemo(() => allAnnotations(media), [media]);
   const attention = useMemo(() => deriveWorkspaceAttention({
     annotations, positions, inquiries, practices, now: new Date(`${day}T12:00:00`),
   }), [annotations, day, positions, inquiries, practices]);
 
-  useEffect(() => {
-    const key = workspacePreferenceKey(workspaceKey, HOME_VISIT_KEY);
-    if (!key) return;
-    setLastHomeVisit(readBrowserPreference(key));
-    writeBrowserPreference(key, new Date().toISOString());
-  }, [workspaceKey]);
   const currentThemes = useMemo(() => {
     const terms = new Map<string, number>();
     [...positions.flatMap((item) => item.tags || []), ...media.flatMap((item) => item.tags || []), ...works.flatMap((item) => item.conceptTags || [])]
@@ -190,6 +152,7 @@ export function ThinkingDesk({
       return {
         id: item.id,
         label: item.title || category?.name || 'Untitled goal',
+        measure: goalMeasureLabel(item, category),
         done: progress.currentProgress,
         target: progress.targetProgress,
         percent: progress.percent,
@@ -197,198 +160,92 @@ export function ThinkingDesk({
     });
   }, [concepts, goal, goalProgress, inquiries, media, positions, practices, works]);
 
-  const continueItems = useMemo<DeskItem[]>(() => {
+  const heat = useMemo(() => positionHeat(positions, links), [positions, links]);
+  const judgment = useMemo(() => {
     const items: DeskItem[] = [];
-    const addPositionPressure = (priority = 95) => attention.currentPositions
-      .filter((item) => (item.evidenceAgainst || []).length === 0 || (item.sourceIds || []).length === 0)
-      .forEach((item) => items.push({
-          id: `position-${item.id}`,
-          label: item.title || item.statement,
-          eyebrow: (item.evidenceAgainst || []).length === 0 ? 'Position needs opposition' : 'Position needs evidence',
-          reason: (item.evidenceAgainst || []).length === 0
-            ? 'This position has not faced a serious recorded objection yet.'
-            : 'This position needs clearer source evidence before it should feel stable.',
-          action: 'Open position',
-          priority,
-          icon: ShieldCheck,
-          view: 'vault',
-          targetId: item.id,
-        } as DeskItem));
-
-    const addOpenInquiries = (priority = 88) => attention.openInquiries
-      .forEach((item) => items.push({
-          id: `inquiry-${item.id}`,
-          label: item.text,
-          eyebrow: 'Inquiry awaiting development',
-          reason: item.answer?.trim()
-            ? 'A working answer is saved. Review what supports it and decide what remains open.'
-            : 'This question is still open and can collect evidence, assumptions, or a working answer.',
-          action: item.answer?.trim() ? 'Review answer' : 'Investigate',
-          priority,
-          icon: HelpCircle,
-          view: 'questions',
-          targetId: item.id,
-        } as DeskItem));
-
-    const addSourceReflection = (priority = 82) => media
-      .filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange)
-      .forEach((item) => items.push({
-          id: `source-${item.id}`,
-          label: item.title,
-          eyebrow: 'Source awaiting reflection',
-          reason: 'This source is finished, but its reflection on what changed is still incomplete.',
-          action: 'Reflect on source',
-          priority,
-          icon: BookOpen,
-          view: 'library',
-          targetId: item.id,
-        } as DeskItem));
-
-    const addPracticeLogs = (priority = 76) => attention.practicesNeedingLogs
-      .forEach((item) => items.push({
-          id: `practice-${item.id}`,
-          label: item.title,
-          eyebrow: 'Practice awaiting observation',
-          reason: 'This active practice has no log for today, so its lived evidence may go missing.',
-          action: 'Log practice',
-          priority,
-          icon: Repeat,
-          view: 'labs',
-          targetId: item.id,
-        } as DeskItem));
-
-    const addOpenWorks = (priority = 68) => works
-      .filter((item) => !['complete', 'final', 'published', 'archived', 'abandoned'].includes(item.status))
-      .forEach((item) => items.push({
-          id: `work-${item.id}`,
-          label: item.title,
-          eyebrow: 'Work still forming',
-          reason: 'Return to this unfinished work when you want to develop it further.',
-          action: 'Continue work',
-          priority,
-          icon: PenTool,
-          view: 'writing',
-          targetId: item.id,
-        } as DeskItem));
-
-    const addUndefinedConcepts = (priority = 62) => concepts
-      .filter((item) => !item.description || item.philosophyStatus === 'undefined')
-      .forEach((item) => items.push({
-          id: `concept-${item.id}`,
-          label: item.name,
-          eyebrow: 'Concept needs definition',
-          reason: 'This concept appears in the system without a working definition.',
-          action: 'Clarify concept',
-          priority,
-          icon: Lightbulb,
-          view: 'concepts',
-          targetId: item.id,
-        } as DeskItem));
-
-    if (mode === 'challenge') {
-      positions
-        .filter((item) => {
-          if (item.status === 'abandoned' || item.status === 'rejected') return false;
-          const challengeCount = (item.evidenceAgainst || []).length + links.filter((link) =>
-            ['challenges', 'contradicts', 'weakens', 'questions'].includes(link.type) &&
-            (link.fromId === item.id || link.toId === item.id)
-          ).length;
-          return challengeCount < 2 || ((item.confidence || 0) >= 4 && challengeCount < 3);
-        })
-        .forEach((item) => items.push({
-          id: `challenge-${item.id}`,
-          label: item.title || item.statement,
-          eyebrow: (item.evidenceAgainst || []).length === 0 ? 'No recorded opposition' : 'Opposition still thin',
-          reason: 'This position needs a stronger opposing case, counterexample, or stress test before it should feel settled.',
-          action: 'Stress test',
-          priority: ((item.confidence || 0) >= 4 ? 100 : 90) - (item.evidenceAgainst || []).length,
-          icon: ShieldCheck,
-          view: 'vault',
-          targetId: item.id,
-        } as DeskItem));
-    } else if (mode === 'unfinished') {
-      addOpenInquiries(96);
-      addSourceReflection(90);
-      addOpenWorks(84);
-      addPracticeLogs(78);
-    } else if (mode === 'recent') {
-      [
-        ...positions.map((item) => ({ id: item.id, label: item.title || item.statement, date: item.dateUpdated || item.dateCreated, view: 'vault' as NoesisView, icon: ShieldCheck, type: 'Position' })),
-        ...inquiries.map((item) => ({ id: item.id, label: item.text, date: item.dateUpdated || item.dateCreated, view: 'questions' as NoesisView, icon: HelpCircle, type: 'Inquiry' })),
-        ...works.map((item) => ({ id: item.id, label: item.title, date: item.dateUpdated || item.dateCreated, view: 'writing' as NoesisView, icon: PenTool, type: 'Work' })),
-        ...media.map((item) => ({ id: item.id, label: item.title, date: item.dateUpdated || item.dateAdded, view: 'library' as NoesisView, icon: BookOpen, type: 'Source' })),
-      ]
-        .sort((a, b) => recentDate(b.date) - recentDate(a.date))
-        .slice(0, 6)
-        .forEach((item, index) => items.push({
-          id: `recent-${item.view}-${item.id}`,
-          label: item.label,
-          eyebrow: `${item.type} recently changed`,
-          reason: 'This object moved recently and may deserve a follow-up before the thread cools.',
-          action: 'Reopen',
-          priority: 90 - index,
-          icon: item.icon,
-          view: item.view,
-          targetId: item.id,
-        } as DeskItem));
-    } else if (mode === 'neglected') {
-      const staleCutoff = Date.now() - 1000 * 60 * 60 * 24 * 45;
-      [
-        ...positions.map((item) => ({ id: item.id, label: item.title || item.statement, date: item.dateUpdated || item.dateCreated, view: 'vault' as NoesisView, icon: ShieldCheck, type: 'Position' })),
-        ...inquiries.map((item) => ({ id: item.id, label: item.text, date: item.dateUpdated || item.dateCreated, view: 'questions' as NoesisView, icon: HelpCircle, type: 'Inquiry' })),
-        ...concepts.map((item) => ({ id: item.id, label: item.name, date: item.dateUpdated || item.dateCreated, view: 'concepts' as NoesisView, icon: Lightbulb, type: 'Concept' })),
-      ]
-        .filter((item) => (recentDate(item.date) || 0) < staleCutoff)
-        .sort((a, b) => recentDate(a.date) - recentDate(b.date))
-        .slice(0, 6)
-        .forEach((item, index) => items.push({
-          id: `neglected-${item.view}-${item.id}`,
-          label: item.label,
-          eyebrow: `${item.type} gone quiet`,
-          reason: 'This object has not seen meaningful movement in a while.',
-          action: 'Revisit',
-          priority: 85 - index,
-          icon: item.icon,
-          view: item.view,
-          targetId: item.id,
-        } as DeskItem));
-    } else if (mode === 'rediscover') {
-      const pool = [
-        ...concepts.map((item) => ({ id: item.id, label: item.name, view: 'concepts' as NoesisView, icon: Lightbulb, type: 'Concept' })),
-        ...media.map((item) => ({ id: item.id, label: item.title, view: 'library' as NoesisView, icon: BookOpen, type: 'Source' })),
-        ...works.map((item) => ({ id: item.id, label: item.title, view: 'writing' as NoesisView, icon: PenTool, type: 'Work' })),
-      ];
-      pool
-        .filter((_, index) => index % 3 === new Date().getDate() % 3)
-        .slice(0, 6)
-        .forEach((item, index) => items.push({
-          id: `rediscover-${item.view}-${item.id}`,
-          label: item.label,
-          eyebrow: `Rediscover ${item.type.toLowerCase()}`,
-          reason: 'This is a low-pressure rediscovery path back into your older material.',
-          action: 'Rediscover',
-          priority: 70 - index,
-          icon: item.icon,
-          view: item.view,
-          targetId: item.id,
-        } as DeskItem));
-    } else {
-      addOpenWorks(100);
-      addOpenInquiries(92);
-      addSourceReflection(84);
-      addPracticeLogs(78);
-      addUndefinedConcepts(62);
+    const dayMs = 86_400_000;
+    const daysSince = (value: string) => {
+      const date = recordDateKey(value);
+      return date ? Math.round((Date.parse(day) - Date.parse(date)) / dayMs) : 0;
+    };
+    for (const item of attention.currentPositions) {
+      const { supportCount, challengeCount } = resolvePositionGrounds(item, links);
+      const confidence = Math.round(item.confidence);
+      const cue = positionReviewCue(confidence, supportCount, challengeCount);
+      if (!cue) continue;
+      const gap = supportCount && challengeCount ? confidence - evidenceBalance(supportCount, challengeCount)! : undefined;
+      items.push({
+        id: `position-${item.id}`, label: item.title || item.statement, kind: 'position', view: 'vault', targetId: item.id,
+        eyebrow: gap !== undefined ? 'Confidence mismatch' : 'Position needs grounds',
+        reason: gap !== undefined
+          ? `Your confidence is ${confidence}%, ${Math.abs(gap)} points ${gap > 0 ? 'above' : 'below'} the balance of recorded evidence.`
+          : `Your confidence is ${confidence}%. ${!supportCount && !challengeCount ? 'No support or challenge is recorded.' : !supportCount ? 'There is a challenge but no recorded support.' : 'There is support but no recorded challenge.'}`,
+        action: gap !== undefined ? 'Review confidence' : cue,
+        priority: gap !== undefined ? 90 + Math.min(20, Math.abs(gap)) : 62 + confidence / 5,
+      });
     }
-
-    const sorted = uniqueDeskItems(items)
-      .sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label));
-    const longestWaitingInquiry = [...attention.openInquiries]
-      .sort((a, b) => recentDate(a.dateCreated) - recentDate(b.dateCreated))[0];
-    const oldestInquiryItem = longestWaitingInquiry
-      ? sorted.find((item) => item.view === 'questions' && item.targetId === longestWaitingInquiry.id)
-      : undefined;
-    return uniqueDeskItems([sorted[0], oldestInquiryItem].filter(Boolean) as DeskItem[]).slice(0, 2);
-  }, [attention, concepts, inquiries, links, media, mode, positions, works]);
+    for (const inquiry of attention.openInquiries) {
+      const age = daysSince(inquiry.dateUpdated || inquiry.dateCreated);
+      const hasAnswer = Boolean(inquiry.answer?.trim());
+      items.push({
+        id: `inquiry-${inquiry.id}`, label: inquiry.text, kind: 'inquiry', view: 'questions', targetId: inquiry.id,
+        eyebrow: age >= 14 ? 'Inquiry gone quiet' : 'Open inquiry',
+        reason: [
+          age >= 14 ? `No recorded update in ${age} days.` : '',
+          hasAnswer ? 'A working answer is saved. Check it against the evidence.' : 'No working answer is recorded. Consider what evidence would move it forward.',
+        ].filter(Boolean).join(' '),
+        action: hasAnswer ? 'Review answer' : 'Investigate',
+        priority: age >= 14 ? 80 + Math.min(15, age / 4) : 58,
+      });
+    }
+    for (const work of works) {
+      if (['complete', 'final', 'published', 'archived', 'abandoned'].includes(work.status)) continue;
+      const revisionDays = new Set((work.versionHistory || []).map(revision => recordDateKey(revision.createdAt))
+        .filter(date => date && date <= day && daysSince(date) <= 14));
+      const age = daysSince(work.dateUpdated || work.dateCreated);
+      const revisited = revisionDays.size >= 2;
+      if (age < 14 && !revisited) continue;
+      items.push({
+        id: `work-${work.id}`, label: work.title, kind: 'work', view: 'writing', targetId: work.id,
+        eyebrow: revisited ? 'Work you keep returning to' : 'Draft gone quiet',
+        reason: revisited ? `You saved revisions on ${revisionDays.size} different days in the last two weeks. Review what still needs to change.` : `This draft is unfinished and hasn’t been updated in ${age} days.`,
+        action: revisited ? 'Review draft' : 'Reopen draft',
+        priority: revisited ? 96 + Math.min(8, revisionDays.size) : 76 + Math.min(14, age / 5),
+      });
+    }
+    for (const source of media) {
+      const reflection = source.capture?.after;
+      if (source.status !== 'Finished' || reflection?.coreArgument?.trim() || reflection?.beliefChange?.trim()) continue;
+      items.push({
+        id: `source-${source.id}`, label: source.title, kind: 'source', view: 'library', targetId: source.id,
+        eyebrow: 'Finished source without reflection', reason: 'You finished this source without recording its main argument or how it changed your thinking.',
+        action: 'Reflect on source', priority: 71,
+      });
+    }
+    for (const practice of attention.unanchoredPractices) {
+      items.push({
+        id: `praxis-${practice.id}`, label: practice.title, kind: 'practice', view: 'labs', targetId: practice.id,
+        eyebrow: 'Praxis without a starting point', reason: 'This has no recorded starting reason or linked idea to test.',
+        action: 'Review its purpose', priority: 69,
+      });
+    }
+    for (const concept of concepts) {
+      if (concept.description?.trim() && concept.philosophyStatus !== 'undefined') continue;
+      items.push({
+        id: `concept-${concept.id}`, label: concept.name, kind: 'concept', view: 'concepts', targetId: concept.id,
+        eyebrow: 'Concept without a working definition', reason: 'Put what this term means to you in your own words.',
+        action: 'Clarify concept', priority: 60,
+      });
+    }
+    const ranked = uniqueDeskItems(items.sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label)));
+    const seen = new Set<NoesisView>();
+    const diverse = ranked.filter(item => {
+      if (seen.has(item.view)) return false;
+      seen.add(item.view);
+      return true;
+    });
+    return uniqueDeskItems([...diverse, ...ranked]).slice(0, 3);
+  }, [attention, concepts, day, links, media, works]);
 
   const provocation = useMemo(() => {
     const untested = attention.untestedPositions[0];
@@ -435,176 +292,70 @@ export function ThinkingDesk({
     return angles[provocationAngle % angles.length];
   }, [attention, provocationAngle]);
 
-  const pulseObservations = useMemo<PulseObservation[]>(() => {
-    const { currentPositions, rawAnnotations, unsupportedPositions, untestedPositions, openInquiries } = attention;
-    const finishedUnreflectedSources = media.filter((item) => item.status === 'Finished' && !item.capture?.after?.coreArgument && !item.capture?.after?.beliefChange);
-    const observations: PulseObservation[] = [];
+  const openThreads = useMemo(() => {
+    const latest = <T extends { dateUpdated?: string }>(items: T[]) => items.sort((a, b) => recentDate(b.dateUpdated) - recentDate(a.dateUpdated))[0];
+    const source = latest(media.filter(item => item.status === 'Consuming'));
+    const inquiry = latest([...attention.openInquiries]);
+    const work = latest(works.filter(item => !['complete', 'final', 'published', 'archived', 'abandoned'].includes(item.status)));
+    return [
+      source && { label: 'Consuming', title: source.title, detail: source.creator, view: 'library' as const, targetId: source.id, tone: 'source' },
+      inquiry && { label: 'Examining', title: inquiry.text, detail: inquiry.status.replaceAll('_', ' '), view: 'questions' as const, targetId: inquiry.id, tone: 'inquiry' },
+      work && { label: 'Creating', title: work.title, detail: work.status.replaceAll('_', ' '), view: 'writing' as const, targetId: work.id, tone: 'work' },
+    ] as const;
+  }, [attention.openInquiries, media, works]);
 
-    if (currentPositions.length > openInquiries.length + 2) {
-      observations.push({
-        id: 'positions-ahead-of-inquiries',
-        title: 'Judgment is ahead of questioning',
-        observation: 'You have more stated positions than active inquiries. This may be a good moment to add opposition or reopen a question.',
-        evidence: `${currentPositions.length} current positions vs ${openInquiries.length} active inquiries`,
-        tone: 'pressure',
-        view: 'vault',
-      });
+  async function capture(kind: DeskThoughtKind, text: string, customTitle: string) {
+    const title = customTitle || text.split(/\r?\n/, 1)[0].trim().slice(0, 80);
+    switch (kind) {
+      case 'inquiry': {
+        const inquiry = await onCreateInquiry({ text, status: 'open' });
+        onNavigate({ view: 'questions', targetId: inquiry.id });
+        break;
+      }
+      case 'position': {
+        const position = await onCreatePosition({ title, statement: text });
+        onNavigate({ view: 'vault', targetId: position.id });
+        break;
+      }
+      case 'concept': {
+        if (!await onCreateConcept({ name: title, description: text })) throw new Error('Concept not saved');
+        onNavigate({ view: 'concepts' });
+        break;
+      }
+      case 'experiment': {
+        const experiment = await onCreatePractice({ title, hypothesis: text, type: 'experiment', status: 'planned' });
+        onNavigate({ view: 'labs', targetId: experiment.id });
+        break;
+      }
+      case 'work': {
+        const content = text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replace(/\r?\n/g, '<br>');
+        const work = await onCreateWork({ title, body: text, draftContent: `<p>${content}</p>`, type: 'text_note', status: 'drafting' });
+        onNavigate({ view: 'writing', targetId: work.id });
+        break;
+      }
     }
-    if (rawAnnotations.length > 4) {
-      observations.push({
-        id: 'raw-annotations',
-        title: 'Capture is outrunning interpretation',
-        observation: 'Several annotations are still waiting to become concepts, inquiries, positions, or evidence.',
-        evidence: `${rawAnnotations.length} raw annotations across ${new Set(rawAnnotations.map((item) => item.source.id)).size} sources`,
-        tone: 'pressure',
-        view: 'annotations',
-      });
-    }
-    if (practices.length < Math.max(1, Math.floor(positions.length / 4))) {
-      observations.push({
-        id: 'beliefs-ahead-of-tests',
-        title: 'Belief is ahead of testing',
-        observation: 'Your belief layer is ahead of your testing layer. A position may be ready to become a practice.',
-        evidence: `${untestedPositions.length} positions have no linked practice`,
-        tone: 'balance',
-        view: 'labs',
-      });
-    }
-    if (finishedUnreflectedSources.length) {
-      observations.push({
-        id: 'finished-sources',
-        title: 'Finished sources need reflection',
-        observation: 'Some finished sources still need reflection before they can change the rest of the system.',
-        evidence: `${finishedUnreflectedSources.length} finished sources without a core argument or belief-change note`,
-        tone: 'pressure',
-        view: 'library',
-        targetId: finishedUnreflectedSources[0]?.id,
-      });
-    }
-    if (openInquiries.length) {
-      observations.push({
-        id: 'open-inquiries',
-        title: 'Questions are still live',
-        observation: 'Your inquiry layer has unresolved questions that could become evidence requests, definitions, or positions.',
-        evidence: `${openInquiries.length} active ${openInquiries.length === 1 ? 'inquiry' : 'inquiries'}`,
-        tone: 'movement',
-        view: 'questions',
-        targetId: openInquiries[0]?.id,
-      });
-    }
-    if (thinkingEvents.length) {
-      observations.push({
-        id: 'meaningful-events',
-        title: 'There is traceable movement',
-        observation: 'Recent activity shows meaningful movement. Evolution can now explain what changed instead of only listing what happened.',
-        evidence: `${thinkingEvents.length} thinking events recorded`,
-        tone: 'movement',
-        view: 'evolution',
-      });
-    }
-    if (!observations.length) {
-      observations.push({
-        id: 'first-links',
-        title: 'Build the chain',
-        observation: 'Noesis becomes more useful as sources, questions, positions, works, and practices begin to affect each other.',
-        evidence: `${links.length} relationships currently recorded`,
-        tone: 'balance',
-        view: 'atlas',
-      });
-    }
-    return observations.slice(0, 3);
-  }, [attention, links.length, media, positions.length, practices.length, thinkingEvents.length]);
+  }
 
-  const historyDestination = useCallback((event: ThinkingEvent | TimelineEvent): HomeTarget => {
-    const target = homeHistoryTarget(event, media);
-    if (!target.targetId || target.view === 'annotations') return target;
-    const records = ({
-      vault: positions, questions: inquiries, library: media, writing: works, labs: practices, concepts,
-    } as Partial<Record<NoesisView, ReadonlyArray<{ id: string }>>>)[target.view];
-    return records?.some((item) => item.id === target.targetId) ? target : { view: 'evolution' };
-  }, [concepts, inquiries, media, positions, practices, works]);
-
-  const recentMovement = useMemo(() => recentHomeHistory(thinkingEvents, timeline).map(({ event, ...row }) => ({
-    ...row, target: historyDestination(event),
-  })), [historyDestination, thinkingEvents, timeline]);
-  const weeklyChanges = useMemo(() => weeklyReviewEvents(thinkingEvents), [thinkingEvents]);
-
-  const returnMoments = useMemo<ReturnMoment[]>(() => {
-    const since = recentDate(lastHomeVisit || '') || (Date.now() - 14 * 24 * 60 * 60 * 1000);
-    const meaningfulChanges: ReturnMoment[] = thinkingEvents
-      .filter((event) => recentDate(event.createdAt) > since && event.importance !== 'low')
-      .sort((a, b) => recentDate(b.createdAt) - recentDate(a.createdAt))
-      .flatMap((event) => {
-        const target = historyDestination(event);
-        return [{
-          id: `event-${event.id}`,
-          label: event.summary || event.eventType.replace(/_/g, ' '),
-          detail: event.origin === 'ai-assisted' ? 'A reviewed AI-assisted change' : 'A meaningful change in your workspace',
-          kind: 'change' as const,
-          ...target,
-        }];
-      });
-
-    const reflections = media
-      .filter((source) => source.capture?.after?.aiReflection?.trim() && recentDate(source.dateUpdated || source.dateAdded) > since)
-      .sort((a, b) => recentDate(b.dateUpdated || b.dateAdded) - recentDate(a.dateUpdated || a.dateAdded))
-      .map((source) => ({
-        id: `reflection-${source.id}`,
-        label: `Reflection ready: ${source.title}`,
-        detail: 'A saved reflection from this source is ready to revisit.',
-        kind: 'reflection' as const,
-        view: 'library' as NoesisView,
-        targetId: source.id,
-      }));
-
-    const practicesDue = attention.practicesNeedingLogs
-      .filter((practice) => {
-        const dates = practiceLogDates(practice);
-        return !dates.length || recentDate(dates[dates.length - 1]) < Date.now() - 6 * 24 * 60 * 60 * 1000;
-      })
-      .slice(0, 1)
-      .map((practice) => ({
-        id: `practice-${practice.id}`,
-        label: `Check in on ${practice.title}`,
-        detail: 'This active practice has not recorded a recent observation.',
-        kind: 'practice' as const,
-        view: 'labs' as NoesisView,
-        targetId: practice.id,
-      }));
-
-    const unique = new Map<string, ReturnMoment>();
-    [...meaningfulChanges, ...reflections, ...practicesDue].forEach((item) => {
-      const key = `${item.view}:${item.targetId || item.id}`;
-      if (!unique.has(key)) unique.set(key, item);
-    });
-    return Array.from(unique.values()).slice(0, 3);
-  }, [attention.practicesNeedingLogs, historyDestination, lastHomeVisit, media, thinkingEvents]);
-
-  // Rotate among the top few moves so one avoided suggestion never blocks the card.
-  const [edgeOffset, setEdgeOffset] = useState(0);
-  const rotation = continueItems.slice(0, 3);
-  const primaryEdge = rotation.length ? rotation[edgeOffset % rotation.length] : null;
-  const secondaryEdges = continueItems.filter((item) => item !== primaryEdge).slice(0, 2);
   const workspaceSnapshot = useMemo(() => {
     const openInquiries = attention.metrics.openInquiries;
     const unprocessedAnnotations = attention.metrics.rawAnnotations;
     const undefinedConcepts = concepts.filter((item) => !item.description?.trim() || item.philosophyStatus === 'undefined').length;
     const positionsNeedingEvidence = attention.metrics.unsupportedPositions;
     const activeWorks = works.filter((item) => !['final', 'complete', 'completed', 'published', 'archived', 'abandoned'].includes(item.status)).length;
-    const activePractices = practices.filter((item) => item.status === 'active').length;
+    const activePractices = practices.filter((item) => item.status === 'active' && isRepeatablePractice(item.type)).length;
     const activeSources = media.filter((item) => ['Consuming', 'Want to Read', 'Paused'].includes(item.status)).length;
     const openUnknowns = unknowns.filter((item) => item.status === 'active' || item.status === 'exploring').length;
 
     return [
-      { label: 'Sources in motion', value: activeSources, view: 'library' as NoesisView, icon: NOESIS_ICONS.source },
-      { label: 'Annotations to process', value: unprocessedAnnotations, view: 'annotations' as NoesisView, icon: NOESIS_ICONS.annotation },
-      { label: 'Concepts to define', value: undefinedConcepts, view: 'concepts' as NoesisView, icon: NOESIS_ICONS.concept },
-      { label: 'Active inquiries', value: openInquiries, view: 'questions' as NoesisView, icon: NOESIS_ICONS.inquiry },
-      { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault' as NoesisView, icon: NOESIS_ICONS.position },
-      { label: 'Works in progress', value: activeWorks, view: 'writing' as NoesisView, icon: NOESIS_ICONS.work },
-      { label: 'Active practices', value: activePractices, view: 'labs' as NoesisView, icon: NOESIS_ICONS.practice },
-      { label: 'Open unknowns', value: openUnknowns, view: 'profile' as NoesisView, icon: Compass },
-    ];
+      { label: 'Sources in motion', value: activeSources, view: 'library', icon: 'source' },
+      { label: 'Annotations to process', value: unprocessedAnnotations, view: 'annotations', icon: 'annotation' },
+      { label: 'Concepts to define', value: undefinedConcepts, view: 'concepts', icon: 'concept' },
+      { label: 'Active inquiries', value: openInquiries, view: 'questions', icon: 'inquiry' },
+      { label: 'Positions needing evidence', value: positionsNeedingEvidence, view: 'vault', icon: 'position' },
+      { label: 'Works in progress', value: activeWorks, view: 'writing', icon: 'work' },
+      { label: 'Active practices', value: activePractices, view: 'labs', icon: 'practice' },
+      { label: 'Open unknowns', value: openUnknowns, view: 'profile', icon: 'unknown' },
+    ] as const;
   }, [attention, concepts, media, practices, unknowns, works]);
 
   const hasWorkspace = media.length + concepts.length + inquiries.length + positions.length + works.length + practices.length > 0;
@@ -841,29 +592,16 @@ export function ThinkingDesk({
     return (
       <div className="noesis-page">
         <PageHeader
-          title="Today"
-          description="Noesis becomes useful when it has something real to think with."
+          title={NOESIS_PAGE_BY_VIEW.home.title}
+          description="A starting point for your thinking."
         />
         <PageEmptyState
           icon={Compass}
-          title="Start with one real thought"
-          description="Choose the entry point that matches what you already have. Discovery mode helps when you do not know where to begin."
+          title="What’s on your mind?"
           action={(
-            <div className="space-y-4">
-              <div className="flex flex-wrap justify-center gap-3">
-                <Button onClick={() => onNavigate({ view: 'library' })}>I found something</Button>
-                <Button variant="outline" onClick={() => onNavigate({ view: 'questions' })}>I have a question</Button>
-                <Button variant="outline" onClick={() => onNavigate({ view: 'vault' })}>I hold a position</Button>
-                <Button variant="outline" onClick={() => onNavigate({ view: 'labs' })}>I want to test something</Button>
-                <Button variant="ghost" onClick={() => setDiscoveryMode((value) => !value)} aria-expanded={discoveryMode}>Discovery mode</Button>
-              </div>
-              {discoveryMode && (
-                <div className="mx-auto max-w-xl border-y border-border py-4 text-left">
-                  <div className="noesis-eyebrow text-accent">Begin with attention</div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">What has bothered, surprised, or stayed with you lately? Turn that friction into an inquiry. You do not need a developed philosophy to start.</p>
-                  <Button className="mt-3" onClick={() => onNavigate({ view: 'questions' })}>Open a blank inquiry</Button>
-                </div>
-              )}
+            <div className="flex flex-wrap justify-center gap-3">
+              <DeskThoughtStarter onSave={capture} aiEnabled={aiEnabled} />
+              <Button variant="outline" onClick={() => onNavigate({ view: 'library' })}>Go to Library</Button>
             </div>
           )}
         />
@@ -871,18 +609,13 @@ export function ThinkingDesk({
     );
   }
 
-  const heat = positionHeat(positions, links);
-  const hottest = heat[0];
   return (
-    <div className="noesis-page">
+    <div className="noesis-page noesis-today-desk" data-noesis-scroll-region>
       <div className="noesis-page-inner">
         <PageHeader
-          title={`Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, ${firstName(profile)}.`}
-          description={hottest && Math.abs(hottest.gap) > 5
-            ? `Tension is building around “${hottest.position.title}”: your confidence sits ${Math.abs(hottest.gap)} points ${hottest.gap > 0 ? 'above' : 'below'} your evidence.`
-            : currentThemes.length
-              ? `Your recent thinking is converging around ${currentThemes.join(', ')}.`
-              : 'Home chooses the next useful act from your unfinished thinking.'}
+          title={NOESIS_PAGE_BY_VIEW.home.title}
+          description="A starting point for your thinking."
+          actions={<DeskThoughtStarter onSave={capture} aiEnabled={aiEnabled} />}
         >
           {currentThemes.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -892,209 +625,105 @@ export function ThinkingDesk({
           )}
         </PageHeader>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-          <section className="space-y-5">
-            <section className="overflow-hidden rounded-lg border border-border bg-card">
-              <div className="border-b border-border px-5 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="noesis-eyebrow font-bold text-accent">What to do next</div>
-                    <p className="mt-1 text-xs text-muted-foreground">One recommended move, followed by your longest-waiting unanswered question.</p>
-                  </div>
-                  {rotation.length > 1 && (
-                    <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setEdgeOffset((current) => current + 1)}>
-                      Show another · {(edgeOffset % rotation.length) + 1}/{rotation.length}
-                    </Button>
-                  )}
-                </div>
-              </div>
-              <div className="p-5">
-                {primaryEdge ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate({ view: primaryEdge.view, targetId: primaryEdge.targetId })}
-                      className="group w-full border-b border-border/70 pb-5 text-left outline-none transition-colors hover:bg-muted/15 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                    >
-                      <div className="flex items-start gap-4 px-1 pt-1">
-                        <primaryEdge.icon className="mt-1 size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
-                        <div className="min-w-0 flex-1">
-                          <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-accent">{primaryEdge.eyebrow}</div>
-                          <h2 className="mt-1 font-headline text-2xl font-semibold italic leading-tight text-foreground">{primaryEdge.label}</h2>
-                          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{primaryEdge.reason}</p>
-                          <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-accent">
-                            {primaryEdge.action}
-                            <ArrowRight className="size-4 stroke-[2.4] transition-transform group-hover:translate-x-1" aria-hidden="true" />
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                    {secondaryEdges.length > 0 && (
-                      <div className="grid md:grid-cols-2 md:divide-x md:divide-border/70">
-                        {secondaryEdges.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => onNavigate({ view: item.view, targetId: item.targetId })}
-                            className="flex min-w-0 items-center gap-3 border-b border-border/70 px-2 py-4 text-left outline-none transition-colors last:border-b-0 hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:border-b-0 md:px-4 md:first:pl-2"
-                          >
-                            <item.icon className="size-[18px] shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-medium leading-5 text-foreground">{item.label}</span>
-                              <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">{item.eyebrow}</span>
-                            </span>
-                            <ChevronRight className="size-4 shrink-0 stroke-[2.4] text-muted-foreground" aria-hidden="true" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
+        <section className="noesis-today-desk__lead noesis-today-desk__move p-4 sm:p-5" aria-labelledby="desk-next">
+          <h2 id="desk-next" className="noesis-eyebrow font-bold text-accent">Measured Judgment</h2>
+          {judgment.length ? (
+            <div className="noesis-today-desk__moves">
+              {judgment.map(item => {
+                const Icon = NOESIS_SOLID_DESK_ICONS[item.kind];
+                return (
+                  <button key={item.id} type="button" className="group noesis-today-desk__slip" onClick={() => onNavigate({ view: item.view, targetId: item.targetId })}>
+                    <span className="flex items-center gap-2 text-tone" data-tone={item.kind}>
+                      <Icon className="size-5 shrink-0" aria-hidden="true" />
+                      <span className="noesis-eyebrow noesis-eyebrow--sm text-inherit">{item.eyebrow}</span>
+                    </span>
+                    <span className="font-headline text-lg font-semibold leading-snug">{item.label}</span>
+                    <span className="text-sm leading-snug text-muted-foreground">{item.reason}</span>
+                    <span className="mt-1 inline-flex items-center gap-2 text-xs font-medium text-accent">{item.action}<ArrowRight className="size-3.5" aria-hidden="true" /></span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : <p className="flex items-center gap-2 text-sm text-muted-foreground"><ClipboardCheck className="size-5 text-accent" aria-hidden="true" />No follow-ups surfaced today.</p>}
+          <section className="border-t border-border pt-4" aria-labelledby="desk-reflection">
+            <div className="flex items-start gap-4">
+              <Lightbulb className="mt-0.5 size-5 shrink-0 text-tone" data-tone="concept" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <h3 id="desk-reflection" className="noesis-eyebrow text-muted-foreground">Think on this</h3>
+                {provocationDismissed ? (
+                  <button type="button" onClick={() => setProvocationDismissed(false)} className="mt-2 text-sm text-accent hover:underline">
+                    Restore today&apos;s reflection prompt
+                  </button>
                 ) : (
-                  <div className="border-y border-dashed border-border py-6 text-center">
-                    <ClipboardCheck className="mx-auto size-6 stroke-[2.4] text-accent" aria-hidden="true" />
-                    <h2 className="mt-3 font-headline text-xl font-semibold italic">Nothing urgent is waiting</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">Capture something new or review a recent milestone.</p>
-                  </div>
+                  <>
+                    <p className="mt-1 font-headline text-xl italic leading-snug text-foreground/85">{provocation.question}</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">{provocation.evidence}</p>
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-accent">Write a response</summary>
+                      <Textarea
+                        value={briefAnswer}
+                        onChange={(event) => setBriefAnswer(event.target.value)}
+                        aria-label="Your reflection"
+                        placeholder="Capture a brief response..."
+                        className="mt-3 min-h-[76px] rounded-md"
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry}>{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
+                        <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-md">Explore</Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setProvocationAngle((angle) => angle + 1);
+                            setBriefAnswer('');
+                            setIrrelevantReason('');
+                          }}
+                          className="rounded-md"
+                        >
+                          Replace
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setProvocationDismissed(true)} className="rounded-md">Dismiss</Button>
+                      </div>
+                    </details>
+                  </>
                 )}
               </div>
-            </section>
-
-            <div className="rounded-[14px] border border-border bg-card p-5">
-              <PraxisCheckIn practices={practices} day={day} onUpdate={onUpdatePractice} onOpen={(id) => onNavigate({ view: 'labs', targetId: id })} />
             </div>
-
-            <section className="rounded-lg border border-border bg-card p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="noesis-eyebrow text-muted-foreground">Workspace at a glance</div>
-                  <p className="mt-1 text-xs text-muted-foreground">Open any area that needs attention.</p>
-                </div>
-                <Compass className="size-5 stroke-[2.4] text-accent" aria-hidden="true" />
-              </div>
-              <div className="grid grid-cols-1 border-t border-border sm:grid-cols-2 sm:[&>*:nth-child(odd)]:border-r">
-                {workspaceSnapshot.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => onNavigate({ view: item.view })}
-                    className="group flex min-h-14 min-w-0 items-center gap-3 border-b border-border px-2 py-3 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-3"
-                  >
-                    <item.icon className="size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
-                    <span className="min-w-0 flex-1 text-sm leading-5 text-foreground/80">{item.label}</span>
-                    <span className="shrink-0 font-code text-lg font-bold text-foreground">{item.value}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <ThoughtGamePreview
-              concepts={concepts}
-              inquiries={inquiries}
-              positions={positions}
-              media={media}
-              links={links}
-              onOpen={() => onNavigate({ view: 'exercises' })}
-            />
-
-            <section className="rounded-lg border border-border bg-card p-5">
-              <div className="flex items-start gap-4">
-                <Lightbulb className="mt-0.5 size-5 shrink-0 stroke-[2.4] text-accent" aria-hidden="true" />
-                <div className="min-w-0 flex-1">
-                  <div className="noesis-eyebrow text-muted-foreground">Think on this</div>
-                  {provocationDismissed ? (
-                    <button type="button" onClick={() => setProvocationDismissed(false)} className="mt-2 text-sm text-accent hover:underline">
-                      Restore today&apos;s reflection prompt
-                    </button>
-                  ) : (
-                    <>
-                      <p className="mt-1 font-headline text-xl italic leading-snug text-foreground/85">{provocation.question}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{provocation.evidence}</p>
-                      <details className="mt-3">
-                        <summary className="cursor-pointer text-sm font-medium text-accent">Write a response</summary>
-                        <Textarea
-                          value={briefAnswer}
-                          onChange={(event) => setBriefAnswer(event.target.value)}
-                          placeholder="Capture a brief response..."
-                          className="mt-3 min-h-[76px] rounded-md"
-                        />
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button size="sm" onClick={turnProvocationIntoInquiry} disabled={creatingInquiry || !onCreateInquiry}>{creatingInquiry ? 'Saving…' : 'Open as inquiry'}</Button>
-                          <Button size="sm" variant="outline" onClick={() => previewOrNavigate(provocation.target, { label: 'Explore further', description: 'Reflection prompt', reason: provocation.evidence })} className="rounded-md">Explore</Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setProvocationAngle((angle) => angle + 1);
-                              setBriefAnswer('');
-                              setIrrelevantReason('');
-                            }}
-                            className="rounded-md"
-                          >
-                            Replace
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setProvocationDismissed(true)} className="rounded-md">Dismiss</Button>
-                        </div>
-                      </details>
-                    </>
-                  )}
-                </div>
-              </div>
-            </section>
           </section>
+        </section>
 
-        <aside className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="border-b border-border p-5">
+
+        <aside className="noesis-today-desk__rail min-w-0 lg:grid-cols-2">
+          <div className="noesis-today-desk__rail min-w-0">
+          <section className="noesis-today-desk__notebook" aria-labelledby="desk-notebook">
+            <h2 id="desk-notebook" className="noesis-eyebrow font-bold">In the middle of</h2>
+            {openThreads.some(Boolean) ? (
+              <ul className="mt-2">
+                {openThreads.map(thread => thread && (
+                  <li key={thread.view} className="noesis-today-desk__thread" data-tone={thread.tone}>
+                    <span className="noesis-eyebrow noesis-eyebrow--sm text-tone">{thread.label}</span>
+                    <button type="button" className="min-w-0 text-left hover:underline" onClick={() => onNavigate(thread)}>
+                      <span className="block break-words font-medium">{thread.title}</span>
+                      {thread.detail && <span className="block break-words text-xs text-muted-foreground">{thread.detail}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="mt-2 text-sm text-muted-foreground">No work in progress yet.</p>}
+          </section>
             <PositionsUnderHeat rows={heat} onOpen={(id) => onNavigate({ view: 'vault', targetId: id })} />
           </div>
-
-          <section className="border-b border-border p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <div className="noesis-eyebrow text-muted-foreground">Since you last visited</div>
-                <p className="mt-1 text-xs text-muted-foreground">Real changes and saved reflections worth returning to.</p>
-              </div>
-              <History className="size-5 shrink-0 stroke-[2.4] text-stage-integrate" aria-hidden="true" />
-            </div>
-            {returnMoments.length ? (
-              <div className="divide-y divide-border/70 border-y border-border/70">
-                {returnMoments.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => previewOrNavigate(item, { label: 'Open update', description: item.label, reason: item.detail })}
-                    className="w-full py-3 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                  >
-                    <div className="flex items-start gap-3">
-                      {item.kind === 'reflection'
-                        ? <Lightbulb className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-kind-work" aria-hidden="true" />
-                        : item.kind === 'practice'
-                          ? <Repeat className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-kind-practice" aria-hidden="true" />
-                          : <GitBranch className="mt-0.5 size-[18px] shrink-0 stroke-[2.4] text-stage-integrate" aria-hidden="true" />}
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium leading-5 text-foreground/85">{item.label}</span>
-                        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{item.detail}</span>
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="border-y border-dashed border-border py-3 text-sm leading-6 text-muted-foreground">New reflections, meaningful changes, and active practice check-ins will collect here.</p>
-            )}
-          </section>
-
-          {showCommitments && <section className="border-b border-border p-5" aria-label="Active commitments">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <div className="noesis-eyebrow text-muted-foreground">Active Commitments</div>
-                <p className="mt-1 text-xs text-muted-foreground">Positions you are trying to make visible through practice.</p>
-              </div>
+          {showCommitments ? <PraxisDeskTabs
+            checkIn={<PraxisCheckIn practices={practices} day={day} onUpdate={onUpdatePractice} onOpen={(id) => onNavigate({ view: 'labs', targetId: id })} showLabel={false} />}
+            commitments={<section data-tone="practice" aria-labelledby="desk-commitments">
+            <div className="flex items-center justify-between gap-3">
+              <h2 id="desk-commitments" className="sr-only">Active commitments</h2>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => onNavigate({ view: 'goals' })}
-                className="size-8 rounded-md"
+                className="ms-auto size-8 rounded-md"
                 aria-label="Open all commitments"
                 title="Open all commitments"
               >
@@ -1102,19 +731,19 @@ export function ThinkingDesk({
               </Button>
             </div>
             {activeGoalRows.length ? (
-              <div className="divide-y divide-border/70 border-t border-border/70">
+              <div className="mt-2 grid gap-2">
                 {activeGoalRows.map((row) => (
                   <button
                     key={row.id}
                     type="button"
                     onClick={() => onNavigate({ view: 'goals', targetId: row.id })}
-                    className="w-full py-4 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    className="noesis-today-desk__commitment w-full min-w-0 text-left hover:bg-tone/10 focus-visible:outline focus-visible:outline-ring"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
-                      <span className="shrink-0 noesis-figure noesis-figure--sm text-muted-foreground">{row.done}/{row.target}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 break-words text-sm font-medium text-foreground">{row.label}<small className="block font-normal text-muted-foreground">{row.measure}</small></span>
+                      <span className="shrink-0 font-code text-xs tabular-nums text-tone">{row.done}/{row.target}</span>
                     </div>
-                    <Progress value={row.percent} aria-hidden="true" className="mt-2 h-1.5" />
+                    <Progress value={row.percent} aria-hidden="true" className="mt-2 h-1.5 [&>div]:bg-tone" />
                   </button>
                 ))}
               </div>
@@ -1127,43 +756,41 @@ export function ThinkingDesk({
                 Set an intellectual commitment for what deserves sustained attention.
               </button>
             )}
-          </section>}
+            </section>}
+          /> : <div className="noesis-today-desk__tape">
+            <PraxisCheckIn practices={practices} day={day} onUpdate={onUpdatePractice} onOpen={(id) => onNavigate({ view: 'labs', targetId: id })} />
+          </div>}
 
-          <section className="p-5">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="noesis-eyebrow text-muted-foreground">Recent Change</div>
-              <Button variant="ghost" size="sm" onClick={() => onNavigate({ view: 'evolution' })} className="rounded-md">View full evolution</Button>
-            </div>
-            <details className="mb-4 border-y border-border py-3">
-              <summary className="cursor-pointer text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Weekly review · {weeklyChanges.length} recorded {weeklyChanges.length === 1 ? 'change' : 'changes'}</summary>
-              <div className="mt-3 space-y-3 text-sm">
-                <p className="text-muted-foreground">What changed this week, what is still uncertain, and what could you test next?</p>
-                {weeklyChanges.length ? <ul className="space-y-2">{weeklyChanges.slice(0, 3).map((event) => <li key={event.id}>{event.summary}</li>)}</ul> : <p className="text-muted-foreground">No qualifying changes recorded in the last seven days.</p>}
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'evolution' })}>Review changes</Button>
-                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'questions' })}>Revisit a question</Button>
-                  <Button size="sm" variant="outline" onClick={() => onNavigate({ view: 'labs' })}>Choose a test</Button>
-                </div>
-              </div>
-            </details>
-            <div className="divide-y divide-border/70 border-t border-border/70">
-              {recentMovement.length ? recentMovement.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => previewOrNavigate(item.target, { label: 'Open recent movement', description: item.meta, reason: item.title })}
-                  className="w-full py-4 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                >
-                  <div className="text-sm font-medium text-foreground/80">{item.title}</div>
-                  <div className="mt-1 noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">{item.meta}</div>
-                </button>
-              )) : (
-                <p className="text-sm leading-6 text-muted-foreground">Meaningful changes will appear here after positions, inquiries, concepts, works, or practices move.</p>
-              )}
-            </div>
-          </section>
         </aside>
-      </div>
+
+        <div className="mt-6">
+          <details className="noesis-today-desk__index">
+            <summary className="min-h-8 cursor-pointer text-sm font-semibold">Workspace at a glance</summary>
+            <div className="mt-2 grid grid-cols-1 border-t border-border sm:grid-cols-2 sm:[&>*:nth-child(odd)]:border-r">
+              {workspaceSnapshot.map((item) => {
+                const Icon = NOESIS_SOLID_DESK_ICONS[item.icon];
+                return (
+                <button
+                  key={item.label}
+                  type="button"
+                  data-tone={item.icon === 'unknown' ? 'neutral' : item.icon}
+                  onClick={() => {
+                    if (item.icon === 'practice') writeBrowserPreference('noesis:labs-tool', 'practices');
+                    onNavigate({ view: item.view });
+                  }}
+                  className="group flex min-h-14 min-w-0 items-center gap-3 border-b border-border px-2 py-3 text-left outline-none transition-colors hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-3"
+                >
+                  <Icon className="size-5 shrink-0 text-tone" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 text-sm leading-5 text-foreground/80">{item.label}</span>
+                  <span className="shrink-0 font-code text-lg font-bold text-foreground">{item.value}</span>
+                </button>
+                );
+              })}
+            </div>
+          </details>
+
+
+        </div>
       </div>
     </div>
   );

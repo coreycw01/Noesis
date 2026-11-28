@@ -141,3 +141,13 @@
   outline-offset: 4px;
   border-radius: var(--card-radius);
 }
+
+[data-notebook-editor] {
+  line-height: var(--document-line-step);
+}
+
+/* Keep paragraph breaks, headings, and list rows on the paper's ruling. */
+[data-notebook-editor] :where(p, div, blockquote, li, ul, ol, h1, h2, h3, h4, h5, h6, pre) {
+  margin-block: 0 !important;
+  line-height: var(--document-line-step) !important;
+}

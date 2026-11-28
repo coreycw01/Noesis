@@ -32,6 +32,7 @@ export function applyGoalCheckIn(settings: GoalSettings, goalId: string, checkIn
   const goal = goals.find((item) => item.id === goalId);
   if (!goal) throw new Error('Save this commitment before logging it.');
   if (goal.commitmentCheckIns?.some((entry) => entry.id === checkIn.id)) return settings;
+  if (goal.commitmentTracking === 'automatic') throw new Error('Automatic commitments count workspace activity and do not take check-ins.');
   if (!Number.isFinite(Date.parse(checkIn.date)) || !commitmentDueOnDay(goal, commitmentCheckInDay(checkIn))) {
     throw new Error('This commitment is not due or already has a check-in today.');
   }

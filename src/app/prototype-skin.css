@@ -25,7 +25,7 @@
   --card-radius: 14px;
   --button-radius: 20px;
   --shadow-card: none;
-  --page-measure: 77.5rem;
+  --page-measure: 86rem;
 }
 .dark, :root.dark[data-theme], .dark[data-theme] {
   --background: 30 10% 8%;
@@ -88,10 +88,49 @@ main[data-stage-tone="more"] { --accent: var(--stage-more); --ring: var(--stage-
 .noesis-page-header[data-stage-tone] .noesis-route-label::before { background: hsl(var(--stage)); }
 
 /* Segmented tabs, as in the prototype: one hairline pill, the current tab filled. */
-.noesis-page-header__tabs [role="tablist"] { display: inline-flex; gap: 0; padding: 2px; border: 1px solid hsl(var(--border)) !important; border-radius: var(--radius-pill); }
-.noesis-page-header__tabs [role="tab"] { border: 0 !important; border-radius: var(--radius-pill); padding: 5px 12px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .08em; text-transform: uppercase; color: hsl(var(--muted-foreground)); box-shadow: none !important; }
+.noesis-page-header__tabs [role="tablist"]:not(.noesis-praxis-methods) { display: inline-flex; gap: 0; padding: 2px; border: 1px solid hsl(var(--border)) !important; border-radius: var(--radius-pill); }
+.noesis-page-header__tabs :not(.noesis-praxis-methods) > [role="tab"] { border: 0 !important; border-radius: var(--radius-pill); padding: 5px 12px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .08em; text-transform: uppercase; color: hsl(var(--muted-foreground)); box-shadow: none !important; }
 .noesis-page-header__tabs [role="tab"]::after { display: none !important; }
-.noesis-page-header__tabs [role="tab"][aria-selected="true"] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.noesis-page-header__tabs :not(.noesis-praxis-methods) > [role="tab"][aria-selected="true"] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.noesis-praxis-scroll { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.noesis-praxis-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 28rem);
+  min-width: 0;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid hsl(var(--stage) / .45);
+  border-radius: var(--button-radius);
+  background: hsl(var(--muted) / .5);
+}
+.noesis-praxis-methods button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-width: 0;
+  min-height: 44px;
+  padding: .25rem .2rem;
+  border-radius: var(--button-radius);
+  color: hsl(var(--muted-foreground));
+  font-size: var(--text-sm);
+}
+.noesis-praxis-methods button:hover { background: hsl(var(--stage) / .08); color: hsl(var(--foreground)); }
+.noesis-praxis-methods button:is([aria-pressed="true"],[aria-selected="true"]) {
+  background: hsl(var(--stage) / .2);
+  color: hsl(var(--foreground));
+  font-weight: 650;
+  box-shadow: inset 0 0 0 1px hsl(var(--stage) / .45);
+}
+.noesis-praxis-methods button:focus-visible { outline: 2px solid hsl(var(--stage)); outline-offset: 1px; }
+@media (max-width: 440px) {
+  .noesis-praxis-methods button { font-size: .8125rem; }
+  .noesis-praxis-methods button span { min-width: 0; overflow-wrap: anywhere; }
+}
+@media (max-width: 380px) {
+  .noesis-praxis-methods button { flex-direction: column; gap: .125rem; }
+}
 
 /* Cards and panels: hairline, 14px, flat. */
 .noesis-workbench-panel, .noesis-recommendation, [class*="rounded-3xl"], [class*="rounded-2xl"].border { border-radius: var(--card-radius) !important; box-shadow: none !important; }
@@ -114,27 +153,23 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-app-main--loop { padding-top: 48px; }
 
 /* The Loop dock in the prototype's light card style. */
-.noesis-loop { --dock-bg: hsl(var(--card) / .92); background: var(--dock-bg); color: hsl(var(--foreground)); border-color: hsl(var(--workspace-accent) / .65); box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .35); }
+.noesis-loop { --dock-bg: hsl(var(--card) / .92); background: var(--dock-bg); color: hsl(var(--foreground)); box-shadow: 0 18px 40px -16px hsl(0 0% 0% / .35); }
+.noesis-loop, .noesis-mobile-nav { border-color: hsl(var(--workspace-accent, var(--accent))); }
 .noesis-loop [data-stage], .noesis-loop[data-stage] { --nav-stage: var(--stage-encounter); }
 .noesis-loop [data-stage="examine"], .noesis-loop[data-stage="examine"] { --nav-stage: var(--stage-examine); }
 .noesis-loop [data-stage="claim"], .noesis-loop[data-stage="claim"] { --nav-stage: var(--stage-claim); }
 .noesis-loop [data-stage="act"], .noesis-loop[data-stage="act"] { --nav-stage: var(--stage-act); }
 .noesis-loop [data-stage="integrate"], .noesis-loop[data-stage="integrate"] { --nav-stage: var(--stage-integrate); }
-/* "more" used to follow the workspace theme, because it meant Profile,
-   Settings and the Context Desk — places to go rather than stages of the
-   Loop. It now also carries Perspective (Atlas, Works, Evolution), which are
-   stages with a colour of their own, and taking the theme accent there left
-   them whatever hue the theme happened to be instead of their blue. The pages
-   that should follow the theme get it from noesisPageTone's "theme" tone
-   instead, which is the more precise place for it. */
-.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--sidebar-stage-more); }
+.noesis-loop [data-stage="more"], .noesis-loop[data-stage="more"] { --nav-stage: var(--workspace-accent, var(--accent)); }
+.noesis-loop .noesis-loop__stage[data-loop-section="Notice"] { --nav-stage: var(--kind-annotation); }
+.noesis-loop .noesis-loop__stage[data-loop-section="Survey"] { --nav-stage: var(--stage-more); }
 .noesis-loop__divider { background: hsl(var(--border)); }
 .noesis-loop__link { background: hsl(var(--border)); }
 .noesis-loop__stage-button, .noesis-loop__today, .noesis-loop__fold { font-family: "Spectral", Georgia, serif; font-size: var(--text-sm); letter-spacing: 0; text-transform: none; color: hsl(var(--muted-foreground)); padding: .3rem .6rem; }
 .noesis-loop__ring { width: .7rem; height: .7rem; border-width: 1.5px; border-color: hsl(var(--nav-stage)); }
-.noesis-loop__ring svg { display: none; }
-.noesis-loop__stage[data-stage="more"] .noesis-loop__ring { width: 1rem; height: 1rem; border: 0; }
-.noesis-loop__stage[data-stage="more"] .noesis-loop__ring svg { display: block; }
+.noesis-loop__stage[data-loop-section="More"] .noesis-loop__ring { width: 1rem; height: 1rem; border: 0; }
+.noesis-loop__stage[data-loop-section="Survey"] .noesis-loop__ring { border-radius: 50%; }
+.noesis-loop__stage:is([data-loop-section="Notice"], [data-loop-section="Survey"]) .noesis-loop__stage-name { color: hsl(var(--nav-stage)); }
 .noesis-loop__stage-button[aria-current="true"] .noesis-loop__ring { background: hsl(var(--nav-stage)); }
 .noesis-loop__stage-button[aria-current="true"] { color: hsl(var(--foreground)); }
 .noesis-loop__stage-button:hover, .noesis-loop__today:hover, .noesis-loop__fold:hover, .noesis-loop__stage-button[aria-expanded="true"] { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
@@ -150,9 +185,9 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 /* Buttons: the primitive in src/components/ui/button.tsx owns the voice. */
 .noesis-page-header-actions [data-noesis-button] { height: 2rem !important; padding-inline: 1rem !important; }
 
-/* Pages sit in the prototype's 1240px column, centered. Atlas keeps its canvas. */
+/* Standard pages share a centered frame. Atlas and the studio keep their canvases. */
 .noesis-app-main .noesis-page,
-.noesis-app-main .noesis-gutter { padding-left: max(var(--page-gutter), calc((100% - 77.5rem) / 2)) !important; padding-right: max(var(--page-gutter), calc((100% - 77.5rem) / 2)) !important; }
+.noesis-app-main .noesis-gutter { padding-inline: max(var(--page-gutter), calc((100% - var(--page-measure)) / 2)) !important; }
 .noesis-app-main [data-noesis-identity="network"] .noesis-gutter,
 .noesis-app-main .noesis-works-studio { padding-left: var(--page-gutter) !important; padding-right: var(--page-gutter) !important; }
 /* The two full-bleed pages opt out of the page measure so the Atlas canvas and
@@ -167,13 +202,11 @@ section[aria-label="Page filters and search"] { position: static !important; pad
    rule is inset with the title: padding would leave the border spanning the
    whole bleed while the words sat 68px inside it. */
 .noesis-app-main [data-noesis-identity="network"] .noesis-page-header {
-  margin-left: max(var(--page-gutter), calc((100% - 77.5rem) / 2));
-  margin-right: max(var(--page-gutter), calc((100% - 77.5rem) / 2));
+  margin-inline: max(var(--page-gutter), calc((100% - var(--page-measure)) / 2));
   padding-left: 0 !important; padding-right: 0 !important;
 }
 .noesis-app-main .noesis-works-studio > .noesis-page-header {
-  margin-left: max(0px, calc((100% - 77.5rem) / 2));
-  margin-right: max(0px, calc((100% - 77.5rem) / 2));
+  margin-inline: max(0px, calc((100% - var(--page-measure)) / 2));
 }
 
 /* Library covers without an image: the prototype's bound-book cover. */
@@ -186,7 +219,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-heat-row:hover { background: hsl(var(--muted) / .6); }
 .noesis-checkin-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: .6rem .5rem; border-top: 1px solid hsl(var(--border)); text-align: left; background: none; border-left: 0; border-right: 0; border-bottom: 0; }
 .noesis-checkin-calendar > [role="img"] { flex-wrap: wrap; }
-.noesis-today-focus { max-width: 100%; border: 1px solid hsl(var(--proto-amber) / .45); border-radius: var(--radius-pill); background: hsl(var(--proto-amber) / .09); color: hsl(var(--proto-amber)); padding: .22rem .65rem; font-size: var(--text-xs); font-weight: 600; }
+.noesis-today-focus { max-width: 100%; padding: .22rem .65rem; font-size: var(--text-xs); font-weight: 600; }
 
 /* Concept diagnosis as bars (prototype "what moves each bar"). */
 .noesis-diag { display: grid; gap: var(--space-2); }
@@ -211,14 +244,22 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-app :is(.text-sky-700, .text-blue-800) { color: hsl(var(--stage-more)) !important; }
 
 /* Positions: ember, mini calibration scale, and a claim-tinted card. */
-.noesis-position-card { background: linear-gradient(180deg, hsl(var(--stage-claim) / .07), transparent 55%), hsl(var(--card)) !important; }
+.noesis-position-card { --item-card-tint: var(--stage-claim); }
+.noesis-inquiry-card { --item-card-tint: var(--stage-examine); }
+.noesis-concept-card, .noesis-concept-split__card { --item-card-tint: var(--kind-concept); }
+:is(.noesis-position-card, .noesis-inquiry-card, .noesis-concept-card, .noesis-concept-split__card) {
+  background: linear-gradient(180deg, hsl(var(--item-card-tint) / .07), transparent 55%), hsl(var(--card)) !important;
+}
 .noesis-ember { width: 40px; height: 40px; flex: none; border-radius: var(--radius-pill); background: radial-gradient(circle, hsl(var(--stage)) 0 calc(var(--ember) * 34%), hsl(var(--stage) / .2) calc(var(--ember) * 34% + 1px)); }
 .noesis-mini-scale { position: relative; height: 8px; border-radius: var(--radius-pill); background: hsl(var(--muted)); }
 .noesis-mini-scale__gap { position: absolute; top: 0; bottom: 0; background: hsl(var(--stage) / .4); }
 .noesis-mini-scale__stated, .noesis-mini-scale__earned { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: var(--radius-xs); transform: translateX(-50%); }
 .noesis-mini-scale__stated { background: hsl(var(--stage)); }
 .noesis-mini-scale__earned { background: hsl(var(--stage-act)); }
-.noesis-inquiry-card { background: linear-gradient(180deg, hsl(var(--stage-examine) / .07), transparent 55%), hsl(var(--card)) !important; }
+.noesis-annotation-card { background: linear-gradient(180deg, hsl(var(--kind-annotation) / .12), transparent 65%), hsl(var(--card)) !important; }
+.noesis-annotation-excerpt { quotes: "\201c" "\201d" "\2018" "\2019"; }
+.noesis-annotation-excerpt[data-already-quoted]::before,
+.noesis-annotation-excerpt[data-already-quoted]::after { content: none; }
 
 /* Praxis: Say/Do numbers and a 7-day grid of method shapes. */
 .noesis-praxis-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem 1rem; margin-top: .9rem; padding-top: .9rem; border-top: 1px solid hsl(var(--border)); }
@@ -317,8 +358,8 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 }
 
 /* Works Studio Reel: each section a colored stripe, as in the prototype. */
-.noesis-reel-section { display: grid; gap: var(--space-2); padding: .2rem 0 .2rem .8rem; margin-top: .9rem; border-left: 2px solid hsl(var(--stage)); }
-.noesis-reel-section__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); }
+.noesis-reel-section { display: grid; gap: var(--space-2); padding: .2rem 0 .2rem .8rem; margin-top: .9rem; border-left: 2px solid hsl(var(--tone)); }
+.noesis-reel-section__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); text-transform: uppercase; color: hsl(var(--tone)); }
 
 /* Inquiry evidence balance. */
 .noesis-balance { display: grid; gap: var(--space-2); padding: 18px; border: 1px solid hsl(var(--border)); border-radius: var(--card-radius); background: hsl(var(--card)); }
@@ -353,7 +394,6 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-flowbar__key i { width: 9px; height: 9px; border-radius: var(--radius-xs); background: hsl(var(--stage)); }
 .noesis-flowbar__key b { color: hsl(var(--foreground)); font-weight: 500; }
 .noesis-flowbar__key[aria-pressed="true"] { color: hsl(var(--foreground)); text-decoration: underline; text-underline-offset: 4px; }
-.noesis-caliper { display: grid; gap: .5rem; margin-bottom: 1rem; padding: 12px; border: 1px solid hsl(var(--border)); border-radius: var(--card-radius); background: hsl(var(--background) / .4); }
 .noesis-movement { display: grid; gap: var(--space-2); }
 .noesis-movement__bar { display: flex; gap: var(--space-1); height: 12px; }
 .noesis-movement__bar span { border-radius: var(--radius-xs); background: hsl(var(--stage)); min-width: 6px; }
@@ -392,6 +432,12 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-aidock { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .noesis-ai-trigger { border: 1.5px solid hsl(var(--revise)) !important; box-shadow: 0 0 0 3px hsl(var(--revise) / .15); background: hsl(var(--revise) / .1) !important; color: hsl(var(--revise)) !important; font-weight: 600; }
 .noesis-ai-trigger:hover { box-shadow: 0 0 0 5px hsl(var(--revise) / .22); background: hsl(var(--revise) / .18) !important; }
+.noesis-ai-trigger--mark { position: relative; flex-shrink: 0; width: 44px; min-width: 44px; min-height: 44px; }
+.noesis-ai-trigger--mark svg { width: 20px; height: 20px; }
+.noesis-ai-trigger--mark::before { content: ""; position: absolute; inset: -4px; pointer-events: none; border: 1px solid hsl(var(--revise)); border-radius: inherit; opacity: 0; animation: noesis-ask-hint 16s ease-out 6s infinite; }
+@keyframes noesis-ask-hint { 0%, 12%, 100% { opacity: 0; transform: scale(1); } 3% { opacity: .4; } 9% { opacity: 0; transform: scale(1.23); } }
+.reduce-motion .noesis-ai-trigger--mark::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .noesis-ai-trigger--mark::before { animation: none; } }
 .noesis-aidock__depth { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label-sm); letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--revise)); border: 1px dotted hsl(var(--revise) / .6); border-radius: var(--radius-pill); padding: 2px 8px; }
 [role="dialog"]:has(.noesis-ai-review), .noesis-ai-dialog { border-color: hsl(var(--revise) / .45) !important; }
 /* Outline: the concept stage, in silver.
@@ -409,7 +455,7 @@ section[aria-label="Page filters and search"] { position: static !important; pad
 .noesis-nav-section[data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
 .noesis-loop__stage[data-stage="outline"], [data-stage="outline"] { --loop-stage: var(--stage-outline); --stage: var(--stage-outline); }
 .noesis-loop [data-stage="outline"] { --nav-stage: var(--sidebar-stage-outline); }
-.noesis-loop__ask { display: inline-flex; align-items: center; gap: var(--space-2); height: 34px; padding: 0 12px 0 8px; border-radius: var(--radius-pill); border: 1.5px solid hsl(var(--revise)); background: hsl(var(--revise) / .1); color: hsl(var(--revise)); font-size: var(--text-sm); white-space: nowrap; box-shadow: 0 0 0 3px hsl(var(--revise) / .14); }
+.noesis-loop__ask { display: inline-flex; align-items: center; gap: var(--space-2); height: 34px; padding-block: 0; padding-inline: 8px 16px; border-radius: var(--radius-pill); border: 1.5px solid hsl(var(--revise)); background: hsl(var(--revise) / .1); color: hsl(var(--revise)); font-size: var(--text-sm); white-space: nowrap; box-shadow: 0 0 0 3px hsl(var(--revise) / .14); }
 .noesis-loop__ask:hover, .noesis-loop__ask[aria-current="page"] { background: hsl(var(--revise) / .2); }
 
 /* Pills stay pills on one line and become rounded rectangles when their text
@@ -479,14 +525,6 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-work-paper__title { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; font-size: var(--text-base); }
 .noesis-work-paper__text { font-family: Spectral, Georgia, serif; font-size: var(--text-xs); line-height: 1.5; }
 /* Annotations: each note carries its kind as a colour edge, as in the prototype. */
-/* A note's edge is where it sits in the flow, in the same colours the
-   "where your notes are" legend uses: captured, reviewed, developed,
-   reference, set aside. The legend and the cards can never disagree. */
-[data-note-stage] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
-[data-note-stage="reviewed"] { --note: var(--stage-examine); }
-[data-note-stage="used_in_position"] { --note: var(--stage-claim); }
-[data-note-stage="reference_only"] { --note: var(--stage-more); }
-[data-note-stage="archived"] { --note: var(--stage-integrate); }
 [data-note-type] { --note: var(--stage-encounter); border-left: 4px solid hsl(var(--note)) !important; }
 [data-note-type="question"], [data-note-type="connection"] { --note: var(--stage-examine); }
 [data-note-type="claim"], [data-note-type="objection"] { --note: var(--stage-claim); }
@@ -543,6 +581,12 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-connection-card { display: grid; gap: 2px; padding: 10px 12px; text-align: left; border-radius: var(--radius-panel); border: 1px solid hsl(var(--border)); border-left: 3px solid hsl(var(--stage-outline)); background: hsl(var(--background) / .5); }
 .noesis-connection-card b { font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 600; }
 .noesis-connection-card span { font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
+.noesis-source-connection { border-color: hsl(var(--tone) / .35); background: linear-gradient(hsl(var(--tone) / .07), transparent 6rem), hsl(var(--card)); }
+.noesis-source-connection-grid > .noesis-workbench-panel + .noesis-workbench-panel { margin-top: 0; }
+.noesis-connection-card.noesis-source-connection { border-left-color: hsl(var(--tone) / .75); }
+:is(.noesis-today-focus, .noesis-source-detail .noesis-source-concept-pill) { --concept-tag-silver: 216 9% 35%; color: hsl(var(--concept-tag-silver)); background: hsl(var(--concept-tag-silver) / .08); border: 1px solid hsl(var(--concept-tag-silver) / .45); border-radius: var(--button-radius); }
+.dark :is(.noesis-today-focus, .noesis-source-detail .noesis-source-concept-pill) { --concept-tag-silver: 216 13% 81%; }
+.noesis-source-detail .noesis-source-concept-pill:hover { background: hsl(var(--concept-tag-silver) / .16); }
 .noesis-praxis-grid > span { grid-template-columns: repeat(7, 22px) !important; gap: var(--space-2) 16px !important; }
 .noesis-praxis-checkin { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding-top: 10px; }
 .noesis-praxis-checkin span { margin-right: auto; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
@@ -580,28 +624,6 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-working-answer__edit { justify-self: start; font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 4px; color: hsl(var(--muted-foreground)); }
 .noesis-rank-row { position: relative; display: flex; align-items: center; gap: var(--space-2); padding: 8px 10px; border-radius: var(--radius-panel); border: 1px solid hsl(var(--border)); overflow: hidden; }
 .noesis-rank-row__bar { position: absolute; left: 0; bottom: 0; height: 3px; background: hsl(var(--stage-examine)); }
-/* Concept boundary caliper: Fits / Edge case / Doesn't fit. */
-.noesis-caliper-bench { display: grid; gap: 12px; }
-.noesis-caliper-bench__zones { display: grid; gap: var(--space-2); grid-template-columns: 1.15fr 1fr 1fr; }
-@media (max-width: 760px) { .noesis-caliper-bench__zones { grid-template-columns: 1fr; } }
-.noesis-caliper-zone { display: grid; align-content: start; gap: 8px; min-height: 160px; padding: 12px; border-radius: var(--card-radius); border: 1.5px solid hsl(var(--zone) / .55); background: hsl(var(--zone) / .06); transition: background .15s ease; }
-.noesis-caliper-zone--fits { --zone: var(--ok); border-style: solid; }
-.noesis-caliper-zone--edge { --zone: var(--caution); border-style: dashed; }
-.noesis-caliper-zone--outside { --zone: var(--problem); border-style: dotted; }
-.noesis-caliper-zone.is-over { background: hsl(var(--zone) / .18); }
-.noesis-caliper-zone__head { display: grid; gap: 1px; }
-.noesis-caliper-zone__label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label); letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--zone)); }
-.noesis-caliper-zone__hint { font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
-.noesis-case { display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px 7px 10px; border-radius: var(--radius-panel); border: 1px solid hsl(var(--border)); background: hsl(var(--card)); font-size: var(--text-sm); line-height: 1.35; cursor: grab; }
-.noesis-case--empty { justify-content: center; border-style: dashed; color: hsl(var(--muted-foreground)); background: transparent; cursor: default; font-size: var(--text-xs); }
-.noesis-case__reason { display: block; margin-top: 2px; font-size: var(--text-xs); font-style: italic; color: hsl(var(--muted-foreground)); }
-.noesis-case__move { flex: none; max-width: 7.5rem; padding: 2px 4px; border-radius: var(--radius-sm); border: 1px solid hsl(var(--border)); background: hsl(var(--background)); font-size: var(--text-xs); color: hsl(var(--muted-foreground)); }
-.noesis-case.is-moved { animation: noesis-case-land .6s ease; }
-@keyframes noesis-case-land { from { box-shadow: 0 0 0 3px hsl(var(--zone) / .6); transform: translateY(-3px); } to { box-shadow: 0 0 0 0 transparent; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .noesis-case.is-moved { animation: none; outline: 2px solid hsl(var(--zone)); } }
-.reduce-motion .noesis-case.is-moved { animation: none; outline: 2px solid hsl(var(--zone)); }
-.noesis-caliper-why { display: grid; gap: 8px; padding: 12px 14px; border-radius: var(--radius-panel); border-left: 3px solid hsl(var(--stage-outline)); background: hsl(var(--stage-outline) / .08); }
-.noesis-caliper-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 /* Praxis instrument: the action first, then the type's own view. */
 .noesis-praxis-instrument { display: grid; gap: var(--space-3); padding: 16px 18px; border-radius: var(--card-radius); border: 1px solid hsl(var(--stage) / .45); background: hsl(var(--stage) / .05); }
 .noesis-praxis-instrument__action { display: grid; gap: 4px; }

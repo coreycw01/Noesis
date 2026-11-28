@@ -19,11 +19,12 @@ export type ContextualAiAction =
   | 'synthesize_practice_outcome'
   | 'synthesize_evolution_period'
   | 'synthesize_profile_philosophy'
-  | 'review_selected_context';
+  | 'review_selected_context'
+  | 'explore_thought_draft';
 
 export interface AiContextEnvelope {
   action: ContextualAiAction;
-  targetType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'practice' | 'evolution' | 'profile' | 'context_desk';
+  targetType: 'source' | 'annotation' | 'concept' | 'inquiry' | 'position' | 'practice' | 'evolution' | 'profile' | 'context_desk' | 'thought_draft';
   targetId: string;
   scope: ContextualAiScope;
   itemMemory: string[];
@@ -48,6 +49,8 @@ export interface AiReviewResult {
   contextSummary: string;
   generatedAt: string;
   reviewId?: string;
+  /** The bounded question actually sent, attached by the review UI. */
+  userPromptAtGeneration?: string;
 }
 
 export interface AssumptionSuggestion {
@@ -146,13 +149,14 @@ export const CONTEXTUAL_AI_REVIEW: Record<ContextualAiAction, AiReviewPresentati
   clarify_concept_boundaries: { mode: 'sections', heading: 'Review the concept boundary', guidance: 'Edit each section before saving. This review informs your boundary fields but does not silently rewrite them.', destination: 'the concept’s saved Boundary Review', itemName: 'section' },
   socratic_inquiry_challenge: { mode: 'sections', heading: 'Review the challenge', guidance: 'Keep and edit each useful section. Approved sections become separate investigation notes on this inquiry.', destination: 'the inquiry’s investigation history', itemName: 'section' },
   find_position_assumptions: { mode: 'list', heading: 'Review each assumption', guidance: 'Keep only assumptions this position truly depends on. Edit their wording before saving.', destination: 'position assumptions', itemName: 'assumption' },
-  generate_position_counterargument: { mode: 'sections', heading: 'Review the counterargument', guidance: 'Strengthen or remove parts until this is an argument you consider genuinely challenging.', destination: 'evidence against this position', itemName: 'section' },
+  generate_position_counterargument: { mode: 'list', heading: 'Which challenge carries weight for you?', guidance: 'Choose one, rewrite it in your words, or dismiss them all. Only a challenge you save goes into Grounds.', destination: 'challenges in Grounds', itemName: 'challenge' },
   identify_missing_position_evidence: { mode: 'list', heading: 'Review each evidence gap', guidance: 'Keep only gaps that would materially affect your confidence in the position.', destination: 'Evidence Still Needed on this position', itemName: 'evidence gap' },
   compare_selected_positions: { mode: 'sections', heading: 'Review the comparison', guidance: 'Check that agreements, tensions, and tradeoffs fairly represent both positions.', destination: 'Saved Position Comparisons', itemName: 'section' },
   synthesize_practice_outcome: { mode: 'sections', heading: 'Review the practice analysis', guidance: 'Check each finding against your logs. Edit or remove anything that overstates what the practice established.', destination: 'the practice’s saved Outcome Review', itemName: 'finding' },
   synthesize_evolution_period: { mode: 'sections', heading: 'Review this period of change', guidance: 'Keep only conclusions supported by recorded events. Edit any interpretation that does not match how your thinking changed.', destination: 'the Evolution timeline as a reviewed synthesis', itemName: 'change' },
   synthesize_profile_philosophy: { mode: 'sections', heading: 'Review your philosophy draft', guidance: 'Edit each inference until it is recognizably yours. Only the approved Working statement updates your statement; the complete review remains available on Profile.', destination: 'the Profile philosophy review', itemName: 'section' },
   review_selected_context: { mode: 'sections', heading: 'Review the selected records together', guidance: 'Check every finding against the records you explicitly selected. Keep only useful, supported conclusions.', destination: 'a new user-owned Work', itemName: 'finding' },
+  explore_thought_draft: { mode: 'sections', heading: 'Explore this thought', guidance: 'Consider the suggestion before choosing where this thought belongs.', destination: 'this unsaved thought only', itemName: 'suggestion' },
 };
 
 function cleanReviewText(value: string) {
@@ -248,13 +252,14 @@ export const CONTEXTUAL_AI_LABELS: Record<ContextualAiAction, string> = {
   clarify_concept_boundaries: 'Clarify Boundaries',
   socratic_inquiry_challenge: 'Socratic Challenge',
   find_position_assumptions: 'Find Assumptions',
-  generate_position_counterargument: 'Generate Counterargument',
+  generate_position_counterargument: 'Explore challenges to my grounds',
   identify_missing_position_evidence: 'Identify Missing Evidence',
   compare_selected_positions: 'Compare Positions',
   synthesize_practice_outcome: 'Synthesize Outcome',
   synthesize_evolution_period: 'Synthesize Period',
   synthesize_profile_philosophy: 'Shape My Philosophy',
   review_selected_context: 'Review Context',
+  explore_thought_draft: 'Explore a thought',
 };
 
 export const CONTEXTUAL_AI_SUGGESTED_PROMPTS: Record<ContextualAiAction, string[]> = {
@@ -313,7 +318,7 @@ export const CONTEXTUAL_AI_SUGGESTED_PROMPTS: Record<ContextualAiAction, string[
     'What am I treating as obvious without evidence?',
   ],
   generate_position_counterargument: [
-    'What is the strongest fair objection?',
+    'What are some different challenges to the grounds I have recorded?',
     'How would an informed critic respond?',
     'What evidence points in the opposite direction?',
     'What tradeoff does this position understate?',
@@ -355,6 +360,7 @@ export const CONTEXTUAL_AI_SUGGESTED_PROMPTS: Record<ContextualAiAction, string[
     'What perspective is missing from this selection?',
     'What inquiry or test should come next?',
   ],
+  explore_thought_draft: [],
 };
 
 export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
@@ -377,6 +383,7 @@ export const CONTEXTUAL_AI_POLICIES: Record<ContextualAiAction, {
   synthesize_evolution_period: { targetType: 'evolution', scope: 'selected_period' },
   synthesize_profile_philosophy: { targetType: 'profile', scope: 'linked_items' },
   review_selected_context: { targetType: 'context_desk', scope: 'linked_items' },
+  explore_thought_draft: { targetType: 'thought_draft', scope: 'current_item' },
 };
 
 export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, 'action' | 'targetType' | 'scope'>) {
@@ -386,6 +393,18 @@ export function isContextualAiRequestCompatible(input: Pick<AiContextEnvelope, '
 
 export const AI_CONTEXT_MEMORY_LIMIT = 32_000;
 export const AI_USER_PROMPT_LIMIT = 1_000;
+export const THOUGHT_DRAFT_LIMIT = 2_000;
+
+export function thoughtDraftEnvelope(text: string): AiContextEnvelope {
+  return {
+    ...CONTEXTUAL_AI_POLICIES.explore_thought_draft,
+    action: 'explore_thought_draft',
+    targetId: 'unsaved-thought',
+    itemMemory: [text.trim().slice(0, THOUGHT_DRAFT_LIMIT)],
+    linkedMemory: [],
+    reasoningDepth: 'light',
+  };
+}
 
 export function aiContextMemorySize(input: Pick<AiContextEnvelope, 'itemMemory' | 'linkedMemory' | 'secondaryTarget'>) {
   return [...input.itemMemory, ...input.linkedMemory, ...(input.secondaryTarget?.memory ?? [])]
@@ -421,6 +440,11 @@ export function buildContextDeskMemory(records: ReadonlyArray<{ type: string; la
 }
 
 export function validAiSelection(input: AiContextEnvelope): boolean {
+  if (input.action === 'explore_thought_draft') {
+    return input.targetId === 'unsaved-thought' && input.itemMemory.length === 1
+      && input.itemMemory[0].trim().length > 0 && input.itemMemory[0].length <= THOUGHT_DRAFT_LIMIT
+      && !input.linkedMemory.length && !input.secondaryTarget && !input.selectedRange && !input.userPrompt;
+  }
   if (input.action === 'compare_selected_positions') {
     if (!input.secondaryTarget || input.secondaryTarget.targetId === input.targetId || !input.secondaryTarget.memory.length) return false;
   } else if (input.secondaryTarget) return false;

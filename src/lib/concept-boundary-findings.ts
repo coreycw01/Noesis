@@ -4,9 +4,41 @@ export type BoundaryZone = 'fits' | 'edge' | 'outside';
 
 export const CONCEPT_BOUNDARY_ZONES = [
   { id: 'fits', label: 'Fits', hint: 'Clearly inside the concept', field: 'examples' },
-  { id: 'edge', label: 'Edge case', hint: 'Could go either way', field: 'edgeCases' },
+  { id: 'edge', label: 'Not sure', hint: 'Could go either way', field: 'edgeCases' },
   { id: 'outside', label: "Doesn't fit", hint: 'Clearly outside it', field: 'counterexamples' },
 ] as const;
+
+export type BoundaryCases = Record<BoundaryZone, string[]>;
+
+export function boundaryCases(concept: Pick<Concept, 'examples' | 'edgeCases' | 'counterexamples'>): BoundaryCases {
+  const clean = (items?: string[]) => [...new Set((items || []).map(item => item.trim()).filter(Boolean))];
+  return { fits: clean(concept.examples), edge: clean(concept.edgeCases), outside: clean(concept.counterexamples) };
+}
+
+export function boundaryNumbering(concept: Pick<Concept, 'examples' | 'edgeCases' | 'counterexamples' | 'boundaryCaseNumbers' | 'boundaryNextNumber'>, next = boundaryCases(concept)) {
+  const numbers = new Map<string, number>();
+  const used = new Set<number>();
+  let nextNumber = Number.isSafeInteger(concept.boundaryNextNumber) && concept.boundaryNextNumber! > 0 ? concept.boundaryNextNumber! : 1;
+  for (const entry of concept.boundaryCaseNumbers || []) {
+    if (!entry || !entry.text || !Number.isSafeInteger(entry.number) || entry.number < 1 || numbers.has(entry.text) || used.has(entry.number)) continue;
+    numbers.set(entry.text, entry.number);
+    used.add(entry.number);
+    nextNumber = Math.max(nextNumber, entry.number + 1);
+  }
+  // Old records did not track cross-zone insertion order. Seed from the
+  // original groups before applying a move, then persist new numbers.
+  for (const text of [...Object.values(boundaryCases(concept)).flat(), ...Object.values(next).flat()]) {
+    if (!numbers.has(text)) numbers.set(text, nextNumber++);
+  }
+  const active = new Set(Object.values(next).flat());
+  return {
+    numbers,
+    patch: {
+      boundaryCaseNumbers: [...numbers].filter(([text]) => active.has(text)).map(([text, number]) => ({ text, number })),
+      boundaryNextNumber: nextNumber,
+    },
+  };
+}
 
 /**
  * Where a concept's edge is recorded.

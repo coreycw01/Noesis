@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Flag, CircleHelp, Lightbulb, Footprints, BookOpen } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Flag, CircleHelp, Lightbulb, Footprints, BookOpen, List, Quote } from 'lucide-react';
+import { Button, IconButton } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
-import { SectionEmpty } from '@/components/shared/SectionEmpty';
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { AnnotationMark, AnnotationMarkKind } from '@/lib/types';
 
 /**
@@ -71,6 +72,7 @@ export function MarkupSurface({ text, marks, onAddMark, onSelect, disabled, labe
   const passage = useRef<HTMLParagraphElement>(null);
   const [range, setRange] = useState<{ start: number; end: number } | null>(null);
   const [sentenceIndex, setSentenceIndex] = useState<number | null>(null);
+  const [sentencePickerOpen, setSentencePickerOpen] = useState(false);
 
   const offsetsOf = useCallback(() => {
     const element = passage.current;
@@ -108,7 +110,7 @@ export function MarkupSurface({ text, marks, onAddMark, onSelect, disabled, labe
     return out.length ? out : [{ start: 0, end: text.length, text }];
   }, [text]);
 
-  const active = range ?? (sentenceIndex !== null ? { start: sentences[sentenceIndex].start, end: sentences[sentenceIndex].end } : null);
+  const active = range ?? (sentenceIndex !== null ? sentences[sentenceIndex] ?? null : null);
   const activeText = active ? text.slice(active.start, active.end) : '';
 
   const add = (kind: AnnotationMarkKind) => {
@@ -121,7 +123,30 @@ export function MarkupSurface({ text, marks, onAddMark, onSelect, disabled, labe
   return (
     <div className="noesis-markup">
       <div className="noesis-markup__passage">
-      <Eyebrow as="h3">{label} · select any part to mark it</Eyebrow>
+      <div className="flex items-center justify-between gap-2">
+        <Eyebrow as="h2" tone="annotation" className="inline-flex items-center gap-2"><Quote className="size-4" aria-hidden="true" />{label}</Eyebrow>
+        <div className="flex items-center gap-1">
+        <InstrumentHelp instrument="markup" />
+        <Popover open={sentencePickerOpen} onOpenChange={setSentencePickerOpen}>
+          <PopoverTrigger asChild><IconButton type="button" label="Pick a sentence" size="sm" disabled={disabled}><List aria-hidden="true" /></IconButton></PopoverTrigger>
+          <PopoverContent aria-label="Pick a sentence" align="end" className="w-[min(23rem,calc(100vw-2rem))]">
+            <ul className="grid max-h-[45dvh] gap-1.5 overflow-y-auto" aria-label="Sentences in this passage">
+              {sentences.map((sentence, index) => (
+                <li key={sentence.start}>
+                  <button type="button" className="noesis-markup__sentence min-h-11 break-words" aria-pressed={sentenceIndex === index} onClick={() => {
+                    window.getSelection()?.removeAllRanges();
+                    setRange(null);
+                    setSentenceIndex(index);
+                    onSelect?.(text.slice(sentence.start, sentence.end));
+                    setSentencePickerOpen(false);
+                  }}>{sentence.text}</button>
+                </li>
+              ))}
+            </ul>
+          </PopoverContent>
+        </Popover>
+        </div>
+      </div>
       <p ref={passage} className="noesis-markup__text">
         {segments(text, marks).map((segment) => {
           const inner = segment.kinds[segment.kinds.length - 1];
@@ -152,31 +177,17 @@ export function MarkupSurface({ text, marks, onAddMark, onSelect, disabled, labe
       </div>
 
       <div className="noesis-markup__bar">
-        <span className="text-sm text-muted-foreground">{activeText ? `Marking “${activeText.length > 48 ? `${activeText.slice(0, 47)}…` : activeText}”` : 'Select words above, or pick a sentence below.'}</span>
-        <div className="flex flex-wrap gap-1.5">
+        <span className="text-sm text-muted-foreground">{activeText ? `Marking “${activeText.length > 48 ? `${activeText.slice(0, 47)}…` : activeText}”` : 'Select text to mark it.'}</span>
+        {active && <div className="flex flex-wrap gap-1.5">
           {MARK_KINDS.map(({ kind, label: name, tone, icon: Icon, destination }) => (
-            <Button key={kind} variant="secondary" size="sm" tone={tone} disabled={!active || disabled} onClick={() => add(kind)} title={`Mark as ${name.toLowerCase()} → ${destination}`}>
+            <Button key={kind} variant="secondary" size="sm" tone={tone} disabled={disabled} onPointerDown={event => {
+              if (range && event.pointerType === 'mouse') event.preventDefault();
+            }} onClick={() => add(kind)} title={`Mark as ${name.toLowerCase()} → ${destination}`}>
               <Icon className="size-3.5" aria-hidden="true" /> {name}
             </Button>
           ))}
-        </div>
+        </div>}
       </div>
-
-      <details className="noesis-fold">
-        <summary><Button asChild variant="tertiary" size="sm"><span>Mark a whole sentence</span></Button></summary>
-        <div className="noesis-fold__body">
-          <p className="noesis-fold__hint">For touch and keyboard: choose a sentence, then a kind above.</p>
-          <ul className="grid gap-1.5" aria-label="Sentences in this passage">
-            {sentences.map((sentence, index) => (
-              <li key={sentence.start}>
-                <button type="button" className="noesis-markup__sentence" aria-pressed={sentenceIndex === index} disabled={disabled} onClick={() => { setRange(null); setSentenceIndex(sentenceIndex === index ? null : index); }}>{sentence.text}</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </details>
-
-      {!marks.length && <SectionEmpty className="mt-3" title="Nothing marked yet." hint="A claim goes to Positions, a question to Inquiries, a definition to Concepts, an action to Praxis. A reference stays here." />}
     </div>
   );
 }

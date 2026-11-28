@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, MoreHorizontal, Pencil, Scale, Swords, Trash2, X } from 'lucide-react';
+import { Check, FileText, FlaskConical, MoreHorizontal, Pencil, Scale, Swords, Trash2, X } from 'lucide-react';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { Button, IconButton } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,26 +9,33 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { SearchField } from '@/components/shared/SearchField';
 import { Dictation } from '@/components/shared/Dictation';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { EntityMeta } from '@/components/shared/IntellectualStructures';
-import { FooterSection, OptionalRecordActions, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
+import { FooterSection, OptionalRecordActions, RecordFooter, RecordHeader, RecordPage, RecordSection, Row } from '@/components/shared/record/RecordPage';
+import { ItemWorkspace } from '@/components/shared/record/ItemWorkspace';
+import { ItemHistoryBackground, ItemHistoryTimeline } from '@/components/shared/record/ItemHistoryPanel';
+import { InstrumentWorkbench } from '@/components/shared/record/InstrumentWorkbench';
 import { DeskFindings } from '@/components/ai/DeskFindings';
-import { BenchBand, Connections, History, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
+import { Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
 import { InquiryScale, answerWeight, inquiryLead, letter } from '@/components/Questions/InquiryScale';
+import { InquirySounding } from '@/components/Questions/InquirySounding';
+import { InquiryRecordLinkPicker } from '@/components/Questions/InquiryRecordLinkPicker';
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
-import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
+import { itemAiHistory } from '@/lib/item-ai-history';
+import { PromotedAnnotationCreationDetails } from '@/components/ai/AiCreationHistory';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
 import type { AiContextEnvelope } from '@/lib/contextual-ai';
 import type { InquiryAiReview } from '@/lib/inquiry-ai-review';
 import type { AiSettings, Concept, Draft, InquiryEvidence, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { conceptKey, today, uid } from '@/lib/readex';
 import { completedPracticeResult, latestCompletedPracticeResult } from '@/lib/practice-state';
-import { assignInquiryEvidence, INQUIRY_REVIEW_CRITERION_TITLE, INQUIRY_STARTING_OBSERVATION, inquiryAiItemMemory, inquiryExperimentSetup, inquiryHasRecordedObjection, inquiryNeedsEvidence, inquiryStartingObservation, isInquiryClosed, latestInquiryReviewCriterion, MAX_INQUIRY_EVIDENCE, practiceEvidenceDraft, replacedInquiryAnswer } from '@/lib/inquiry-state';
+import { assignInquiryEvidence, INQUIRY_REVIEW_CRITERION_TITLE, INQUIRY_STARTING_OBSERVATION, inquiryAiItemMemory, inquiryAnnotationOrigins, inquiryExperimentSetup, inquiryHasRecordedObjection, inquiryNeedsEvidence, inquiryStartingObservation, isInquiryClosed, isManualInquiryLink, latestInquiryReviewCriterion, MAX_INQUIRY_EVIDENCE, practiceEvidenceDraft, replacedInquiryAnswer } from '@/lib/inquiry-state';
 
 const EMPTY_EVIDENCE: Omit<InquiryEvidence, 'id' | 'date'> = { claim: '', type: 'personal observation', origin: '', candidateId: '', direction: 'supports', strength: 'moderate', reliability: 'moderate', notes: '' };
 
@@ -45,9 +52,9 @@ type PullScope = 'same' | 'near';
 interface PullRecord { key: string; text: string; origin: string; source: PullSource; scope: PullScope; conceptName: string; direction: InquiryEvidence['direction']; strength: InquiryEvidence['strength']; type: InquiryEvidence['type'] }
 
 const STOPS = [
-  { id: 'inq-frame', label: 'Frame' },
   { id: 'inq-answers', label: 'Answers' },
   { id: 'inq-weigh', label: 'Weigh' },
+  { id: 'inq-frame', label: 'Frame' },
   { id: 'inq-conclude', label: 'Conclude' },
 ];
 
@@ -75,6 +82,7 @@ export interface InquiryDetailProps {
   onOpenWork: (id: string) => void;
   onOpenPractice: (id: string) => void;
   onOpenPosition: (id: string) => void;
+  onOpenAnnotation: (sourceId: string, annotationId: string) => void;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
   onAiFeedback: (title: string, description: string, variant?: 'default' | 'destructive') => void;
   initialSection?: 'investigation' | 'answer';
@@ -86,7 +94,7 @@ export interface InquiryDetailProps {
  * the section it acts on; suggestions appear only when there is something
  * specific to suggest.
  */
-export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, allMedia, allPositions, allConcepts, onBack, onUpdateQuestion: persistQuestion, onSaveAiReview, onDeleteQuestion, onAddDraft, onLinkItem, onAddPractice, onOpenWork, onOpenPractice, onOpenPosition, onFormPositionFromInquiry, onAiFeedback, initialSection = 'investigation' }: InquiryDetailProps) {
+export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs, drafts, practices, availableDrafts, availablePractices, allMedia, allPositions, allConcepts, onBack, onUpdateQuestion: persistQuestion, onSaveAiReview, onDeleteQuestion, onAddDraft, onLinkItem, onAddPractice, onOpenWork, onOpenPractice, onOpenPosition, onOpenAnnotation, onFormPositionFromInquiry, onAiFeedback, initialSection = 'investigation' }: InquiryDetailProps) {
   const saveLock = useRef(false);
   const [saving, setSaving] = useState(false);
   const onUpdateQuestion = async (next: Question, baseline = { version: question.dateUpdated }) => {
@@ -139,12 +147,10 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   const [resolutionSummary, setResolutionSummary] = useState(question.resolutionSummary || '');
   const [checkpointSkipReason, setCheckpointSkipReason] = useState('');
   const [positionConfidence, setPositionConfidence] = useState(50);
-  const [existingPracticeId, setExistingPracticeId] = useState('');
-  const [existingWorkId, setExistingWorkId] = useState('');
-  const [testDraft, setTestDraft] = useState({ prediction: '', action: '', measure: '' });
+  const [testDraft, setTestDraft] = useState({ prediction: '', action: '', measure: '', against: '' });
   const [startingObservation, setStartingObservation] = useState('');
+  const [mobileStop, setMobileStop] = useState(initialSection === 'answer' ? 'inq-conclude' : 'inq-answers');
   const evidenceInput = useRef<HTMLTextAreaElement>(null);
-  const outcomeDisclosure = useRef<HTMLDetailsElement>(null);
 
   React.useEffect(() => {
     setEditingQuestion(false); setQuestionDraft(question.text); setEditingFrame(false); setFrameBase(undefined);
@@ -152,8 +158,9 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     setClarificationDraft(''); setAnswerDraft(''); setAnswerDetail({ support: '', objection: '', confidence: 3 });
     setEvidenceDraft(EMPTY_EVIDENCE); setEditingEvidenceId(null); setSaveAsNote(false); setWriteOpen(false); setPullOpen(false);
     setWorkingDraft(null); setResolutionSummary(question.resolutionSummary || ''); setCheckpointSkipReason(''); setPositionConfidence(50);
-    setExistingPracticeId(''); setExistingWorkId(''); setTestDraft({ prediction: '', action: '', measure: '' });
+    setTestDraft({ prediction: '', action: '', measure: '', against: '' });
     setStartingObservation('');
+    setMobileStop(initialSection === 'answer' ? 'inq-conclude' : 'inq-answers');
     if (initialSection === 'answer') window.requestAnimationFrame(() => document.getElementById('inq-conclude')?.scrollIntoView({ block: 'start' }));
     // Reset local drafts only when the record changes, not on every save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,6 +238,19 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
   const pullVisible = pullRecords.filter((record) => (pullSource === 'all' || record.source === pullSource) && (pullScope === 'all' || record.scope === pullScope) && (pullDirection === 'all' || record.direction === pullDirection) && (!pullQuery.trim() || `${record.text} ${record.origin} ${record.conceptName}`.toLowerCase().includes(pullQuery.trim().toLowerCase()))).slice(0, 60);
 
   // ----- actions -----
+  const editFrame = () => {
+    if (!editingFrame) {
+      setFrameBase(question.dateUpdated);
+      setFrameDraft({ whyItMatters: question.whyItMatters || '', currentIntuition: question.currentIntuition || '', uncertainty: question.uncertainty || '' });
+      setEditingFrame(true);
+    }
+    setMobileStop('inq-frame');
+    window.requestAnimationFrame(() => {
+      document.getElementById(`whyItMatters-${question.id}`)?.focus({ preventScroll: true });
+      document.getElementById('inq-frame')?.scrollIntoView({ block: 'start' });
+    });
+  };
+
   const saveFrame = async () => {
     if (frameBase !== undefined && frameBase !== question.dateUpdated) { onAiFeedback('Inquiry changed', 'This inquiry changed while you were editing. Copy what you want to keep, then reload the saved frame.', 'destructive'); return; }
     if (!await onUpdateQuestion({ ...question, whyItMatters: frameDraft.whyItMatters.trim(), currentIntuition: frameDraft.currentIntuition.trim(), uncertainty: frameDraft.uncertainty.trim(), dateUpdated: today() })) return;
@@ -322,7 +342,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     if (!await onUpdateQuestion(next)) return;
     setWorkingDraft(null);
     setResolutionSummary(next.resolutionSummary || '');
-    onAiFeedback(status === 'provisionally_answered' ? 'Marked as answered' : status === 'resolved' ? 'Inquiry resolved' : 'Outcome saved', '');
+    onAiFeedback(status === 'provisionally_answered' ? 'Provisional answer saved' : status === 'resolved' ? 'Inquiry resolved' : 'Outcome saved', '');
   };
   const keepInvestigating = () => onUpdateQuestion({ ...question, status: answers.length >= 2 ? 'comparing_answers' : 'open', dateUpdated: today() });
   const draftPractice = async (observation?: string) => {
@@ -346,9 +366,16 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     finally { setSaving(false); }
   };
   const link = async (type: 'work' | 'practice', id: string) => {
-    if (!id || saving) return; setSaving(true);
-    try { await onLinkItem(question.id, type, id); if (type === 'work') setExistingWorkId(''); else setExistingPracticeId(''); onAiFeedback(type === 'work' ? 'Work linked' : 'Practice linked', ''); }
-    catch { onAiFeedback('Link not saved', 'Neither record was updated. Please try again.', 'destructive'); }
+    if (!id || saving) return false;
+    setSaving(true);
+    try {
+      await onLinkItem(question.id, type, id);
+      onAiFeedback(type === 'work' ? 'Work linked' : 'Praxis record linked', '');
+      return true;
+    } catch {
+      onAiFeedback('Link not saved', 'Neither record was updated. Please try again.', 'destructive');
+      return false;
+    }
     finally { setSaving(false); }
   };
 
@@ -363,25 +390,22 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     userPrompt,
   });
 
-  // ----- suggestions (only when specific) -----
-  const suggestions: Suggestion[] = [];
-  if (!closed && answered && !directlyLinkedBeliefs.length && lead && lead.margin >= 2 && savedAnswer.trim() === lead.answer.statement.trim()) {
-    suggestions.push({ id: 'form-position', tone: 'position', title: 'Form a position', quote: savedAnswer, because: 'Your saved answer matches the answer that leads on the scale.', actionLabel: 'Review the outcome', disabled: saving || workingConflict, onAction: () => {
-      const disclosure = outcomeDisclosure.current;
-      if (disclosure) { disclosure.open = true; disclosure.querySelector('textarea')?.focus(); }
-    } });
-  }
+  const originAnnotations = useMemo(() => inquiryAnnotationOrigins(question, allMedia), [question, allMedia]);
+  const aiAnnotationOrigins = question.annotationOrigins?.length ? question.annotationOrigins : originAnnotations.flatMap(({ annotation }) =>
+    annotation.textProvenance ? [{ annotationId: annotation.id, provenance: annotation.textProvenance }] : []);
+  const hasAnnotationOrigin = Boolean(question.sourceAnnotationId || question.type === 'annotation' || question.annotationOrigins?.length || question.annotationHandoffNote);
   const strongest = lead ? evidence.filter((item) => item.candidateId === lead.answer.id && item.direction === 'supports').sort((a, b) => (b.strength === 'strong' ? 3 : b.strength === 'moderate' ? 2 : 1) - (a.strength === 'strong' ? 3 : a.strength === 'moderate' ? 2 : 1))[0] : null;
   const experimentBasis = (strongest || savedStartingObservation)?.claim;
 
   const trailing = (
     <>
-      <ContextualAiPanel enabled={aiSettings.aiAssistanceEnabled} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiDepthFor(aiSettings, 'inquiries')} actions={['socratic_inquiry_challenge']} buildEnvelope={buildAiEnvelope} buttonLabel="Ask Noesis" promptLabel="What part of this inquiry should Noesis pressure?" promptPlaceholder="For example: Test whether my working answer actually follows from the evidence." onAccept={(result, content) => onSaveAiReview(question.id, result, content)} />
+      <ContextualAiPanel key={question.id} itemHistory={itemAiHistory(question)} iconOnly enabled={aiSettings.aiAssistanceEnabled} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiDepthFor(aiSettings, 'inquiries')} actions={['socratic_inquiry_challenge']} buildEnvelope={buildAiEnvelope} promptLabel="What part of this inquiry should Noesis pressure?" promptPlaceholder="For example: Test whether my working answer actually follows from the evidence." onAccept={(result, content) => onSaveAiReview(question.id, result, content)} />
       {!question.id.startsWith('open:') && !question.id.startsWith('annotation:') && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild><IconButton label="Inquiry actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={() => setEditingQuestion(true)}><Pencil className="mr-2 size-4" /> Edit the question</DropdownMenuItem>
+            <DropdownMenuItem onSelect={editFrame}><Pencil className="mr-2 size-4" /> {frameFilled ? 'Edit framing notes' : 'Add framing notes'}</DropdownMenuItem>
             {closed && <DropdownMenuItem onSelect={() => void onUpdateQuestion({ ...question, status: 'reopened', dateUpdated: today() })}>Reopen inquiry</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => setDeleteOpen(true)} className="text-problem focus:text-problem"><Trash2 className="mr-2 size-4" /> Delete inquiry</DropdownMenuItem>
           </DropdownMenuContent>
@@ -396,8 +420,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
     </span>
   );
 
-  return (
-    <RecordPage tone="examine" identity="investigation">
+  const header = (
       <RecordHeader backLabel="Inquiries" onBack={onBack} view="questions" kind="Inquiry" status={question.status.replace(/_/g, ' ')} extra={sources.length ? `From ${sources[0].title}` : undefined} trailing={trailing}
         title={editingQuestion ? (
           <span className="block max-w-4xl space-y-3 not-italic">
@@ -408,22 +431,34 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
             </span>
           </span>
         ) : question.text}
-        tags={conceptNames}>
-        <PromotedAnnotationOrigins origins={question.annotationOrigins} />
-      </RecordHeader>
+        tags={conceptNames} />
+  );
 
-      <RecordPath label="Where you are in this inquiry" stops={STOPS} hereId={hereId} guide={guide} />
+  const resolutionInputs = (
+    <>
+      <label className="grid gap-1.5 text-sm font-medium">What led you here?
+        <Textarea value={resolutionSummary} onChange={(event) => setResolutionSummary(event.target.value)} placeholder="What mattered most, and what remains open?" className="min-h-[80px]" />
+      </label>
+      {!inquiryHasRecordedObjection(question) && (
+        <div className="grid gap-1.5">
+          <Eyebrow>Checkpoint: steelman before you settle</Eyebrow>
+          <p className="text-sm text-muted-foreground">Record the strongest objection as a challenge on an answer. If that would not help here, say why you are skipping it.</p>
+          <Input value={checkpointSkipReason} onChange={(event) => setCheckpointSkipReason(event.target.value)} aria-label="Reason for skipping the steelman checkpoint" placeholder="Why is this checkpoint not useful here?" className="h-9" />
+        </div>
+      )}
+    </>
+  );
 
-      {/* ---------- Thinking tools: you, alone, with the record ---------- */}
-      <ToolsBand note="For you, not for Noesis. Nothing here is sent anywhere; what you write is saved to this inquiry.">
-        <Tool label="What would change my mind" icon={Scale}>
+  const tools = (
+      <ToolsBand note="For you, not for Noesis. These tools do not use AI.">
+        <Tool label="What would change my mind" icon={Scale} tone="inquiry">
           <p className="noesis-fold__hint">{lead && lead.margin > 0 ? `You lean to ${letter(lead.index)}. What would you have to see to stop leaning that way?` : 'The scale is level. What would have to be true for one answer to win?'}</p>
           <Dictation label="Dictate what would change your mind">
             <Textarea value={changeMind} onChange={(event) => setChangeMind(event.target.value)} placeholder="One observation, result, or argument that would move you" className="min-h-[72px]" aria-label="What would change your mind" maxLength={600} />
           </Dictation>
-          <Button variant="primary" size="sm" disabled={saving || !changeMind.trim()} onClick={() => void saveChangeMind()}>Save to this inquiry</Button>
+          <Button variant="primary" size="sm" tone="inquiry" disabled={saving || !changeMind.trim()} onClick={() => void saveChangeMind()}>Save to this inquiry</Button>
         </Tool>
-        <Tool label="Steelman another answer" icon={Swords} disabled={answers.length < 2}>
+        <Tool label="Steelman another answer" icon={Swords} tone="inquiry" disabled={answers.length < 2}>
           <p className="noesis-fold__hint">Write the strongest case for an answer you do not hold. It is saved as support on that answer, so the scale feels it.</p>
           <div className="noesis-fieldrow">
             <label><span>Answer</span><select value={steelmanId} onChange={(event) => setSteelmanId(event.target.value)} aria-label="Answer to steelman">
@@ -434,34 +469,67 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
           <Dictation label="Dictate the strongest case">
             <Textarea value={steelman} onChange={(event) => setSteelman(event.target.value)} placeholder="The best case for that answer, stated fairly" className="min-h-[72px]" aria-label="The strongest case for that answer" maxLength={600} />
           </Dictation>
-          <Button variant="primary" size="sm" disabled={saving || !steelman.trim() || !steelmanId} onClick={() => void saveSteelman()}>Add as support</Button>
+          <Button variant="primary" size="sm" tone="inquiry" disabled={saving || !steelman.trim() || !steelmanId} onClick={() => void saveSteelman()}>Add as support</Button>
+        </Tool>
+        <Tool label="Design an experiment" icon={FlaskConical} tone="practice">
+          <form className="grid min-w-0 gap-3" onSubmit={event => { event.preventDefault(); void draftPractice(experimentBasis); }}>
+            {experimentBasis && <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground"><strong className="text-foreground">Starting evidence:</strong> {experimentBasis}</p>}
+            {([
+              ['action', 'What will you do next time?', 'When someone asks for help, I’ll check my nearest deadline before answering.'],
+              ['prediction', 'What do you expect to happen?', 'I expect I can help without missing an important deadline.'],
+              ['measure', 'What will you look for?', 'Did I help, and did I keep the deadline?'],
+              ['against', 'What would count against your prediction? (optional)', 'I helped, but missed the deadline I meant to protect.'],
+            ] as const).map(([field, label, placeholder]) => (
+              <label key={field} className="grid min-w-0 gap-1 text-sm">{label}
+                <Textarea value={testDraft[field]} placeholder={placeholder} maxLength={600} onChange={event => setTestDraft(previous => ({ ...previous, [field]: event.target.value }))} disabled={saving} />
+              </label>
+            ))}
+            {inquiryExperimentSetup(testDraft) && !inquiryExperimentSetup(testDraft, experimentBasis) && <p role="status" className="text-sm text-muted-foreground">Keep the past observation as context. Describe a new action and what you expect to happen next time.</p>}
+            <Button type="submit" variant="secondary" tone="practice" className="justify-self-start" disabled={saving || !inquiryExperimentSetup(testDraft, experimentBasis)}>Draft experiment</Button>
+          </form>
+        </Tool>
+        <Tool label="Draft a work" icon={FileText} tone="work">
+          <Button variant="secondary" size="sm" tone="work" onClick={() => void createWork()} disabled={saving}>Start draft</Button>
+        </Tool>
+        <Tool label="Form a position" icon={NOESIS_ICONS.position} tone="position">
+          {closed || !working.trim() ? (
+            <p className="text-sm text-muted-foreground">{closed ? 'Reopen this inquiry in Conclude before forming another position.' : 'Write a working answer in Conclude to use as your claim.'}</p>
+          ) : (
+            <div className="grid gap-3">
+              <blockquote className="break-words border-l border-border pl-3 text-sm">{working.trim()}</blockquote>
+              {resolutionInputs}
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="grid gap-1 text-sm">Position confidence (%)<Input type="number" min={0} max={100} value={positionConfidence} onChange={(event) => setPositionConfidence(Math.min(100, Math.max(0, Number(event.target.value))))} className="h-9 w-24" /></label>
+                <Button variant="primary" tone="position" onClick={() => void saveWorking('converted')} disabled={saving || workingConflict}>Form position from this answer</Button>
+              </div>
+            </div>
+          )}
         </Tool>
       </ToolsBand>
+  );
 
-      <BenchBand note="Where you write the inquiry out, and where Noesis can read over your shoulder if you ask it to." />
-
-      {/* ---------- Frame ---------- */}
-      <RecordSection id="inq-frame" title="Frame" description="Why the question matters, before any answer." here={hereId === 'inq-frame'}
-        aside={!editingFrame && <Button variant="tertiary" size="sm" onClick={() => { setEditingFrame(true); setFrameBase(question.dateUpdated); setFrameDraft({ whyItMatters: question.whyItMatters || '', currentIntuition: question.currentIntuition || '', uncertainty: question.uncertainty || '' }); }}>{frameFilled ? 'Edit starting thinking' : 'Write starting thinking'}</Button>}>
+  const frame = (
+      <RecordSection id="inq-frame" title="Frame" description="Why the question matters and what is still uncertain." here={hereId === 'inq-frame'}
+        aside={!editingFrame && <Button variant="tertiary" size="sm" onClick={editFrame}>{frameFilled ? 'Edit framing notes' : 'Add framing notes'}</Button>}>
         {editingFrame ? (
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             {([['whyItMatters', 'Why does this matter?', 'Name the stakes, if useful.'], ['currentIntuition', 'What do you currently think?', 'Your present view can be tentative.'], ['uncertainty', 'What remains uncertain?', 'Name the part you cannot settle yet.']] as const).map(([field, label, placeholder]) => (
               <div key={field} className="grid gap-1.5">
                 <Label htmlFor={`${field}-${question.id}`}>{label}</Label>
                 <Textarea id={`${field}-${question.id}`} value={frameDraft[field]} onChange={(event) => setFrameDraft((prev) => ({ ...prev, [field]: event.target.value }))} placeholder={placeholder} className="min-h-[96px]" disabled={saving} />
               </div>
             ))}
-            <div className="flex gap-2 md:col-span-3">
+            <div className="col-span-full flex gap-2">
               <Button variant="secondary" onClick={saveFrame} disabled={saving}>Save</Button>
               <Button variant="ghost" onClick={() => { setEditingFrame(false); setFrameBase(undefined); }}>Cancel</Button>
             </div>
           </div>
         ) : frameFilled ? (
-          <dl className="grid gap-3 md:grid-cols-3">
+          <dl className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             {([['Why it matters', question.whyItMatters], ['Current view', question.currentIntuition], ['Still uncertain', question.uncertainty]] as const).map(([label, value]) => value?.trim() ? <div key={label}><dt><Eyebrow>{label}</Eyebrow></dt><dd className="mt-1 text-base leading-6">{value}</dd></div> : null)}
           </dl>
         ) : (
-          <SectionEmpty title="No starting thinking yet." hint="Optional. Ask Noesis can start from the question alone." />
+          <SectionEmpty title="No framing notes yet." />
         )}
         {needsStartingPoint && (
           <form className="mt-4 grid max-w-xl gap-2" onSubmit={async event => {
@@ -485,8 +553,9 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
           </form>
         </div>
       </RecordSection>
+  );
 
-      {/* ---------- Answers ---------- */}
+  const candidates = (
       <RecordSection id="inq-answers" title="Possible answers" description="Write two or more answers worth comparing. None is final." here={hereId === 'inq-answers'}>
         {savedStartingObservation && answers.length < 2 && <p className="mb-3 whitespace-pre-wrap break-words border-l border-border pl-3 text-sm text-muted-foreground"><strong className="text-foreground">What you noticed:</strong> {savedStartingObservation.claim}</p>}
         {answers.length ? answers.map((answer, index) => (
@@ -509,11 +578,10 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
           </div>
         </details>
       </RecordSection>
+  );
 
-      {/* ---------- Weigh ---------- */}
+  const weighing = (
       <RecordSection id="inq-weigh" title="Weigh the evidence" description="Add evidence and choose which answer it supports or challenges." here={hereId === 'inq-weigh'}>
-        <div className="noesis-step__cols">
-          <div>
             {evidence.length ? evidence.map((item) => (
               <Row key={item.id} top className={item.direction === 'challenges' ? 'noesis-row--lead' : undefined} meta={`${item.direction} · ${item.strength}${item.origin ? ` · ${item.origin}` : ''}`}
                 tools={<>{answers.length > 0 && placePicker(item)}<IconButton label={`Edit evidence: ${item.claim}`} size="sm" onClick={() => { setEditingEvidenceId(item.id); const { id: _id, date: _date, ...rest } = item; setEvidenceDraft(rest); setWriteOpen(true); window.requestAnimationFrame(() => evidenceInput.current?.focus()); }}><Pencil className="size-3.5" /></IconButton></>}
@@ -567,12 +635,11 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
                 </div>
               </Dictation>
             </details>
-          </div>
-          <div><InquiryScale answers={answers} evidence={evidence} /></div>
-        </div>
       </RecordSection>
+  );
 
-      {/* ---------- Conclude ---------- */}
+  const conclusion = (
+    <>
       <RecordSection id="inq-conclude" title="Conclude" description="Your best answer for now. You can reopen it any time." here={hereId === 'inq-conclude'}>
         <DeskFindings type="inquiry" id={question.id} findings={question.contextDeskFindings} />
         {frameFilled && <details className="mb-3 border-l border-border pl-3 text-sm">
@@ -605,7 +672,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
             <Eyebrow>What the scale says</Eyebrow>
             {lead && lead.margin > 0 ? (
               <p className="noesis-decide__line">
-                The evidence leans to <b>{letter(lead.index)}</b> — “{lead.answer.statement}” — {lead.margin >= 2 ? 'by a clear margin' : 'only slightly'}.
+                <b>{letter(lead.index)}</b> has the highest score from the grounds weighed so far. That score does not establish which answer is true.
               </p>
             ) : (
               <p className="noesis-decide__line">The scale is level: no answer carries more weight than another yet. Weigh more evidence, or say why you are deciding without it.</p>
@@ -620,7 +687,7 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
         {workingConflict && <p role="status" className="mt-2 text-sm text-muted-foreground">The saved answer changed while you were writing. <Button variant="link" size="sm" onClick={() => setWorkingDraft(null)}>Load the saved answer</Button></p>}
         {!closed && (
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => void saveWorking('provisionally_answered')} disabled={saving || workingConflict || !working.trim()}>Mark as answered</Button>
+            <Button variant="primary" onClick={() => void saveWorking('provisionally_answered')} disabled={saving || workingConflict || !working.trim()}>Save provisional answer</Button>
             {answered && <Button variant="outline" onClick={() => void keepInvestigating()} disabled={saving}>Keep investigating</Button>}
           </div>
         )}
@@ -630,17 +697,9 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
       </RecordSection>
 
       {!closed && answered && working.trim() && (
-          <OptionalRecordActions label="Decide the outcome" disclosureRef={outcomeDisclosure}>
+          <OptionalRecordActions label="Decide the outcome">
             <div className="grid gap-3">
-              <Label htmlFor={`resolution-${question.id}`}>What led you here?</Label>
-              <Textarea id={`resolution-${question.id}`} value={resolutionSummary} onChange={(event) => setResolutionSummary(event.target.value)} placeholder="What mattered most, and what remains open?" className="min-h-[80px]" />
-              {!inquiryHasRecordedObjection(question) && (
-                <div className="grid gap-1.5">
-                  <Eyebrow>Checkpoint: steelman before you settle</Eyebrow>
-                  <p className="text-sm text-muted-foreground">Record the strongest objection as a challenge on an answer. If that would not help here, say why you are skipping it.</p>
-                  <Input value={checkpointSkipReason} onChange={(event) => setCheckpointSkipReason(event.target.value)} aria-label="Reason for skipping the steelman checkpoint" placeholder="Why is this checkpoint not useful here?" className="h-9" />
-                </div>
-              )}
+              {resolutionInputs}
               <div className="grid gap-2 md:grid-cols-2">
                 {RESOLUTION_OPTIONS.map((option) => (
                   <button key={option.status} type="button" onClick={() => void saveWorking(option.status)} disabled={saving || workingConflict} className="noesis-panel noesis-panel--tight noesis-panel--interactive text-left" aria-pressed={question.status === option.status}>
@@ -649,76 +708,89 @@ export function InquiryDetail({ aiSettings, question, sources, concepts, beliefs
                   </button>
                 ))}
               </div>
-              <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
-                <label className="grid gap-1 text-sm"><span>Position confidence (%)</span><Input type="number" min={0} max={100} value={positionConfidence} onChange={(event) => setPositionConfidence(Math.min(100, Math.max(0, Number(event.target.value))))} className="h-9 w-24" aria-label="Position confidence" /></label>
-                <Button variant="secondary" tone="position" onClick={() => void saveWorking('converted')} disabled={saving || workingConflict}>Form a position from this answer</Button>
-              </div>
             </div>
           </OptionalRecordActions>
       )}
-      {suggestions.length > 0 && <OptionalRecordActions label="Suggested from what you've recorded"><SuggestionCards suggestions={suggestions} showLabel={false} /></OptionalRecordActions>}
-        <OptionalRecordActions label="Design a Praxis experiment">
-          <form className="grid max-w-xl gap-3" onSubmit={event => { event.preventDefault(); void draftPractice(experimentBasis); }}>
-            {experimentBasis && <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground"><strong className="text-foreground">Starting evidence:</strong> {experimentBasis}</p>}
-            {([
-              ['action', 'What will you do next time?', 'When someone asks for help, I’ll check my nearest deadline before answering.'],
-              ['prediction', 'What do you expect to happen?', 'I expect I can help without missing an important deadline.'],
-              ['measure', 'What will you look for?', 'Did I help, and did I keep the deadline?'],
-            ] as const).map(([field, label, placeholder]) => (
-              <label key={field} className="grid gap-1 text-sm">{label}
-                <Textarea value={testDraft[field]} placeholder={placeholder} maxLength={600} onChange={event => setTestDraft({ ...testDraft, [field]: event.target.value })} disabled={saving} />
-              </label>
-            ))}
-            <Button type="submit" variant="secondary" className="justify-self-start" disabled={saving || !inquiryExperimentSetup(testDraft)}>Draft experiment</Button>
-          </form>
-        </OptionalRecordActions>
+    </>
+  );
+
+  const historyEntries = [
+    ...(question.investigationNotes || []).filter(note => note.origin !== 'ai-assisted')
+      .map(note => ({ id: note.id, date: note.date, title: note.title || 'Investigation note', text: note.text })),
+    ...(question.dateCreated ? [{ id: 'created', date: question.dateCreated, title: 'Inquiry created', text: undefined }] : []),
+  ];
+  const history = (
+    <ItemHistoryTimeline title="Inquiry history" entries={historyEntries} empty="No investigation notes recorded yet."
+      background={<ItemHistoryBackground title="From this annotation" lazy>
+              {question.annotationHandoffNote && <div><p className="font-medium">What made you ask this?</p><p className="whitespace-pre-wrap break-words text-muted-foreground">{question.annotationHandoffNote}</p></div>}
+              {originAnnotations.map(({ source, annotation, excerpt }) => (
+                <div key={`${source.id}:${annotation.id}`} className="space-y-1 border-l border-border pl-3">
+                  <p className="font-medium">{source.title}{source.creator && ` · ${source.creator}`}</p>
+                  <blockquote className="whitespace-pre-wrap break-words">{excerpt}</blockquote>
+                  {annotation.context && <p className="whitespace-pre-wrap break-words text-muted-foreground">{annotation.context}</p>}
+                  {annotation.savedReason && <p className="whitespace-pre-wrap break-words text-muted-foreground"><strong>Why you saved it:</strong> {annotation.savedReason}</p>}
+                  <Button type="button" variant="link" className="px-0" onClick={() => onOpenAnnotation(source.id, annotation.id)}>Open annotation</Button>
+                </div>
+              ))}
+              {!originAnnotations.length && <p className="text-muted-foreground">{hasAnnotationOrigin ? 'The original annotation is not available here.' : 'No originating annotation is recorded for this inquiry.'}</p>}
+              <PromotedAnnotationCreationDetails origins={aiAnnotationOrigins} />
+      </ItemHistoryBackground>} />
+  );
+
+  return (
+    <RecordPage tone="examine" identity="investigation">
+      {header}
+      <ItemWorkspace key={question.id} history={history}>
+      <p className="mb-3 text-sm text-muted-foreground">{guide}</p>
+      <InstrumentWorkbench label="Inquiry workbench" stops={STOPS} value={mobileStop} onValueChange={setMobileStop}
+        primary={['inq-answers', 'inq-weigh', 'inq-frame']} secondary={['inq-conclude']}
+        panels={{
+          'inq-weigh': <><section aria-label="Inquiry evidence balance" className="noesis-instrument-reading min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="noesis-eyebrow font-bold">Evidence scale</h3>
+              <InstrumentHelp instrument="inquiryScale" />
+            </div>
+            <InquiryScale answers={answers} evidence={evidence} />
+          </section>{weighing}</>,
+          'inq-answers': candidates,
+          'inq-frame': frame,
+          'inq-conclude': <div className="noesis-inquiry-side">
+            {tools}{conclusion}
+            <InquirySounding question={question} onOpen={id => {
+              setMobileStop(id);
+              window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' }));
+            }} />
+            <InquiryRecordLinkPicker key={question.id} question={question} drafts={availableDrafts} practices={availablePractices} saving={saving} onLink={link} />
+          </div>,
+        }} />
 
       <RecordFooter>
-        <FooterSection title="Connections" count={sources.length + beliefs.length + drafts.length + practices.length} defaultOpen>
+        <FooterSection title="Connections" count={sources.length + beliefs.length + drafts.length + practices.length + conceptNames.length} defaultOpen>
           <Connections groups={[
             { type: 'Sources', tone: 'source', items: sources.map((source) => ({ id: source.id, label: source.title, meta: source.creator || undefined })) },
             { type: 'Positions', tone: 'position', items: beliefs.map((belief) => ({ id: belief.id, label: belief.title, meta: `${belief.confidence}% confidence`, onOpen: () => onOpenPosition(belief.id) })) },
-            { type: 'Works', tone: 'work', items: drafts.map((work) => ({ id: work.id, label: work.title || 'Untitled', onOpen: () => onOpenWork(work.id) })),
-              action: (
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <Button variant="secondary" size="sm" onClick={() => void createWork()} disabled={saving}>Write about it in Works</Button>
-                  <Select value={existingWorkId} onValueChange={setExistingWorkId} disabled={saving}><SelectTrigger aria-label="Choose an existing work to link" className="flex-1"><SelectValue placeholder="Or choose a work to link" /></SelectTrigger><SelectContent>{availableDrafts.filter((item) => !(question.draftIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
-                  <Button variant="outline" size="sm" onClick={() => void link('work', existingWorkId)} disabled={saving || !existingWorkId}>Link</Button>
-                </div>
-              ) },
-            { type: 'Praxis', tone: 'practice', items: practices.map((practice) => ({ id: practice.id, label: practice.title, meta: practice.status.replace(/_/g, ' '), onOpen: () => onOpenPractice(practice.id) })),
-              action: (
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div className="flex flex-col gap-2 sm:flex-row md:col-span-2">
-                    <Select value={existingPracticeId} onValueChange={setExistingPracticeId} disabled={saving}><SelectTrigger aria-label="Choose a practice to link" className="flex-1"><SelectValue placeholder="Or choose a practice to link" /></SelectTrigger><SelectContent>{availablePractices.filter((item) => !(question.practiceIds?.includes(item.id) && item.questionIds?.includes(question.id))).map((item) => <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>)}</SelectContent></Select>
-                    <Button variant="outline" size="sm" onClick={() => void link('practice', existingPracticeId)} disabled={saving || !existingPracticeId}>Link</Button>
-                  </div>
-                </div>
-              ) },
+            { type: 'Works', tone: 'work', items: drafts.map((work) => ({ id: work.id, label: work.title || 'Untitled', manuallyLinked: isManualInquiryLink(question, 'work', work.id), onOpen: () => onOpenWork(work.id) })) },
+            { type: 'Praxis', tone: 'practice', items: practices.map((practice) => ({ id: practice.id, label: practice.title, meta: practice.status.replace(/_/g, ' '), manuallyLinked: isManualInquiryLink(question, 'practice', practice.id), onOpen: () => onOpenPractice(practice.id) })) },
             { type: 'Concepts', tone: 'concept', items: conceptNames.map((name) => ({ id: name, label: name })) },
           ]} />
         </FooterSection>
 
-        <FooterSection title="History" count={(question.investigationNotes || []).length}>
-          <History entries={(question.investigationNotes || []).map((note) => ({ id: note.id, date: note.date, title: note.title || (note.origin === 'ai-assisted' ? 'Noesis note' : 'Note'), text: note.text }))}
-            empty="Nothing recorded yet. Notes you write with a thinking tool land here." />
-          {!!question.investigationNotes?.some((note) => note.origin === 'ai-assisted') && (
+        {!!question.investigationNotes?.some((note) => note.origin === 'ai-assisted') && (
+        <FooterSection title="Saved AI notes">
             <AiAssistedHistory title="Reviewed challenge notes" entries={(question.investigationNotes || []).filter((note) => note.origin === 'ai-assisted').map((note) => ({ id: note.id, action: 'socratic_inquiry_challenge', title: note.title || 'Socratic challenge', content: note.text, date: note.date, originDetails: note.provenance ? { provenance: note.provenance, target: { type: 'inquiry', id: question.id, fieldPath: 'investigationNotes.text', subrecordId: note.id } } : undefined }))}
               onChange={async (entries) => {
                 const userNotes = (question.investigationNotes || []).filter((note) => note.origin !== 'ai-assisted');
                 if (!await onUpdateQuestion({ ...question, investigationNotes: [...userNotes, ...entries.map((entry) => ({ ...question.investigationNotes?.find((note) => note.id === entry.id && note.origin === 'ai-assisted'), id: entry.id, title: entry.title, text: entry.content, origin: 'ai-assisted' as const, date: entry.date }))], dateUpdated: today() })) throw new Error('The challenge-note history was not saved.');
               }} />
-          )}
         </FooterSection>
+        )}
 
         <FooterSection title="Record">
           <EntityMeta items={[{ label: 'Status', value: question.status.replace(/_/g, ' ') }, { label: 'Created', value: question.dateCreated?.slice(0, 10) || '—' }, { label: 'Sources', value: sources.length }, { label: 'Evidence', value: evidence.length }]} />
         </FooterSection>
 
-        <FooterSection title="Danger zone">
-          <Button variant="destructive" onClick={() => setDeleteOpen(true)}><Trash2 /> Delete this inquiry</Button>
-        </FooterSection>
       </RecordFooter>
+      </ItemWorkspace>
 
       <ConfirmActionDialog open={deleteOpen} onOpenChange={setDeleteOpen} title="Delete inquiry?" description={`This removes "${question.text}" from Inquiries. Linked sources, positions, works, and Evolution history will remain.`} confirmLabel="Delete inquiry" alternateLabel="Archive instead" destructive
         onAlternate={async () => { if (!await onUpdateQuestion({ ...question, status: 'archived', dateUpdated: new Date().toISOString() })) throw new Error('The inquiry could not be archived. Please retry.'); }}

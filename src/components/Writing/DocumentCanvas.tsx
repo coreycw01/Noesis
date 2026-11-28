@@ -31,32 +31,38 @@ interface DocumentCanvasProps {
   inlineTools?: { overlay?: ReactNode; flow?: ReactNode };
   subpages?: ReactNode;
   toolSections?: ReactNode;
+  pageCount: number;
   onCurrentPageChange?: (pageId: string) => void;
 }
 
-export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, overlayStrokes, backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayGradientColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools, subpages, toolSections, onCurrentPageChange }: DocumentCanvasProps) {
+export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, paperColor, paperPattern, writingStyle, title, overlayData, overlayStrokes, backgroundArtwork, onOverlayChange, onOverlayStrokesChange, overlayTool, overlayColor, overlayGradientColor, overlayBrushSize, overlayOpacity, overlayEnabled, inlineTools, subpages, toolSections, pageCount, onCurrentPageChange }: DocumentCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
+  const [paperHeight, setPaperHeight] = useState<number>();
+  const useContinuousCanvas = viewMode === 'vertical-continuous' || pageCount > 1 || Boolean(toolSections);
 
   useEffect(() => {
     const container = canvasRef.current;
-    if (!container || viewMode === 'vertical-continuous') {
+    if (!container || useContinuousCanvas) {
       setFitScale(1);
       return;
     }
     const pageWidth = pageSize === 'letter' ? 850 : 827;
     const pageHeight = pageSize === 'letter' ? 1100 : 1169;
+    const paper = container.querySelector<HTMLElement>('[data-work-page-paper]');
     const updateScale = () => {
       const rect = container.getBoundingClientRect();
       const availableWidth = Math.max(280, rect.width - 48);
       const availableHeight = Math.max(320, rect.height - 48);
       setFitScale(Math.min(availableWidth / pageWidth, availableHeight / pageHeight, 1));
+      setPaperHeight(paper?.offsetHeight || pageHeight);
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
     observer.observe(container);
+    if (paper) observer.observe(paper);
     return () => observer.disconnect();
-  }, [pageSize, viewMode]);
+  }, [pageSize, useContinuousCanvas]);
 
   useEffect(() => {
     const container = canvasRef.current;
@@ -87,22 +93,18 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
       container.removeEventListener('scroll', updateCurrentPage);
       observer.disconnect();
     };
-  }, [onCurrentPageChange, subpages, toolSections]);
+  }, [onCurrentPageChange, pageCount, useContinuousCanvas]);
 
-  const hasAdditionalPages = Boolean(subpages || toolSections);
-  const useContinuousCanvas = viewMode === 'vertical-continuous' || hasAdditionalPages;
   const containerClasses = cn(
     "w-full min-h-0 flex-1 relative transition-all duration-500 bg-muted/10",
     useContinuousCanvas && "overflow-y-auto overflow-x-hidden",
-    !useContinuousCanvas && viewMode === 'vertical-single' && "overflow-hidden",
-    !useContinuousCanvas && viewMode === 'horizontal-single' && "overflow-x-auto overflow-y-hidden"
+    !useContinuousCanvas && "overflow-auto"
   );
 
   const canvasClasses = cn(
     "flex transition-all duration-500",
     useContinuousCanvas && "w-full flex-col items-center gap-10 p-3 sm:p-6 lg:p-8",
-    !useContinuousCanvas && viewMode === 'vertical-single' && "h-full flex-col items-center justify-center",
-    !useContinuousCanvas && viewMode === 'horizontal-single' && "h-full flex-row items-center justify-center min-w-full"
+    !useContinuousCanvas && "min-h-full flex-col items-center justify-center p-3 sm:p-6"
   );
 
   const pageWidth = pageSize === 'letter' ? 850 : 827;
@@ -112,7 +114,10 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
 
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col">
-      <div className={containerClasses} ref={canvasRef} data-noesis-scroll-region role="region" tabIndex={0} aria-label={`${title || 'Untitled work'} document canvas`}>
+      <div className={containerClasses} ref={canvasRef} data-noesis-scroll-region data-work-document-scroll role="region" tabIndex={0} aria-label={`${title || 'Untitled work'} document canvas`} onFocusCapture={event => {
+        const page = event.target.closest<HTMLElement>('[data-work-page-id]');
+        if (page?.dataset.workPageId) onCurrentPageChange?.(page.dataset.workPageId);
+      }}>
         <div className={canvasClasses}>
           {useContinuousCanvas ? (
             <div
@@ -152,7 +157,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
               id="work-page-main"
               data-work-page-id="main"
               className="relative shrink-0 transition-[width,height] duration-300"
-              style={{ width: pageWidth * fitScale, height: pageHeight * fitScale }}
+              style={{ width: pageWidth * fitScale, height: Math.max(paperHeight || 0, pageHeight) * fitScale }}
             >
               <div
                 className="absolute left-0 top-0 origin-top-left transition-transform duration-300"
@@ -194,7 +199,7 @@ export function DocumentCanvas({ content, onContentChange, viewMode, pageSize, p
         <span>{wordCount} words</span>
         <span className="hidden sm:inline">{plainText.length} characters</span>
         <span>{Math.max(1, Math.ceil(wordCount / 225))} min read</span>
-        {viewMode !== 'vertical-continuous' && <span>{Math.round(fitScale * 100)}% fit</span>}
+        {!useContinuousCanvas && <span>{Math.round(fitScale * 100)}% fit</span>}
       </div>
     </div>
   );

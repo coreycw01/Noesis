@@ -15,6 +15,7 @@ test('the balance counts written grounds and inward, reasoned links once', () =>
     link('objection', { type: 'challenges', note: 'It fails under a different condition.' }),
     link('review', { type: 'challenges', fromType: 'position', note: 'This reverses the direction of influence.', fromId: 'claim', toId: 'another' }),
     link('tested', { type: 'tested_by' }), link('expressed', { type: 'expressed_in' }),
+    link('manual-reference', { type: 'references', createdFrom: 'manual', acceptedByUser: true, note: 'Relevant context, not weighed evidence.' }),
     link('source', { fromType: 'source', note: '' }),
     link('suggested', { createdFrom: 'suggestion', note: 'Not yet user accepted.' }),
   ]);

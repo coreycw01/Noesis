@@ -28,7 +28,6 @@ export interface LibraryRoutePageProps {
   onAttachSourcePhoto: (sourceId: string, photo: import('@/lib/types').StoredAsset) => Promise<void>;
   onDeleteMedia: (id: string) => void;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateClaim: (data: { title: string; body: string; tags: string[]; sourceIds: string[] }) => void | Promise<unknown>;
   onDeleteVaultEntry: (id: string) => Promise<void>;
   onNavigate: (view: NoesisView, options?: { sourceId?: string | null }) => void;
   aiSettings?: AiSettings;
@@ -48,7 +47,6 @@ export function LibraryRoutePage({
   onAttachSourcePhoto,
   onDeleteMedia,
   onAddConcept,
-  onCreateClaim,
   onDeleteVaultEntry,
   onNavigate,
   aiSettings,
@@ -107,7 +105,6 @@ export function LibraryRoutePage({
         onAttachSourcePhoto={onAttachSourcePhoto}
         onDeleteMedia={onDeleteMedia}
         onAddConcept={onAddConcept}
-        onCreateClaim={onCreateClaim}
         onDeleteVaultEntry={onDeleteVaultEntry}
         focusedSourceId={focusedSourceId}
         onOpenSourceRoute={(sourceId) => onNavigate('library', { sourceId })}

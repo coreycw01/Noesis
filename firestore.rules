@@ -153,6 +153,7 @@ service cloud.firestore {
           && validListField(request.resource.data, 'targets', 500)
           && request.resource.data.targets.size() > 0
           && validStringField(request.resource.data, 'acceptedText', 32000)
+          && validStringField(request.resource.data, 'userPrompt', 1000)
           && (request.resource.data.precursor == null || (
             request.resource.data.precursor is string && request.resource.data.precursor.size() <= 32000
           ))
@@ -196,6 +197,19 @@ service cloud.firestore {
           && request.resource.data.get('demoSeed', false) == true
           && request.resource.data.eventId == eventId;
         allow delete: if isOwner(uid) && resource.data.get('demoSeed', false) == true;
+      }
+
+      // Original private AI exchanges are not evidence or accepted provenance.
+      match /assistanceExchanges/{exchangeId} {
+        allow create: if isOwner(uid)
+          && request.resource.data.keys().hasOnly(['id', 'itemKey', 'action', 'task', 'question', 'answer', 'generatedAt'])
+          && request.resource.data.id == exchangeId
+          && request.resource.data.itemKey is string && request.resource.data.itemKey.size() <= 300
+          && request.resource.data.action is string && request.resource.data.task is string
+          && request.resource.data.question is string && request.resource.data.question.size() <= 5000
+          && request.resource.data.answer is string && request.resource.data.answer.size() <= 100000
+          && request.resource.data.generatedAt is string;
+        allow delete: if isOwner(uid);
       }
 
       match /{collectionId}/{documentId} {

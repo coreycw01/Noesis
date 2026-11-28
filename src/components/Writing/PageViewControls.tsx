@@ -1,232 +1,95 @@
+'use client';
 
-"use client";
-
-import React from 'react';
-import { 
-  MonitorPlay, 
-  FileBox, 
-  Settings2,
-  Check,
-  Palette,
-  LayoutGrid,
-  FileCog,
-  RotateCcw,
-} from 'lucide-react';
+import { FileCog, RotateCcw, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator,
+  DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { PageViewMode, PageSize, PaperColor, PaperPattern } from './Atelier';
-import { cn } from '@/lib/utils';
+import type { DocumentViewMode } from '@/lib/types';
+import type { ResolvedDocumentPageSettings as PaperSettings } from '@/lib/work-page-settings';
 
-interface PageViewControlsProps {
-  viewMode: PageViewMode;
-  onViewModeChange: (mode: PageViewMode) => void;
-  pageSize: PageSize;
-  onPageSizeChange: (size: PageSize) => void;
-  paperColor: PaperColor;
-  onPaperColorChange: (color: PaperColor) => void;
-  paperPattern: PaperPattern;
-  onPaperPatternChange: (pattern: PaperPattern) => void;
-  className?: string;
-}
+const pageSizes = { letter: 'US Letter (8.5 x 11 in)', a4: 'A4 (210 x 297 mm)' };
+const paperColors = { blank: 'White', warm: 'Warm', sepia: 'Sepia', dark: 'Dark' };
+const paperPatterns = { none: 'Plain', notebook: 'Lined notebook', grid: 'Grid', dotted: 'Dotted', dotted_grid: 'Dot grid' };
 
-export function PageViewControls({ 
-  viewMode, 
-  onViewModeChange, 
-  pageSize, 
-  onPageSizeChange,
-  paperColor,
-  onPaperColorChange,
-  paperPattern,
-  onPaperPatternChange,
-  className,
-}: PageViewControlsProps) {
-  const modes: { id: PageViewMode; label: string; icon: any }[] = [
-    { id: 'vertical-continuous', label: 'Continuous document', icon: MonitorPlay },
-    { id: 'vertical-single', label: 'Focused page', icon: FileBox },
-  ];
-
-  const colors: { id: PaperColor; label: string; bg: string }[] = [
-    { id: 'blank', label: 'White', bg: 'bg-card' },
-    { id: 'warm', label: 'Warm', bg: 'bg-paper-warm/60' },
-    { id: 'sepia', label: 'Sepia', bg: 'bg-paper-sepia' },
-    { id: 'dark', label: 'Dark', bg: 'bg-paper-dark' },
-  ];
-
-  const patterns: { id: PaperPattern; label: string; icon: any }[] = [
-    { id: 'none', label: 'Plain', icon: Palette },
-    { id: 'notebook', label: 'Lined', icon: LayoutGrid },
-    { id: 'grid', label: 'Grid', icon: LayoutGrid },
-    { id: 'dotted', label: 'Dotted', icon: LayoutGrid },
-    { id: 'dotted_grid', label: 'Dot Grid', icon: LayoutGrid },
-  ];
-
-  return (
-    <div className={cn('flex items-center gap-2', className)}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="w-9 justify-center sm:w-auto sm:justify-start sm:px-4" aria-label="Document defaults">
-            <Settings2 className="size-4 text-accent" />
-            <span className="hidden sm:inline">Document defaults</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-64 border-border bg-popover font-body text-popover-foreground">
-          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Document view</DropdownMenuLabel>
-          {modes.map((mode) => (
-            <DropdownMenuItem 
-              key={mode.id} 
-              onClick={() => onViewModeChange(mode.id)}
-              className={cn("flex items-center gap-3 py-2 cursor-pointer", viewMode === mode.id && "bg-accent/5 text-accent")}
-            >
-              <mode.icon className="size-4" />
-              <span className="text-xs italic">{mode.label}</span>
-              {viewMode === mode.id && <Check className="size-3 ml-auto" />}
-            </DropdownMenuItem>
-          ))}
-          
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Standard page size</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => onPageSizeChange('letter')} className={cn("text-xs italic cursor-pointer flex items-center justify-between", pageSize === 'letter' && "text-accent")}>
-            US Letter (8.5&quot; x 11&quot;)
-            {pageSize === 'letter' && <Check className="size-3" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onPageSizeChange('a4')} className={cn("text-xs italic cursor-pointer flex items-center justify-between", pageSize === 'a4' && "text-accent")}>
-            A4 Standard
-            {pageSize === 'a4' && <Check className="size-3" />}
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Document paper</DropdownMenuLabel>
-          <div className="grid grid-cols-4 gap-2 p-2">
-            {colors.map((color) => (
-              <button
-                key={color.id}
-                onClick={() => onPaperColorChange(color.id)}
-                title={color.label}
-                className={cn(
-                  "flex h-8 min-w-8 items-center justify-center rounded-md border px-1 transition-colors hover:border-accent",
-                  color.bg,
-                  paperColor === color.id ? "border-accent ring-2 ring-accent/20" : "border-border/40"
-                )}
-              >
-                {paperColor === color.id && <Check className={cn("size-3", color.id === 'dark' ? "text-white" : "text-accent")} />}
-              </button>
-            ))}
-          </div>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-40">Writing guide</DropdownMenuLabel>
-          <div className="grid grid-cols-3 gap-1 p-2">
-            {patterns.map((pattern) => (
-              <button
-                key={pattern.id}
-                onClick={() => onPaperPatternChange(pattern.id)}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-md border p-2 transition-all hover:border-accent/40",
-                  paperPattern === pattern.id ? "border-accent bg-accent/5" : "border-border/40"
-                )}
-              >
-                <pattern.icon className="size-3.5 opacity-40" />
-                <span className="text-label italic leading-none text-center">{pattern.label}</span>
-              </button>
-            ))}
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
-
-export function PageSettingsControl({
-  pageLabel,
-  pageSize,
-  onPageSizeChange,
-  paperColor,
-  onPaperColorChange,
-  paperPattern,
-  onPaperPatternChange,
-  overridden = false,
-  onReset,
-}: {
-  pageLabel: string;
-  pageSize: PageSize;
-  onPageSizeChange: (size: PageSize) => void;
-  paperColor: PaperColor;
-  onPaperColorChange: (color: PaperColor) => void;
-  paperPattern: PaperPattern;
-  onPaperPatternChange: (pattern: PaperPattern) => void;
-  overridden?: boolean;
-  onReset?: () => void;
+function ChoiceMenu<T extends string>({ label, value, options, onChange }: {
+  label: string;
+  value: T;
+  options: Record<T, string>;
+  onChange: (value: T) => void;
 }) {
-  const colors: { id: PaperColor; label: string; bg: string }[] = [
-    { id: 'blank', label: 'White', bg: 'bg-white' },
-    { id: 'warm', label: 'Warm', bg: 'bg-paper-warm' },
-    { id: 'sepia', label: 'Sepia', bg: 'bg-paper-sepia' },
-    { id: 'dark', label: 'Dark', bg: 'bg-paper-dark' },
-  ];
-  const patterns: { id: PaperPattern; label: string }[] = [
-    { id: 'none', label: 'Plain' },
-    { id: 'notebook', label: 'Lined' },
-    { id: 'grid', label: 'Grid' },
-    { id: 'dotted', label: 'Dotted' },
-    { id: 'dotted_grid', label: 'Dot grid' },
-  ];
+  return <DropdownMenuSub>
+    <DropdownMenuSubTrigger className="min-h-10 gap-2">
+      <span>{label}</span><span className="ml-auto truncate text-xs text-muted-foreground">{options[value]}</span>
+    </DropdownMenuSubTrigger>
+    <DropdownMenuSubContent className="min-w-36">
+      <DropdownMenuRadioGroup value={value} onValueChange={next => onChange(next as T)}>
+        {(Object.keys(options) as T[]).map(key => <DropdownMenuRadioItem key={key} value={key} className="min-h-10">{options[key]}</DropdownMenuRadioItem>)}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuSubContent>
+  </DropdownMenuSub>;
+}
 
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="w-9 justify-center sm:w-auto sm:justify-start sm:px-3" aria-label={`Page settings for ${pageLabel}`}>
-          <FileCog className="size-4 text-accent" />
-          <span className="hidden sm:inline">This page</span>
-          {overridden && <span className="size-1.5 rounded-full bg-accent" aria-label="Custom page settings" />}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 border-border bg-popover font-body text-popover-foreground">
-        <DropdownMenuLabel>
-          <span className="block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">This page only</span>
-          <span className="mt-1 block truncate text-xs font-normal text-foreground">{pageLabel}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-50">Page size</DropdownMenuLabel>
-        {(['letter', 'a4'] as PageSize[]).map((size) => (
-          <DropdownMenuItem key={size} onClick={() => onPageSizeChange(size)} className="flex cursor-pointer items-center justify-between text-xs">
-            {size === 'letter' ? 'US Letter (8.5 x 11)' : 'A4'}
-            {pageSize === size && <Check className="size-3 text-accent" />}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-50">Paper color</DropdownMenuLabel>
-        <div className="grid grid-cols-4 gap-2 p-2">
-          {colors.map((color) => (
-            <button key={color.id} type="button" onClick={() => onPaperColorChange(color.id)} aria-label={`${color.label} paper`} className={cn('flex h-8 items-center justify-center rounded-md border', color.bg, paperColor === color.id ? 'border-accent ring-2 ring-accent/20' : 'border-border/50')}>
-              {paperColor === color.id && <Check className={cn('size-3', color.id === 'dark' ? 'text-white' : 'text-accent')} />}
-            </button>
-          ))}
-        </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="noesis-eyebrow noesis-eyebrow--sm opacity-50">Writing guide</DropdownMenuLabel>
-        <div className="grid grid-cols-2 gap-1 p-2">
-          {patterns.map((pattern) => (
-            <button key={pattern.id} type="button" onClick={() => onPaperPatternChange(pattern.id)} className={cn('rounded-md border px-2 py-2 text-xs', paperPattern === pattern.id ? 'border-accent bg-accent/5 text-accent' : 'border-border/50 text-muted-foreground')}>
-              {pattern.label}
-            </button>
-          ))}
-        </div>
-        {onReset && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onReset} disabled={!overridden} className="cursor-pointer text-xs">
-              <RotateCcw className="mr-2 size-3.5" /> Use document settings
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+function PaperChoices({ settings, onChange }: { settings: PaperSettings; onChange: (patch: Partial<PaperSettings>) => void }) {
+  return <>
+    <ChoiceMenu label="Page size" value={settings.pageSize} options={pageSizes} onChange={pageSize => onChange({ pageSize })} />
+    <ChoiceMenu label="Paper color" value={settings.paperColor} options={paperColors} onChange={paperColor => onChange({ paperColor })} />
+    <ChoiceMenu label="Writing guide" value={settings.paperPattern} options={paperPatterns} onChange={paperPattern => onChange({ paperPattern })} />
+  </>;
+}
+
+export function PageViewControls({ viewMode, onViewModeChange, settings, onChange, multiplePages }: {
+  viewMode: DocumentViewMode;
+  onViewModeChange: (view: DocumentViewMode) => void;
+  settings: PaperSettings;
+  onChange: (patch: Partial<PaperSettings>) => void;
+  multiplePages: boolean;
+}) {
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="outline" size="sm" className="min-h-10 shrink-0" title="Document settings" aria-label="Document settings">
+        <Settings2 className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Document settings</span>
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuLabel>Default paper for all pages</DropdownMenuLabel>
+      <PaperChoices settings={settings} onChange={onChange} />
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>Document view</DropdownMenuLabel>
+      <DropdownMenuRadioGroup value={multiplePages || viewMode === 'vertical-continuous' ? 'vertical-continuous' : 'vertical-single'} onValueChange={value => onViewModeChange(value as DocumentViewMode)}>
+        <DropdownMenuRadioItem value="vertical-continuous" className="min-h-10">Continuous</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="vertical-single" className="min-h-10" disabled={multiplePages}>Fit single page</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
+
+export function PageSettingsControl({ pageLabel, settings, onChange, overridden, onReset }: {
+  pageLabel: string;
+  settings: PaperSettings;
+  onChange: (patch: Partial<PaperSettings>) => void;
+  overridden: boolean;
+  onReset: () => void;
+}) {
+  return <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button variant="outline" size="sm" className="min-h-10 shrink-0" title="Page settings" aria-label={`Page settings for ${pageLabel}${overridden ? ', customized' : ''}`}>
+        <FileCog className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Page settings</span>
+        {overridden && <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />}
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuLabel>
+        <span className="block truncate">{pageLabel}</span>
+        <span className="block text-xs font-normal text-muted-foreground">{overridden ? 'Custom paper settings' : 'Uses document defaults'}</span>
+      </DropdownMenuLabel>
+      <PaperChoices settings={settings} onChange={onChange} />
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={onReset} disabled={!overridden} className="min-h-10">
+        <RotateCcw className="size-4" aria-hidden="true" /> Reset to document defaults
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }

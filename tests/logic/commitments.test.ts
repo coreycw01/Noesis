@@ -10,12 +10,15 @@ test('the commitment day clock targets the next local date at midnight', () => {
 });
 import {
   commitmentActivityToDate,
+  commitmentGaugeReadings,
   commitmentDueToday,
   commitmentExpectedDuration,
   commitmentFrequencyDays,
+  commitmentPlanReadings,
   commitmentReviewDue,
   completedCommitmentDates,
 } from '../../src/lib/commitments';
+
 import type { GoalItem } from '../../src/lib/types';
 import { applyGoalCheckIn, applyGoalPlan } from '../../src/lib/goal-persistence';
 
@@ -34,6 +37,61 @@ function commitment(overrides: Partial<GoalItem> = {}): GoalItem {
     ...overrides,
   };
 }
+
+test('automatic commitments reject check-ins and manual pacing uses only user logs', () => {
+  const automatic = commitment({ commitmentTracking: 'automatic' });
+  const manual = commitment({ commitmentTracking: 'manual', commitmentFrequency: 'daily' });
+  const checkIn = { id: 'logged', date: '2026-10-02', day: '2026-10-02', status: 'completed' as const };
+  const settings = { label: 'Commitments', types: [], targets: {}, goals: [automatic] };
+  assert.throws(() => applyGoalCheckIn(settings, automatic.id, checkIn), /do not take check-ins/);
+  const saved = applyGoalCheckIn({ ...settings, goals: [manual] }, manual.id, checkIn).goals![0];
+  assert.equal(commitmentActivityToDate(saved, ['2026-10-01', '2026-10-02'], new Date(2026, 9, 2, 12)).loggedDays, 1);
+});
+
+test('the gauge browses recorded dates and recomputes the amount expected at each point', () => {
+  const item = commitment({
+    createdAt: '2026-10-01',
+    commitmentFrequency: 'daily',
+    commitmentCheckIns: [
+      { id: 'kept', date: '2026-10-01', status: 'completed' },
+      { id: 'skip', date: '2026-10-03', status: 'skipped' },
+      { id: 'future', date: '2026-10-08', status: 'completed' },
+    ],
+  });
+  const readings = commitmentGaugeReadings(item, ['2026-10-01', '2026-10-04'], new Date('2026-10-05T12:00:00'));
+  assert.deepEqual(readings.map(({ day, loggedDays, expectedSoFar }) => [day, loggedDays, expectedSoFar]), [
+    ['2026-10-01', 1, 1], ['2026-10-03', 1, 3], ['2026-10-04', 2, 4], ['2026-10-05', 2, 5],
+  ]);
+});
+
+test('Say / Do compares the date-paced manual plan against distinct completed check-ins only', () => {
+  const manual = commitment({
+    createdAt: '2026-10-01', commitmentTracking: 'manual', commitmentFrequency: 'daily', targetProgress: 30,
+    commitmentPositionId: 'a-position', relatedObjectIds: { practiceIds: ['a-practice'] },
+    commitmentCheckIns: [
+      { id: 'early', date: '2026-09-30', status: 'completed' },
+      { id: 'first', date: '2026-10-01', status: 'completed' },
+      { id: 'duplicate', date: '2026-10-01', status: 'completed' },
+      { id: 'skip', date: '2026-10-02', status: 'skipped' },
+      { id: 'future', date: '2026-10-03', status: 'completed' },
+    ],
+  });
+  const progress = { currentProgress: 99, targetProgress: 30 };
+  assert.deepEqual(commitmentPlanReadings(manual, progress, new Date(2026, 9, 2, 12)), [
+    { day: '2026-10-01', planned: 1, recorded: 1 },
+    { day: '2026-10-02', planned: 2, recorded: 1 },
+  ]);
+  assert.deepEqual(commitmentPlanReadings(manual, progress, new Date(2026, 8, 29, 12)), [{ day: '2026-09-29', planned: 0, recorded: 0 }]);
+});
+
+test('automatic and legacy Say / Do use the displayed progress without inventing check-in history', () => {
+  const now = new Date(2026, 9, 2, 12);
+  const progress = { currentProgress: 4, targetProgress: 10 };
+  for (const tracking of ['automatic', undefined] as const) {
+    assert.deepEqual(commitmentPlanReadings(commitment({ commitmentTracking: tracking }), progress, now), [{ day: '2026-10-02', planned: 10, recorded: 4 }]);
+  }
+  assert.deepEqual(commitmentPlanReadings(commitment({ targetProgress: 0 }), progress, now), []);
+});
 
 test('plan saves preserve concurrent check-ins but reject a stale plan edit', () => {
   const goal = commitment();

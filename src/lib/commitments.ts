@@ -55,6 +55,7 @@ export function commitmentDueToday(item: GoalItem, now = new Date()) {
 }
 
 export function commitmentDueOnDay(item: GoalItem, todayKey: string) {
+  if (item.commitmentTracking === 'automatic') return false;
   if (!['active', 'under_review'].includes(item.status)) return false;
   if (!todayKey) return false;
   const last = (item.commitmentCheckIns || []).reduce((latest, entry) => {
@@ -92,7 +93,9 @@ export function commitmentExpectedDuration(item: GoalItem) {
 export function commitmentActivityToDate(item: GoalItem, practiceDays: string[], now = new Date()) {
   const today = localDateKey(now);
   const started = recordDateKey(item.createdAt || '') || today;
-  const loggedDays = new Set([...practiceDays, ...completedCommitmentDates(item)]
+  if (today < started) return { loggedDays: 0, expectedSoFar: 0, livedPercent: 0 };
+  const activityDays = item.commitmentTracking === 'manual' ? completedCommitmentDates(item) : [...practiceDays, ...completedCommitmentDates(item)];
+  const loggedDays = new Set(activityDays
     .filter((date) => date >= started && date <= today)).size;
   const expectedSoFar = expectedCommitmentProgress({
     target: item.targetProgress,
@@ -101,4 +104,26 @@ export function commitmentActivityToDate(item: GoalItem, practiceDays: string[],
     now,
   });
   return { loggedDays, expectedSoFar, livedPercent: Math.min(100, Math.round(loggedDays / expectedSoFar * 100)) };
+}
+
+export function commitmentGaugeReadings(item: GoalItem, practiceDays: string[], now: Date) {
+  const today = localDateKey(now);
+  const start = recordDateKey(item.createdAt || '') || today;
+  const days = [...new Set([start, ...(item.commitmentTracking === 'manual' ? [] : practiceDays), ...(item.commitmentCheckIns || []).map(commitmentCheckInDay)])]
+    .filter(day => day >= start && day < today).sort().slice(-23);
+  return [...days, today].map(day => {
+    const asOf = day === today ? now : new Date(`${day}T12:00:00`);
+    return { day, ...commitmentActivityToDate(item, practiceDays, asOf) };
+  });
+}
+
+export type CommitmentPlanReading = { day: string; planned: number; recorded: number };
+
+export function commitmentPlanReadings(item: GoalItem, progress: { currentProgress: number; targetProgress: number }, now: Date): CommitmentPlanReading[] {
+  if (!Number.isFinite(item.targetProgress) || item.targetProgress <= 0) return [];
+  if (item.commitmentTracking === 'manual') {
+    return commitmentGaugeReadings(item, [], now).map(({ day, expectedSoFar, loggedDays }) => ({ day, planned: expectedSoFar, recorded: loggedDays }));
+  }
+  // Current workspace counts and legacy totals are snapshots, not dated check-ins.
+  return [{ day: localDateKey(now), planned: progress.targetProgress, recorded: progress.currentProgress }];
 }

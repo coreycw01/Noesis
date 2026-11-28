@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { contextDeskWorkDraft, isContextDeskReviewRetry } from '../../src/lib/context-desk-work';
+import { contextDeskReviewWorkId, contextDeskWorkDraft, contextDeskWorkProvenance, isContextDeskReviewRetry } from '../../src/lib/context-desk-work';
+
+test('a Work created from an accepted review retains the bounded question actually sent', async () => {
+  const reviewId = '91b13b7e-43cb-47cb-9a9d-7c5e12967f6f';
+  const id = contextDeskReviewWorkId(reviewId)!;
+  const prompt = 'Compare these views. ' + 'x'.repeat(1000);
+  const origin = await contextDeskWorkProvenance(id, 'owner', { records: [], result: {
+    action: 'review_selected_context', targetType: 'context_desk', targetId: 'selection',
+    title: 'Context review', content: 'Unedited', contextSummary: '', generatedAt: '2026-11-13', reviewId,
+    userPromptAtGeneration: prompt,
+  } }, 'My edited version', null);
+  assert.equal(origin.userPrompt, prompt.slice(0, 1000));
+  assert.equal(origin.targets[0].id, id);
+});
 
 test('reviewed Context Desk text becomes safe Work content with history and selected references', () => {
   const text = 'Compare <evidence>\nThen revisit the claim.';

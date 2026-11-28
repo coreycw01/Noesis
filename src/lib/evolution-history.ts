@@ -108,6 +108,32 @@ export function unmatchedEvolutionMilestones(legacy: readonly TimelineEvent[], t
   return legacy.filter((event) => !canonical.has(milestoneIdentity(event.entityType, event.entityId, event.eventType, event.date)));
 }
 
+/** Old saves wrote a generic edit and a richer confidence event in one commit. */
+export function withoutDuplicateConfidenceEdits(events: readonly ThinkingEvent[]) {
+  const key = (event: ThinkingEvent) => {
+    if (!['position', 'vault'].includes(event.entityType || event.targetType)) return null;
+    if (evolutionActionKey(event.eventType || event.actionType || '') !== 'confidence_changed') return null;
+    const date = normalizeEvolutionDate(event.createdAt);
+    const before = event.confidenceBefore ?? event.before?.confidence;
+    const after = event.confidenceAfter ?? event.after?.confidence;
+    return date && !isEvolutionDateOnly(date) && Number.isFinite(before) && Number.isFinite(after) && before !== after
+      ? JSON.stringify([event.entityId || event.targetId, date, before, after]) : null;
+  };
+  const explicit = new Map<string, number>();
+  for (const event of events) {
+    if (!Number.isFinite(event.confidenceBefore) || !Number.isFinite(event.confidenceAfter) || /^Position edited:/i.test(event.summary)) continue;
+    const id = key(event);
+    if (id) explicit.set(id, (explicit.get(id) || 0) + 1);
+  }
+  return events.filter(event => {
+    if (!/^Position edited:/i.test(event.summary)) return true;
+    const id = key(event);
+    if (!id || !explicit.get(id)) return true;
+    explicit.set(id, explicit.get(id)! - 1);
+    return false;
+  });
+}
+
 export function evolutionSynthesisExcerpt(event: {
   date: string; title: string; targetType: string; actor?: string; action?: string;
   beforeLabel?: string; afterLabel?: string; trigger?: string; significance?: string;

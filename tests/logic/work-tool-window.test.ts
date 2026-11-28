@@ -42,7 +42,7 @@ test('removal is explicitly named and distinct from minimizing', () => {
 
 test('tool appearance is independent of field editing and preserves zero background opacity', () => {
   const html = renderWindow(false, { color: '#297dbc', opacity: 0 });
-  assert.match(html, /aria-label="Mind Map appearance"/);
+  assert.match(html, /aria-label="Mind Map settings"/);
   assert.match(html, /<input[^>]+aria-label="Central idea"/);
   assert.match(html, /--work-tool-tint:#297dbc/);
   assert.match(html, /--work-tool-alpha:0%/);

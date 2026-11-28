@@ -194,7 +194,7 @@ export function AtlasTerritoryView({
       connectedConcepts: source.tags || selectedRegion?.dominantConcepts || [],
       relatedObjects: [
         `${source.annotations?.length || 0} annotations`,
-        `${regionPositions.filter((position) => (position.sourceIds || []).includes(source.id)).length} regional positions influenced`,
+        `${regionPositions.filter((position) => (position.sourceIds || []).includes(source.id)).length} regional positions linked`,
       ],
       lastChangedAt: source.dateUpdated || source.dateAdded || selectedRegion?.lastActiveAt,
       quickActionLabel: 'Open Source',

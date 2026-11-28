@@ -1,5 +1,8 @@
 "use client";
 
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
+import { useSectionDisclosure } from '@/components/shared/SectionDisclosure';
+
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { cn } from '@/lib/utils';
 import { nextSourceJourneyStep, type SourceJourneyState, type SourceJourneyStep } from '@/lib/source-journey';
@@ -49,17 +52,21 @@ export function SourceSounding({ state, className }: {
   const next = nextSourceJourneyStep(state);
   const bob = SURFACE + depth * FATHOM;
   const struck = depth >= 3.9;
-  const reached = Math.floor(depth + 1e-9);
+  const { toggle, body } = useSectionDisclosure('the sounding line');
 
   return (
     <section className={cn('noesis-sounding', className)} data-tone="source"
       aria-label={`Sounding: ${depth.toFixed(1)} of 4 fathoms taken`}>
       <div className="noesis-sounding__head">
-        <Eyebrow as="h3">How far down you have been</Eyebrow>
-        <span className="noesis-sounding__figure">{depth.toFixed(1)}<small> / 4</small></span>
+        <Eyebrow as="h3">The sounding line</Eyebrow>
+        <div className="flex items-center gap-2">
+          <span className="noesis-sounding__figure">{depth.toFixed(1)}<small> / 4</small></span>
+          <InstrumentHelp instrument="source" />
+          {toggle}
+        </div>
       </div>
 
-      <div className="noesis-sounding__body">
+      <div {...body}><div className="noesis-sounding__body">
         <svg viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} className="noesis-sounding__draw" role="img"
           aria-label={`The line is out ${depth.toFixed(1)} fathoms of four.`}>
           {/* surface */}
@@ -94,10 +101,10 @@ export function SourceSounding({ state, className }: {
           <p className="noesis-sounding__next">
             {next
               ? state[next].next
-              : `Bottom found: ${reached} of 4 fathoms, and nothing left unread in this one.`}
+              : 'All four areas have recorded work. You can revisit this source whenever it raises a new question.'}
           </p>
         </div>
-      </div>
+      </div></div>
     </section>
   );
 }

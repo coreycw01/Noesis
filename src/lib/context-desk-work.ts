@@ -1,7 +1,7 @@
 import { appendAiHistoryEntry, type AiReviewResult } from './contextual-ai';
 import { escapeTextAsHtml } from './sanitize';
 import type { Draft } from './types';
-import { acceptedTextHash, type AiProvenanceRecord } from './ai-provenance';
+import { acceptedTextHash, aiCreationPrompt, type AiProvenanceRecord } from './ai-provenance';
 
 export type ContextDeskWorkOrigin = {
   result: AiReviewResult;
@@ -23,6 +23,7 @@ export async function contextDeskWorkProvenance(id: string, userId: string, orig
     origin: { feature: 'context_desk', action: result.action },
     sourceActionId: id, generatedAt: result.generatedAt, acceptedAt,
     precursor: result.content.slice(0, 32000) || null,
+    ...aiCreationPrompt(result),
     contextRefs: records.slice(0, 12).map(({ type, id: recordId }) => ({ type, id: recordId })),
     acceptedTextHash: await acceptedTextHash(reviewedText), state: 'active',
   };

@@ -2,32 +2,20 @@ import { createElement, forwardRef } from 'react';
 import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
   BookOpen,
-  Brain,
-  Cloud,
   FlaskConical,
+  Handshake,
   MapPinned,
   Network,
-  Repeat2,
-  Target,
   UserCircle2,
 } from 'lucide-react';
-
-const ThoughtBubble = forwardRef<SVGSVGElement, LucideProps>(({ children, ...props }, ref) => createElement(
-  Cloud,
-  { ...props, ref },
-  createElement('circle', { cx: 5, cy: 19.25, r: 1 }),
-  createElement('circle', { cx: 2.25, cy: 21.75, r: 0.65 }),
-  children,
-));
-ThoughtBubble.displayName = 'ThoughtBubble';
 
 /**
  * Noesis glyphs. Drawn on a 14px grid and rendered in currentColor, so a nav
  * item, header marker, or badge colors them with its stage token. Each one is
- * shaped to read as its page: a sun for Today, a shelf of books for the
+ * shaped to read as its page: a writing desk for My Desk, a shelf of books for the
  * Library, a grid of rows for the Source Index, an ink trail for Annotations,
- * a question mark for Inquiries, a planted flag for Positions, a target with
- * an outbound arrow for Praxis, three advancing chevrons for Evolution, a
+ * a balance for Inquiries, a planted flag for Positions, a circular loop
+ * for Praxis, three advancing chevrons for Evolution, a
  * folded map with linked nodes for the Atlas, and a brain for Exercises.
  */
 type GlyphPart = [tag: 'path' | 'circle' | 'rect', attrs: Record<string, string | number>];
@@ -57,16 +45,13 @@ function glyph(name: string, parts: GlyphPart[]) {
 }
 
 const FILL = { fill: 'currentColor', stroke: 'none' };
-const sunRays: GlyphPart[] = Array.from({ length: 8 }, (_, index) => {
-  const angle = (index * Math.PI) / 4;
-  const round = (value: number) => Math.round(value * 100) / 100;
-  return ['path', {
-    d: `M${round(7 + Math.cos(angle) * 4.2)} ${round(7 + Math.sin(angle) * 4.2)}L${round(7 + Math.cos(angle) * 6)} ${round(7 + Math.sin(angle) * 6)}`,
-    strokeWidth: 1.3,
-  }];
-});
-
-const TodaySun = glyph('today', [['circle', { cx: 7, cy: 7, r: 2.6, strokeWidth: 1.5 }], ...sunRays]);
+const MyDesk = glyph('my-desk', [
+  ['path', { d: 'M9.8 3.4 11.1 5.5v2.3M9.4 7.8h3.3', strokeWidth: 1.2 }],
+  ['path', { d: 'M7.5 1.5 10.3 3l-1 2.4-3.6-1.9Z', ...FILL }],
+  ['path', { d: 'M2.2 7.7h4.1', strokeWidth: 1.2 }],
+  ['rect', { x: 1, y: 8.8, width: 12, height: 1.6, rx: 0.5, ...FILL }],
+  ['path', { d: 'M2.6 10v2.9M11.4 10v2.9', strokeWidth: 1.4 }],
+]);
 const LibraryShelf = glyph('library', [
   ['rect', { x: 1.5, y: 3, width: 2.4, height: 9.5, rx: 0.4, ...FILL }],
   ['rect', { x: 4.5, y: 1.5, width: 2.4, height: 11, rx: 0.4, ...FILL, opacity: 0.75 }],
@@ -99,11 +84,10 @@ const POSITION_PARTS: GlyphPart[] = [
 ];
 const PlantedFlag = glyph('position', POSITION_PARTS);
 const PRAXIS_PARTS: GlyphPart[] = [
-  ['circle', { cx: 6.5, cy: 7.5, r: 5, strokeWidth: 1.3 }],
-  ['circle', { cx: 6.5, cy: 7.5, r: 2.2, strokeWidth: 1.3 }],
-  ['path', { d: 'M6.5 7.5 12.5 1.5M10.2 1.5h2.3v2.3', strokeWidth: 1.4 }],
+  ['path', { d: 'M2.1 5.5a5.1 5.1 0 0 1 9.8 0M11.9 8.5a5.1 5.1 0 0 1-9.8 0', strokeWidth: 1.5 }],
+  ['path', { d: 'M9.2 4.4 12 6l1.4-2.9ZM4.8 9.6 2 8 .6 10.9Z', ...FILL }],
 ];
-const PraxisTarget = glyph('praxis', PRAXIS_PARTS);
+const PraxisLoop = glyph('praxis', PRAXIS_PARTS);
 const EvolutionChevrons = glyph('evolution', [
   ['path', { d: 'M1.5 3.5 L4.5 7 L1.5 10.5 M5.5 3.5 L8.5 7 L5.5 10.5 M9.5 3.5 L12.5 7 L9.5 10.5', strokeWidth: 1.6 }],
 ]);
@@ -113,18 +97,35 @@ const AtlasMap = glyph('atlas', [
   ['path', { d: 'm3.1 8.1 3.4-2.8 4.2 1.6', strokeWidth: 1.05 }],
   ...[[3.1, 8.1], [6.5, 5.3], [10.7, 6.9]].map(([cx, cy]): GlyphPart => ['circle', { cx, cy, r: 0.95, ...FILL }]),
 ]);
-const WORK_PARTS: GlyphPart[] = [['path', { d: 'M3 2h6l2 2v8H3Z', strokeWidth: 1.3 }]];
+const ThoughtBubble = glyph('concept', [
+  ['path', { d: 'M4 10a2.6 2.6 0 1 1 .1-5.2 3 3 0 0 1 5.6-.5A2.9 2.9 0 1 1 10.7 10Z', ...FILL }],
+  ['circle', { cx: 4, cy: 11.5, r: .85, ...FILL }],
+  ['circle', { cx: 2.2, cy: 13, r: .55, ...FILL }],
+]);
+const WORK_PARTS: GlyphPart[] = [['path', { d: 'M3 1.3h5.2v3.8H12v7.6H3Zm.9 6.2v.9h6.7v-.9Zm0 2.3v.9H9v-.9ZM9.2 1.5l2.6 2.6H9.2Z', fillRule: 'evenodd', ...FILL }]];
 const WorkSheet = glyph('work', WORK_PARTS);
+const PracticeSteps = glyph('practice', [
+  ['path', { d: 'M2.2 5c.3-1.6 1.2-2.8 2.1-2.5s1 1.7.8 3.2c-.2 1.2-.9 2-1.8 1.8-.9-.2-1.3-1.3-1.1-2.5ZM2.3 8.2l2.2.4-.3 1.3a1.1 1.1 0 0 1-2.1-.4ZM8.5 7.7c-.3-1.5.1-2.8 1-3s1.8.9 2.2 2.4c.3 1.3-.1 2.4-1 2.6-.9.2-1.9-.8-2.2-2ZM9.5 10.8l2.2-.5.3 1.2a1.1 1.1 0 0 1-2.2.5Z', ...FILL }],
+]);
+const ExerciseBrain = glyph('exercise-solid', [
+  ['path', { d: 'M6.4 2.1C5.1.7 2.8 1.6 2.7 3.5A2.4 2.4 0 0 0 1.3 7a2.5 2.5 0 0 0 1 3.9c.1 1.9 2.8 2.7 4.1 1.1V8.3c-1.7 0-2.7-.9-2.7-2.2h1.1c0 .7.6 1.1 1.6 1.1Zm1.2 0c1.3-1.4 3.6-.5 3.7 1.4A2.4 2.4 0 0 1 12.7 7a2.5 2.5 0 0 1-1 3.9c-.1 1.9-2.8 2.7-4.1 1.1V8.3c1.7 0 2.7-.9 2.7-2.2H9.2c0 .7-.6 1.1-1.6 1.1Z', ...FILL }],
+]);
+
+export const NOESIS_SOLID_DESK_ICONS = {
+  source: glyph('source-solid', [['path', { d: 'M1 2h2.9A3 3 0 0 1 6.5 3.4v8.8a4 4 0 0 0-2.7-1H1.1A.7.7 0 0 1 .4 10.5V2.7A.7.7 0 0 1 1 2ZM13 2h-2.9a3 3 0 0 0-2.6 1.4v8.8a4 4 0 0 1 2.7-1h2.7a.7.7 0 0 0 .7-.7V2.7A.7.7 0 0 0 13 2Z', ...FILL }]]),
+  annotation: glyph('annotation-solid', [['path', { d: 'M2 9.7 9.8 2 12 4.2l-7.8 7.7-3 .9ZM10.5 1.4l.5-.5a1 1 0 0 1 1.4 0l.7.7a1 1 0 0 1 0 1.4l-.5.5Z', ...FILL }]]),
+  concept: ThoughtBubble,
+  inquiry: glyph('inquiry-solid', [['path', { d: 'M6.3 2h1.4v2h5v1.2h-.8l1.9 4H9.4l1.9-4H7.7v6.2h2.4v1.4H3.9v-1.4h2.4V5.2H2.7l1.9 4H.2l1.9-4h-.8V4h5Z', ...FILL }]]),
+  position: PlantedFlag,
+  work: WorkSheet,
+  practice: PracticeSteps,
+  exercise: ExerciseBrain,
+  unknown: glyph('unknown-solid', [['path', { d: 'M7 .9a6.1 6.1 0 1 0 0 12.2A6.1 6.1 0 0 0 7 .9Zm2.8 3.2L8.1 8.2 4 9.9l1.7-4.1Z', fillRule: 'evenodd', ...FILL }]]),
+};
 const SettingsDial = glyph('settings', [
   ['circle', { cx: 7, cy: 7, r: 2.2, strokeWidth: 1.4 }],
   ['circle', { cx: 7, cy: 7, r: 5, strokeWidth: 1.4, strokeDasharray: '2 2' }],
 ]);
-/* The Context Desk, drawn as a desk: a worktop on two legs with two records
-   laid out on it. It was a scanning eye before, which described the AI looking
-   at things rather than the surface you lay them on. */
-/* A desk, drawn as one: a top, a leg, and the drawers the Context Desk keeps
-   its saved sets in. It carried records on its surface before, which read as
-   clutter at 14px rather than as a desk. */
 const ContextDesk = glyph('context', [
   ['rect', { x: 1, y: 3.4, width: 12, height: 1.7, rx: 0.5, ...FILL }],
   ['path', { d: 'M2.4 5.3V12.6', strokeWidth: 1.4 }],
@@ -179,11 +180,11 @@ export const NOESIS_GLYPH_PARTS = {
 export type NoesisGlyphKey = keyof typeof NOESIS_GLYPH_PARTS;
 
 export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
-  home: TodaySun,
+  home: MyDesk,
   atlas: AtlasMap,
   region: MapPinned,
   connection: Network,
-  concept: ThoughtBubble as LucideIcon,
+  concept: ThoughtBubble,
   inquiry: InquiryBalanceGlyph,
   library: LibraryShelf,
   'source-index': SourceRows,
@@ -193,13 +194,19 @@ export const NOESIS_ICONS: Record<NoesisIconKey, LucideIcon> = {
   work: WorkSheet,
   context: ContextDesk,
   lab: FlaskConical,
-  praxis: PraxisTarget,
-  practice: Repeat2,
-  commitment: Target,
+  praxis: PraxisLoop,
+  practice: PracticeSteps,
+  commitment: Handshake,
   evolution: EvolutionChevrons,
   profile: UserCircle2,
   settings: SettingsDial,
-  exercise: Brain,
+  exercise: ExerciseBrain,
+};
+
+export const PRAXIS_METHOD_ICONS = {
+  practice: NOESIS_ICONS.practice,
+  experiment: NOESIS_ICONS.lab,
+  commitment: NOESIS_ICONS.commitment,
 };
 
 export const NOESIS_VIEW_ICON_KEYS = {

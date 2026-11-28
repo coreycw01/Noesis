@@ -8,6 +8,7 @@ import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { WorkToolSection } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { workDragScrollStep } from '@/lib/work-page-location';
 
 type ToolWindow = NonNullable<WorkToolSection['window']>;
 
@@ -33,7 +34,8 @@ interface FloatingWorkToolWindowProps {
    * Drop the tool on another page of the document. The geometry is already
    * relative to that page, so the tool keeps the spot you dropped it on.
    */
-  onMoveToPage?: (pageId: string, geometry: { x: number; y: number }) => void;
+  onMoveToPage?: (pageId: string, geometry?: { x: number; y: number }) => void;
+  pageOptions?: readonly { id: string; label: string }[];
   /** Lowest and highest layer among the tools on this page. */
   layerRange?: { min: number; max: number };
   children: ReactNode;
@@ -55,6 +57,11 @@ type Interaction = {
   pointerId: number;
   startX: number;
   startY: number;
+  scrollOrigin: number;
+  scrollContainer: HTMLElement | null;
+  scale: number;
+  grabX: number;
+  grabY: number;
   frame: ToolWindow;
   geometry?: Pick<ToolWindow, 'x' | 'y' | 'width' | 'height'>;
   previousUserSelect: string;
@@ -69,7 +76,7 @@ function normalizedWindow(section: WorkToolSection): ToolWindow {
   };
 }
 
-export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, onMoveToPage, layerRange, children }: FloatingWorkToolWindowProps) {
+export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, onPatch, onPlacementChange, onRemove, onMoveToPage, pageOptions, layerRange, children }: FloatingWorkToolWindowProps) {
   const [frame, setFrame] = useState(() => normalizedWindow(section));
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -93,24 +100,26 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
   }, [section]);
 
   useEffect(() => {
-    const move = (event: PointerEvent) => {
-      const interaction = interactionRef.current;
-      if (!interaction || interaction.pointerId !== event.pointerId) return;
+    let animation = 0;
+    let cursor: { x: number; y: number } | undefined;
+    const clearDropTarget = () => {
+      for (const page of document.querySelectorAll<HTMLElement>('[data-tool-drop]')) delete page.dataset.toolDrop;
+    };
+    const stopScroll = () => { window.cancelAnimationFrame(animation); animation = 0; cursor = undefined; clearDropTarget(); };
+    const updateGeometry = (interaction: Interaction, point: { x: number; y: number }) => {
       const { frame } = interaction;
       const current = interaction.geometry || frame;
-      const dx = event.clientX - interaction.startX;
-      const dy = event.clientY - interaction.startY;
-      const bounds = windowRef.current?.parentElement?.getBoundingClientRect();
-      const availableWidth = Math.max(360, bounds?.width || 850);
-      const availableHeight = Math.max(420, bounds?.height || 1030);
+      const dx = (point.x - interaction.startX) / interaction.scale;
+      const dy = (point.y - interaction.startY + (interaction.scrollContainer?.scrollTop ?? 0) - interaction.scrollOrigin) / interaction.scale;
+      const paper = windowRef.current?.closest<HTMLElement>('[data-work-page-paper]');
+      const availableWidth = paper?.clientWidth || 850;
+      const availableHeight = paper?.clientHeight || 1100;
       if (interaction.kind === 'move') {
         // Mark the page under the pointer, so dragging across a page break
         // shows where the tool would land instead of silently snapping back.
-        const over = pageUnder(event.clientX, event.clientY, windowRef.current);
-        for (const page of document.querySelectorAll<HTMLElement>('[data-work-page-id]')) {
-          if (page === over && page !== windowRef.current?.closest('[data-work-page-id]')) page.dataset.toolDrop = 'true';
-          else delete page.dataset.toolDrop;
-        }
+        const over = pageUnder(point.x, point.y, windowRef.current);
+        clearDropTarget();
+        if (over && over !== windowRef.current?.closest('[data-work-page-id]')) over.dataset.toolDrop = 'true';
         const geometry = {
           width: current.width,
           height: current.height,
@@ -118,7 +127,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
           y: Math.max(48, Math.min(Math.max(48, availableHeight - current.height), frame.y + dy)),
         };
         interaction.geometry = geometry;
-        setFrame((current) => ({ ...current, ...geometry }));
+        setFrame((current) => ({ ...current, ...geometry, x: frame.x + dx, y: frame.y + dy }));
         return;
       }
 
@@ -136,13 +145,34 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       interaction.geometry = geometry;
       setFrame((current) => ({ ...current, ...geometry }));
     };
+    const scroll = () => {
+      animation = 0;
+      const interaction = interactionRef.current;
+      const container = interaction?.scrollContainer;
+      if (!interaction || !container || !cursor) return;
+      const { top, bottom } = container.getBoundingClientRect();
+      const step = workDragScrollStep(cursor.y, top, bottom);
+      if (!step) return;
+      const before = container.scrollTop;
+      container.scrollTop += step;
+      if (before === container.scrollTop) return;
+      updateGeometry(interaction, cursor);
+      animation = window.requestAnimationFrame(scroll);
+    };
+    const move = (event: PointerEvent) => {
+      const interaction = interactionRef.current;
+      if (!interaction || interaction.pointerId !== event.pointerId) return;
+      cursor = { x: event.clientX, y: event.clientY };
+      updateGeometry(interaction, cursor);
+      if (interaction.kind === 'move' && !animation) animation = window.requestAnimationFrame(scroll);
+    };
     const end = (event: PointerEvent) => {
       const interaction = interactionRef.current;
       if (!interaction || interaction.pointerId !== event.pointerId) return;
       interactionRef.current = null;
       setDragging(false);
       document.body.style.userSelect = interaction.previousUserSelect;
-      for (const page of document.querySelectorAll<HTMLElement>('[data-work-page-id]')) delete page.dataset.toolDrop;
+      stopScroll();
       if (interaction.kind === 'move') {
         const from = windowRef.current?.closest<HTMLElement>('[data-work-page-id]');
         const to = pageUnder(event.clientX, event.clientY, windowRef.current);
@@ -150,18 +180,22 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         if (to && from && to !== from && pageId && onMoveToPageRef.current) {
           // Keep the spot under the pointer: the tool lands where it was
           // dropped, grabbed at the same point on its header.
-          const bounds = to.getBoundingClientRect();
+          const paper = to.querySelector<HTMLElement>('[data-work-page-paper]') ?? to;
+          const bounds = paper.getBoundingClientRect();
+          const scale = bounds.width / (paper.clientWidth || bounds.width || 1) || 1;
           const size = interaction.geometry || interaction.frame;
-          const grabX = interaction.startX - (from.getBoundingClientRect().left + interaction.frame.x);
-          const grabY = interaction.startY - (from.getBoundingClientRect().top + interaction.frame.y);
           onMoveToPageRef.current(pageId, {
-            x: Math.max(0, Math.min(Math.max(0, bounds.width - size.width), event.clientX - bounds.left - grabX)),
-            y: Math.max(0, Math.min(Math.max(0, bounds.height - size.height), event.clientY - bounds.top - grabY)),
+            x: Math.max(0, Math.min(paper.clientWidth - size.width, (event.clientX - bounds.left) / scale - interaction.grabX)),
+            y: Math.max(0, Math.min(paper.clientHeight - size.height, (event.clientY - bounds.top) / scale - interaction.grabY)),
           });
           return;
         }
       }
-      if (interaction.geometry) onPatchRef.current(interaction.geometry);
+      if (interaction.geometry) {
+        const geometry = interaction.geometry;
+        setFrame(current => ({ ...current, ...geometry }));
+        onPatchRef.current(geometry);
+      }
     };
     const cancel = (event: Event) => {
       const interaction = interactionRef.current;
@@ -169,7 +203,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
       interactionRef.current = null;
       setDragging(false);
       document.body.style.userSelect = interaction.previousUserSelect;
-      for (const page of document.querySelectorAll<HTMLElement>('[data-work-page-id]')) delete page.dataset.toolDrop;
+      stopScroll();
       setFrame(interaction.frame);
     };
     window.addEventListener('pointermove', move);
@@ -177,6 +211,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     window.addEventListener('pointercancel', cancel);
     window.addEventListener('blur', cancel);
     return () => {
+      stopScroll();
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', cancel);
@@ -190,10 +225,19 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     if (event.button !== 0 || interactionRef.current) return;
     event.preventDefault();
     event.stopPropagation();
+    const element = windowRef.current;
+    const focused = document.activeElement;
+    if (kind === 'move' && focused instanceof HTMLElement && element?.contains(focused)) focused.blur();
     onFocus();
+    const bounds = element?.getBoundingClientRect();
+    const scrollContainer = element?.closest<HTMLElement>('[data-work-document-scroll]') ?? null;
+    const scale = bounds && element?.offsetWidth ? bounds.width / element.offsetWidth || 1 : 1;
     interactionRef.current = {
       kind, corner, frame, pointerId: event.pointerId,
       startX: event.clientX, startY: event.clientY,
+      scrollOrigin: scrollContainer?.scrollTop ?? 0, scrollContainer, scale,
+      grabX: (event.clientX - (bounds?.left ?? event.clientX)) / scale,
+      grabY: (event.clientY - (bounds?.top ?? event.clientY)) / scale,
       previousUserSelect: document.body.style.userSelect,
     };
     document.body.style.userSelect = 'none';
@@ -203,11 +247,11 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
   // A page can get narrower — a smaller window, a different page size. Pull
   // the tool back inside instead of leaving it hanging off the paper.
   useEffect(() => {
-    const page = windowRef.current?.parentElement;
-    if (!page || typeof ResizeObserver === 'undefined') return;
+    const page = windowRef.current?.closest<HTMLElement>('[data-work-page-paper]');
+    if (isMobile || !page || typeof ResizeObserver === 'undefined') return;
     const watcher = new ResizeObserver(() => {
       if (interactionRef.current) return;
-      const bounds = page.getBoundingClientRect();
+      const bounds = { width: page.clientWidth, height: page.clientHeight };
       if (!bounds.width || !bounds.height) return;
       const current = frameRef.current;
       if (current.placement && current.placement !== 'overlay') return;
@@ -221,7 +265,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     });
     watcher.observe(page);
     return () => watcher.disconnect();
-  }, []);
+  }, [isMobile]);
 
   const setMinimized = (minimized: boolean) => {
     const next = { ...frame, minimized };
@@ -275,6 +319,7 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
     <section
       ref={windowRef}
       id={`work-tool-${section.id}`}
+      tabIndex={-1}
       aria-label={`${label} tool window`}
       data-minimized={frame.minimized ? 'true' : undefined}
       data-dragging={dragging ? 'true' : undefined}
@@ -331,11 +376,17 @@ export function FloatingWorkToolWindow({ section, label, mobileActive, onFocus, 
         </select>
         <Popover>
           <PopoverTrigger asChild>
-            <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 md:size-7" aria-label={`${label} appearance`} title="Tool appearance">
+            <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 md:size-7" aria-label={`${label} settings`} title="Tool settings">
               <Pencil className="size-3.5" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" aria-label={`${label} appearance settings`} className="w-64 max-w-[calc(100vw-1rem)] space-y-3" onPointerDown={(event) => event.stopPropagation()}>
+          <PopoverContent align="end" aria-label={`${label} settings`} className="max-h-[min(75dvh,32rem)] w-64 max-w-[calc(100vw-1rem)] space-y-3 overflow-y-auto" onPointerDown={(event) => event.stopPropagation()}>
+            {onMoveToPage && pageOptions && pageOptions.length > 1 && <label className="grid gap-1 text-sm font-medium">
+              Move to page
+              <select value={section.pageId || 'main'} onChange={event => onMoveToPage(event.target.value)} className="min-h-11 min-w-0 rounded-md border border-border bg-background px-2 text-foreground">
+                {pageOptions.map((page, index) => <option key={page.id} value={page.id}>{index + 1}. {page.label}</option>)}
+              </select>
+            </label>}
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold">Tool appearance</span>
               <Button type="button" size="sm" variant="ghost" disabled={!customBackground} onClick={() => updateBackground({})}>Reset</Button>

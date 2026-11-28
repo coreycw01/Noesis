@@ -16,7 +16,7 @@ test('definition review receives the actual classified cases and their saved rea
     },
   };
   assert.deepEqual(conceptBoundaryFindings(concept), [
-    { example: 'Watching for one sound', reason: 'Depends on whether it is deliberate.', label: 'Edge case', zone: 'edge' },
+    { example: 'Watching for one sound', reason: 'Depends on whether it is deliberate.', label: 'Not sure', zone: 'edge' },
     { example: 'A reflexive glance', reason: 'Not necessarily sustained focus.', label: "Doesn't fit", zone: 'outside' },
   ]);
   assert.equal(concept.description, 'Attention is directed focus.');

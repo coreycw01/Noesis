@@ -119,7 +119,7 @@ const SETTINGS_SECTION_STORAGE_KEY = 'noesis:settings-section';
 
 const SETTINGS_PANELS: Array<{ id: SettingsPanelId; label: string; description: string }> = [
   { id: 'account', label: 'Account', description: 'Login, export, and sign-out controls.' },
-  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, layout, navigation, and what appears on Today.' },
+  { id: 'appearance', label: 'Appearance', description: 'Theme, typography, layout, navigation, and what appears on My Desk.' },
   { id: 'works', label: 'Work Defaults', description: 'Starting type, status, paper, and editor feel for new Works.' },
   { id: 'ai', label: 'AI Assistance', description: 'Manual, bounded assistance and context privacy.' },
   { id: 'data', label: 'Data', description: 'Workspace export and demo refresh tools.' },
@@ -600,8 +600,8 @@ export function SettingsPage({
               </div>
               <SaveBar {...saveProps('appearance')} onDiscard={discardAppearance} />
             </SettingsCard>
-            <SettingsCard title="Today" description="What appears on Today. Hiding the commitment summary does not change your saved commitments or progress.">
-              <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+            <SettingsCard title="My Desk" description="Hiding the commitment summary does not change your saved commitments or progress.">
+              <SwitchRow label="Show commitments on My Desk" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
               <SaveBar {...saveProps('goals')} />
             </SettingsCard>
           </div>
@@ -714,7 +714,7 @@ export function SettingsPage({
                 </Field>
               </div>
               <div className="mt-5 grid gap-3">
-                <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+                <SwitchRow label="Show commitments on My Desk" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
                 <SwitchRow label="Count completed audiobooks" checked={drafts.goals.includeAudiobooksInReadingGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeAudiobooksInReadingGoals: checked } }))} />
                 <SwitchRow label="Count completed podcasts" checked={drafts.goals.includePodcastsInLearningGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includePodcastsInLearningGoals: checked } }))} />
                 <SwitchRow label="Count completed videos" checked={drafts.goals.includeVideosInSourceGoals} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, includeVideosInSourceGoals: checked } }))} />
@@ -876,8 +876,8 @@ export function SettingsPage({
         );
       case 'notifications':
         return (
-          <SettingsCard title="Today" description="Hide the commitment summary without changing your saved commitments or progress.">
-            <SwitchRow label="Show commitments on Today" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
+          <SettingsCard title="My Desk" description="Hide the commitment summary without changing your saved commitments or progress.">
+            <SwitchRow label="Show commitments on My Desk" checked={drafts.goals.showGoalsOnDashboard} onCheckedChange={(checked) => setDrafts((prev) => ({ ...prev, goals: { ...prev.goals, showGoalsOnDashboard: checked } }))} />
             <SaveBar {...saveProps('goals')} />
           </SettingsCard>
         );
@@ -1438,7 +1438,7 @@ function sectionLabel(section: SettingsSectionKey) {
 }
 
 const STAGE_COLOR_ROWS: Array<{ key: StageColorKey; stage: string; pages: string }> = [
-  { key: 'encounter', stage: 'Notice', pages: 'Library, Sources, Annotations, Today' },
+  { key: 'encounter', stage: 'Notice', pages: 'Library, Sources, Annotations, My Desk' },
   { key: 'outline', stage: 'Outline', pages: 'Concepts' },
   { key: 'examine', stage: 'Examine', pages: 'Inquiries' },
   { key: 'claim', stage: 'Stand', pages: 'Positions' },

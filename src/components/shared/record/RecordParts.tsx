@@ -1,10 +1,11 @@
 "use client";
 
 import React from 'react';
-import { Compass, Hammer } from 'lucide-react';
+import { Compass, Hammer, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { useSectionDisclosure } from '@/components/shared/SectionDisclosure';
 
 /**
  * Two named places on every record page.
@@ -16,22 +17,26 @@ import { Badge, type BadgeTone } from '@/components/ui/badge';
  * leave you guessing which of the two you are in.
  */
 export function ToolsBand({ children, note = 'For you, not for Noesis. What you write here is saved to this record.' }: { children: React.ReactNode; note?: string }) {
+  const { toggle, body } = useSectionDisclosure('thinking tools');
   return (
     <section className="noesis-tools" aria-label="Thinking tools">
       <div className="noesis-tools__head">
-        <Eyebrow as="h2"><Compass className="size-3.5" aria-hidden="true" /> Thinking tools</Eyebrow>
+        <div className="flex items-center justify-between gap-2">
+          <Eyebrow as="h2"><Compass className="size-3.5" aria-hidden="true" /> Thinking tools</Eyebrow>
+          {toggle}
+        </div>
         <p>{note}</p>
       </div>
-      <div className="noesis-tools__row">{children}</div>
+      <div {...body}><div className="noesis-tools__row">{children}</div></div>
     </section>
   );
 }
 
 /** One tool: a button that opens in place, so the page never changes under you. */
-export function Tool({ label, icon: Icon, disabled, children }: { label: string; icon?: React.ComponentType<{ className?: string }>; disabled?: boolean; children: React.ReactNode }) {
+export function Tool({ label, icon: Icon, disabled, tone, children }: { label: string; icon?: React.ComponentType<{ className?: string }>; disabled?: boolean; tone?: BadgeTone; children: React.ReactNode }) {
   return (
     <details className="noesis-tool">
-      <summary><Button asChild variant="secondary" size="sm" disabled={disabled}><span>{Icon && <Icon className="size-3.5" aria-hidden="true" />} {label}</span></Button></summary>
+      <summary><Button asChild variant="secondary" size="sm" disabled={disabled} tone={tone}><span>{Icon && <Icon className="size-3.5" aria-hidden="true" />} {label}</span></Button></summary>
       <div className="noesis-fold__body">{children}</div>
     </details>
   );
@@ -46,7 +51,7 @@ export function BenchBand({ note }: { note: string }) {
   );
 }
 
-export interface ConnectionItem { id: string; label: string; meta?: string; onOpen?: () => void }
+export interface ConnectionItem { id: string; label: string; meta?: string; manuallyLinked?: boolean; onOpen?: () => void }
 export interface ConnectionGroup { type: string; tone: BadgeTone; items: ConnectionItem[]; empty?: string; action?: React.ReactNode }
 
 /**
@@ -73,6 +78,7 @@ export function Connections({ groups }: { groups: ConnectionGroup[] }) {
                       ? <Button variant="link" size="sm" onClick={item.onOpen}>{item.label}</Button>
                       : <span>{item.label}</span>}
                     {item.meta && <small>{item.meta}</small>}
+                    {item.manuallyLinked && <Badge tone="neutral" icon={<Link2 className="size-3" />}>Linked</Badge>}
                   </li>
                 ))}
               </ul>

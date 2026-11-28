@@ -615,7 +615,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
     ? NOESIS_PAGE_BY_VIEW[activeMobileMoreItem.id as keyof typeof NOESIS_PAGE_BY_VIEW]
     : null;
   const mobilePrimaryNav = [
-    { id: 'home', label: 'Today', icon: iconForNoesisView('home'), view: 'home' },
+    { id: 'home', label: NOESIS_PAGE_BY_VIEW.home.title, icon: iconForNoesisView('home'), view: 'home' },
     { id: 'library', label: 'Library', icon: iconForNoesisView('library'), view: 'library' },
     { id: 'questions', label: 'Inquiries', icon: iconForNoesisView('questions'), view: 'questions' },
     { id: 'vault', label: 'Positions', icon: iconForNoesisView('vault'), view: 'vault' },
@@ -974,7 +974,7 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
           {children}
           {loopNav && (
             <div className="noesis-proto-topbar">
-              <button type="button" className="noesis-proto-brand" onClick={() => handleNavChange('home')} aria-label="Noesis, go to Today">Noesis.</button>
+              <button type="button" className="noesis-proto-brand" onClick={() => handleNavChange('home')} aria-label={`Noesis, go to ${NOESIS_PAGE_BY_VIEW.home.title}`}>Noesis.</button>
               <button type="button" className="noesis-proto-profile" onClick={onOpenProfile || (() => handleNavChange('profile'))}>Profile</button>
             </div>
           )}

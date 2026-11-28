@@ -59,7 +59,7 @@ export const THOUGHT_GAME_KIND_LABELS: Record<ThoughtGameKind, string> = {
 };
 
 export const THOUGHT_GAME_TYPES = {
-  inquiry: { label: 'Question the Question', hint: 'Find the hidden premise in an inquiry.', kinds: ['question_assumption'] },
+  inquiry: { label: 'Question the Question', hint: 'Rewrite an inquiry so it leaves more than one possibility open.', kinds: ['question_assumption'] },
   definition: { label: 'Define It', hint: 'Recall definitions and test their boundaries.', kinds: ['define_it', 'boundary_sort', 'counterexample', 'not_same_as', 'odd_one_out', 'bridge'] },
   position: { label: 'Test a Position', hint: 'Examine the evidence and assumptions behind a view.', kinds: ['confidence_calibration', 'assumption_hunt', 'steelman', 'tension_test', 'why_chain'] },
   source: { label: 'Source Detective', hint: 'Recall what a source said and where an idea came from.', kinds: ['source_recall', 'whose_words', 'who_argued_it'] },
@@ -80,7 +80,7 @@ export const THOUGHT_GAME_KIND_HINTS: Record<ThoughtGameKind, string> = {
   steelman: 'Best case against your own position.',
   boundary_sort: 'Inside the concept or outside it?',
   whose_words: 'Your words or a source\u2019s?',
-  question_assumption: 'What is the question assuming?',
+  question_assumption: 'Spot what the wording takes for granted.',
   not_same_as: 'Name the neighbour and the difference.',
   odd_one_out: 'Which concept doesn\u2019t belong?',
   bridge: 'Connect two distant concepts.',
@@ -102,6 +102,7 @@ export interface ThoughtGame {
   options?: string[];
   answer?: string;
   reveal: string;
+  savedNotes?: string[];
   sourceLabel: string;
   /** The record this exercise is about. An empty targetId opens the page itself. */
   target: { view: NoesisView; targetId: string };
@@ -168,12 +169,11 @@ export function buildInquiryExercise(inquiry: Question): ThoughtGame {
     id: `question-assumption:${inquiry.id}`,
     kind: 'question_assumption',
     label: 'Question the Question',
-    title: 'What is this question already assuming?',
-    instruction: 'Name one premise built into the wording. Nothing is saved to the inquiry.',
+    title: 'Does this question take anything for granted?',
+    instruction: 'Pick one word or phrase that points toward an answer. Rewrite the question to leave that possibility open. If the wording already feels open, say why.',
     prompt: inquiry.text,
-    reveal: inquiry.assumptions?.length
-      ? `You previously recorded: ${inquiry.assumptions.join(' • ')}`
-      : 'No assumptions are recorded yet. Open the inquiry if this exercise uncovered one worth keeping.',
+    reveal: 'For example, "Why do I avoid conflict?" takes for granted that I avoid it. "When do I avoid conflict, and when do I face it?" leaves both possibilities open. Check whether your rewrite lets different answers be true.',
+    savedNotes: distinct(inquiry.assumptions || []),
     sourceLabel: inquiry.text,
     target: { view: 'questions', targetId: inquiry.id },
   };
@@ -237,7 +237,7 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
       kind: 'assumption_hunt',
       label: 'Assumption Hunt',
       title: 'What must be true for this position to hold?',
-      instruction: 'Name the premise doing the most hidden work, then compare it with what you previously recorded.',
+      instruction: 'Finish this sentence with one idea: "This claim depends on ___ being true." Then compare it with your saved assumptions.',
       prompt: position.statement || position.title,
       reveal: `Recorded assumption${assumptions.length === 1 ? '' : 's'}: ${assumptions.join(' • ')}`,
       sourceLabel: position.title || 'Recorded position',
@@ -246,18 +246,23 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
   });
 
   rotate(activePositions, `${dayKey}:confidence`).slice(0, 2).forEach((position) => {
-    const supporting = (position.evidenceFor?.length || 0) + (position.sourceIds?.length || 0);
-    const challenging = position.evidenceAgainst?.length || 0;
-    const assumptions = position.assumptions?.length || 0;
+    const supporting = distinct(position.evidenceFor || []);
+    const challenging = distinct(position.evidenceAgainst || []);
     games.push({
       id: `confidence:${position.id}`,
       kind: 'confidence_calibration',
       label: 'Confidence Calibration',
-      title: 'Does the recorded confidence fit the recorded support?',
-      instruction: 'Make a judgment before seeing the evidence count. Your choice will not change the Position.',
+      title: 'How sure would you be of this claim?',
+      instruction: 'Compare your first impression with the saved confidence. Then look at one reason for and one reason against, where available.',
       prompt: `${position.statement || position.title} — ${Math.round(position.confidence)}% confidence`,
       options: ['Confidence may be high', 'Confidence seems proportionate', 'Confidence may be low', 'Not enough context'],
-      reveal: `${supporting} supporting reference${supporting === 1 ? '' : 's'}, ${challenging} recorded challenge${challenging === 1 ? '' : 's'}, and ${assumptions} explicit assumption${assumptions === 1 ? '' : 's'}. Counts do not settle the claim, but they make the confidence easier to inspect.`,
+      reveal: [
+        supporting[0] && `Recorded support: ${supporting[0]}`,
+        challenging[0] && `Recorded challenge: ${challenging[0]}`,
+        supporting.length || challenging.length
+          ? 'Does what you read change your first impression? What would you check next?'
+          : 'There are no saved reasons for or against this claim. What is one observation that would change how sure you are?',
+      ].filter(Boolean).join('\n'),
       sourceLabel: position.title || 'Recorded position',
       target: { view: 'vault', targetId: position.id },
     });
@@ -403,12 +408,12 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
       id: `odd-one-out:${seed.id}:${outsider.id}`,
       kind: 'odd_one_out',
       label: 'Odd One Out',
-      title: 'Which concept doesn\u2019t belong?',
-      instruction: 'Pick the one that does not fit with the others, then see how your Atlas connects them.',
+      title: 'Which concept has no recorded link to the others?',
+      instruction: 'Guess based on the links in your Atlas, not just which words seem related.',
       prompt: rotate([...trio, outsider].map((item) => item.name), `${dayKey}:odd:prompt`).join(' \u00b7 '),
       options: rotate([...trio, outsider].map((item) => item.name), `${dayKey}:odd:options`),
       answer: outsider.name,
-      reveal: `${trio.map((item) => item.name).join(', ')} are linked in your Atlas. ${outsider.name} links to none of them: maybe a gap worth an inquiry, not a mistake.`,
+      reveal: `${seed.name} links to ${group.map((item) => item.name).join(' and ')} in your Atlas. ${outsider.name} has no recorded link to any of them. That does not mean the ideas are unrelated.`,
       sourceLabel: 'Your concepts',
       target: { view: 'concepts', targetId: outsider.id },
     });
@@ -469,23 +474,6 @@ export function buildThoughtGames({ concepts, inquiries, positions, media, links
       reveal: card.reveal,
       sourceLabel: 'General knowledge',
       target: { view: card.then, targetId: '' },
-    });
-  }
-
-  const inquiryFallback = rotate(inquiries.filter((inquiry) => !['resolved', 'archived'].includes(inquiry.status)), `${dayKey}:inquiries`)[0];
-  if (!games.some((game) => thoughtGameFamily(game.kind) === 'records') && inquiryFallback) {
-    games.push({
-      id: `assumption-hunt:inquiry:${inquiryFallback.id}`,
-      kind: 'assumption_hunt',
-      label: 'Assumption Hunt',
-      title: 'What is this question already assuming?',
-      instruction: 'Name one premise built into the wording. Nothing is saved until you choose to work on the Inquiry.',
-      prompt: inquiryFallback.text,
-      reveal: inquiryFallback.assumptions?.length
-        ? `You previously recorded: ${inquiryFallback.assumptions.join(' • ')}`
-        : 'No assumptions are recorded yet. Open the Inquiry if this exercise uncovered one worth keeping.',
-      sourceLabel: inquiryFallback.text,
-      target: { view: 'questions', targetId: inquiryFallback.id },
     });
   }
 

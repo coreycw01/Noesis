@@ -1,6 +1,7 @@
 import type { AiReviewResult } from './contextual-ai';
-import { acceptedTextHash, type AiProvenanceRecord } from './ai-provenance';
+import { acceptedTextHash, aiCreationPrompt, type AiProvenanceRecord, type ProvenanceRef } from './ai-provenance';
 import { inquiryExperimentSetup } from './inquiry-state';
+import type { Practice } from './types';
 
 export type DeskFindingType = 'position' | 'inquiry' | 'practice';
 export type DeskFindingTarget = { type: DeskFindingType; id: string };
@@ -15,6 +16,15 @@ export function deskExperimentId(reviewId?: string) {
 
 export function isDeskFindingTarget(record: { type: string; id: string }): record is DeskFindingTarget {
   return record.type === 'position' || record.type === 'inquiry' || record.type === 'practice';
+}
+
+export function deskExperimentCreationRef(practice: Pick<Partial<Practice>, 'id' | 'creationProvenance' | 'contextDeskFindings'>): ProvenanceRef | undefined {
+  if (practice.creationProvenance) return practice.creationProvenance;
+  const reviewId = practice.id?.slice('desk-experiment-'.length) || '';
+  if (!practice.id?.startsWith('desk-experiment-') || !REVIEW_ID.test(reviewId)) return;
+  const prefix = `desk-finding-${reviewId}-`;
+  const origin = practice.contextDeskFindings?.find(finding => finding.id.startsWith(prefix) && /^[a-f0-9]{16}$/.test(finding.id.slice(prefix.length)));
+  return origin && { kind: 'ai-assisted', provenanceId: origin.id };
 }
 
 export async function prepareDeskFinding(uid: string, target: DeskFindingTarget, result: AiReviewResult, edited: string, records: ReadonlyArray<{ type: string; id: string }>, acceptedAt: unknown, experiment?: DeskExperiment) {
@@ -35,6 +45,7 @@ export async function prepareDeskFinding(uid: string, target: DeskFindingTarget,
     origin: { feature: 'context_desk', action: result.action },
     sourceActionId: id, generatedAt: result.generatedAt, acceptedAt,
     precursor: result.content.slice(0, 32_000) || null,
+    ...(newExperiment ? aiCreationPrompt(result) : {}),
     acceptedTextHash: await acceptedTextHash(content),
     contextRefs: records.map(({ type, id }) => ({ type, id })),
   };
@@ -44,6 +55,7 @@ export async function prepareDeskFinding(uid: string, target: DeskFindingTarget,
     description: '', durationMode: 'repeated' as const, durationDays: 7, startDate: '', endDate: '',
     sourceIds: linkedIds('source'), questionIds: linkedIds('inquiry'), positionIds: linkedIds('position'), conceptTags: [], draftIds: [],
     notes: '', logs: [], logDates: [], dateCreated: finding.date, dateUpdated: finding.date, contextDeskFindings: [finding],
+    creationProvenance: { kind: 'ai-assisted' as const, provenanceId: id },
   } : null;
   return { finding, origin, practice };
 }
