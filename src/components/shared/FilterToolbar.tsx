@@ -109,8 +109,13 @@ export function FilterToolbar({
     : activeFilterLabels.map((label) => ({ id: label, label }));
   return (
     <section aria-label="Page filters and search" className={cn('sticky top-0 z-20 mb-5 border-b border-border/30 bg-background/95 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:mb-7', className)}>
-      <div className={cn('flex min-h-10 items-center gap-2 sm:flex-wrap', viewControlMobileRow ? 'flex-wrap' : 'flex-nowrap')}>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      {/* On a phone the search, the filters and the sort were all held on one
+          line, which squeezed the field to about 80px and pushed the controls
+          onto it — on Annotations they overlapped outright. Search takes a row
+          of its own below sm and the controls wrap under it; from sm up this
+          is the single row it always was. */}
+      <div className={cn('flex min-h-10 flex-wrap items-center gap-2')}>
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
           {typeof search === 'string' && onSearchChange && (
           <div className="relative min-w-0 flex-1 md:max-w-xl">
             <label htmlFor={searchId} className="sr-only">{searchLabel}</label>
