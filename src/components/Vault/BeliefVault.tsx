@@ -14,7 +14,7 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import { DeskFindings } from '@/components/ai/DeskFindings';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
-import { PositionArch } from '@/components/Vault/PositionArch';
+import { PositionArch, PositionAssumptions } from '@/components/Vault/PositionArch';
 import { PositionScopeTool } from '@/components/Vault/PositionScopeTool';
 import { PositionHandoffs } from '@/components/Vault/PositionHandoffs';
 import { AlertTriangle, ArrowLeft, CalendarRange, Gauge, ScanLine, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
@@ -422,6 +422,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [savingStress, setSavingStress] = useState(false);
   const stressSaveLock = useRef(false);
   const [revisionReason, setRevisionReason] = useState('');
+  const [workbenchTab, setWorkbenchTab] = useState<{ positionId: string; tab: string }>();
+  const [assumptionPreview, setAssumptionPreview] = useState<{ key: string; pulled: ReadonlySet<number> }>();
   const [positionHistoryFilter, setPositionHistoryFilter] = useState<PositionHistoryRange & { positionId: string }>();
   const [stressStageIndex, setStressStageIndex] = useState(0);
   const [tensionDrawerOpen, setTensionDrawerOpen] = useState(false);
@@ -1092,28 +1094,56 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         </RecordSection>
     );
 
+    const linkedGroundRow = (link: PhilosophicalLink) => (
+      <p key={link.id} className="my-2 break-words text-sm">
+        <Badge shape="rule" className="mr-2">Linked</Badge>
+        <strong>{link.fromLabel || 'Linked record'}:</strong> {link.note}
+      </p>
+    );
+    const assumptions = selected.assumptions || [];
+    const assumptionKey = JSON.stringify([selected.id, assumptions]);
+    const pulled = assumptionPreview?.key === assumptionKey ? assumptionPreview.pulled : new Set<number>();
+    const toggleAssumption = (index: number) => setAssumptionPreview(current => {
+      const next = new Set(current?.key === assumptionKey ? current.pulled : []);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return { key: assumptionKey, pulled: next };
+    });
+
     const groundsPanel = (
-        <RecordSection id="pos-grounds" title="Grounds" description="What supports it, and what pushes against it. Add as you find them." here={hereId === 'pos-grounds'}>
+        <RecordSection id="pos-grounds" title="Grounds and assumptions" here={hereId === 'pos-grounds'}>
           <DeskFindings type="position" id={selected.id} findings={selected.contextDeskFindings} />
           <div className="noesis-step__cols noesis-step__cols--even">
-            <div data-tone="practice">
+            <div data-tone="practice" className="min-w-0">
               <Eyebrow tone="practice">Support</Eyebrow>
-              <div className="mt-1.5">{supportItems.map((text, index) => groundRow(text, 'for', index))}</div>
-              {linkedGrounds.for.map((link) => <p key={link.id} className="my-2 break-words text-sm"><strong>{link.fromLabel || 'Linked record'}:</strong> {link.note}</p>)}
+              {!!(supportItems.length || linkedGrounds.for.length) && (
+                <div className="noesis-position-ground-list mt-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" tabIndex={0} role="region" aria-label="Recorded support">
+                  {supportItems.map((text, index) => groundRow(text, 'for', index))}
+                  {linkedGrounds.for.map(linkedGroundRow)}
+                </div>
+              )}
               {!supportCount && <SectionEmpty title="None yet." />}
               {linkedSources.length > 0 && <p className="mt-1 text-xs text-muted-foreground">Related sources are listed in Connections. A link counts here only when it records how the source bears on this claim.</p>}
               <form className="noesis-add" onSubmit={addGround('for')}><Input placeholder="Add support" aria-label="Add support" className="h-9" /><Button type="submit" variant="secondary" tone="practice">Add</Button></form>
               <Button variant="link" size="sm" onClick={() => setPullSide('for')}>⇣ Pull from your workspace</Button>
             </div>
-            <div data-tone="position">
-              <Eyebrow tone="position">Challenges</Eyebrow>
-              <div className="mt-1.5">{challengeItems.map((text, index) => groundRow(text, 'against', index))}</div>
-              {linkedGrounds.against.map((link) => <p key={link.id} className="my-2 break-words text-sm"><strong>{link.fromLabel || 'Linked record'}:</strong> {link.note}</p>)}
+            <div data-tone="challenge" className="min-w-0">
+              <Eyebrow tone="challenge">Challenges</Eyebrow>
+              {!!(challengeItems.length || linkedGrounds.against.length) && (
+                <div className="noesis-position-ground-list mt-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" tabIndex={0} role="region" aria-label="Recorded challenges">
+                  {challengeItems.map((text, index) => groundRow(text, 'against', index))}
+                  {linkedGrounds.against.map(linkedGroundRow)}
+                </div>
+              )}
               {!challengeCount && <SectionEmpty title="None yet." hint="Add an objection or counterexample you already know about." />}
-              <form className="noesis-add" onSubmit={addGround('against')}><Input placeholder="Add a challenge" aria-label="Add a challenge" className="h-9" /><Button type="submit" variant="secondary" tone="position">Add</Button></form>
+              <form className="noesis-add" onSubmit={addGround('against')}><Input placeholder="Add a challenge" aria-label="Add a challenge" className="h-9" /><Button type="submit" variant="secondary" tone="challenge">Add</Button></form>
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
           </div>
+          <PositionAssumptions key={assumptionKey} assumptions={assumptions} pulled={pulled} onToggle={toggleAssumption}
+            onSave={next => saveWorkspace({ assumptions: next })} />
+          {pulled.size > 0 && <Button type="button" variant="link" size="sm" className="lg:hidden"
+            onClick={() => setWorkbenchTab({ positionId: selected.id, tab: 'calibrate' })}>View arch preview</Button>}
           <PositionWorkspaceText key={`${selected.id}:reconsider`} label="What would change your mind?" value={selected.falsification || ''} placeholder="What future finding or result would make you revise the claim?" onSave={falsification => saveWorkspace({ falsification })} />
           <PositionWorkspaceField key={`${selected.id}:sources`} label="Linked sources" value={selected.sourceIds || []} onSave={sourceIds => saveWorkspace({ sourceIds })}
             renderEditor={(sourceIds, setSourceIds) => <SourceLinker media={media} selectedIds={sourceIds} onToggle={id => setSourceIds(sourceIds.includes(id) ? sourceIds.filter(sourceId => sourceId !== id) : [...sourceIds, id])} />} />
@@ -1123,7 +1153,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     );
 
     const calibration = (
-      <>
         <RecordSection id="pos-calibrate" title="Calibrate" here={hereId === 'pos-calibrate'}>
           <CalibrationBar
             stated={statedPercent}
@@ -1148,14 +1177,22 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </div>
           </details>
           <PositionArch
-            key={JSON.stringify([selected.id, selected.assumptions])}
             className="my-4"
-            assumptions={selected.assumptions || []}
-            confidence={statedPercent}
+            assumptions={assumptions}
+            pulled={pulled}
             supportCount={supportCount}
             challengeCount={challengeCount}
-            onSaveAssumptions={assumptions => saveWorkspace({ assumptions })}
           />
+          <details className="noesis-fold mt-3">
+            <summary><span>Confidence over time</span></summary>
+            <div className="noesis-fold__body">
+              <div className="mb-2 flex items-center justify-end gap-1">
+                {historyDates}
+                <InstrumentHelp instrument="confidenceHistory" />
+              </div>
+              <ConfidenceHistoryChart key={rangeKey} entry={selected} range={range} invalidRange={invalidRange} />
+            </div>
+          </details>
           {result && (
             <dl className="mt-4 space-y-3 border-l border-border pl-3 text-sm">
               <div>
@@ -1171,15 +1208,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
             </dl>
           )}
         </RecordSection>
-        <RecordSection id="confidence-history" title="Confidence over time" aside={
-          <div className="flex items-center gap-1">
-            {historyDates}
-            <InstrumentHelp instrument="confidenceHistory" />
-          </div>
-        }>
-          <ConfidenceHistoryChart key={rangeKey} entry={selected} range={range} invalidRange={invalidRange} />
-        </RecordSection>
-      </>
     );
 
     const positionHistory = [...(selected.versionHistory || [])].sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0));
@@ -1211,7 +1239,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               {currentScope && currentScope.verdict !== 'holds' && (
                 <Button type="button" variant="link" size="sm" onClick={() => {
                   setRevisionReason(previous => previous.includes(scopeNote) ? previous : [previous.trim(), scopeNote].filter(Boolean).join('\n\n'));
-                  document.getElementById('position-revision-reason')?.focus();
+                  setWorkbenchTab({ positionId: selected.id, tab: 'revise' });
+                  window.requestAnimationFrame(() => document.getElementById('position-revision-reason')?.focus());
                 }}>Use in revision</Button>
               )}
             </div>
@@ -1276,10 +1305,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
 
         <ItemWorkspace key={selected.id} history={history}>
         <p className="mb-3 text-sm text-muted-foreground">{guide}</p>
-        <InstrumentWorkbench key={selected.id} label="Position workbench" defaultValue="calibrate"
-          stops={[{ id: 'claim', label: 'Claim' }, { id: 'calibrate', label: 'Calibrate' }, { id: 'grounds', label: 'Grounds' }, { id: 'revise', label: 'Revise' }]}
-          primary={['calibrate']} secondary={['grounds', 'claim', 'revise']}
-          panels={{ calibrate: calibration, grounds: groundsPanel, claim: <>{claim}{tools}</>, revise }} />
+        <InstrumentWorkbench key={selected.id} label="Position workbench" layout="rows"
+          value={workbenchTab?.positionId === selected.id ? workbenchTab.tab : 'claim'}
+          onValueChange={tab => setWorkbenchTab({ positionId: selected.id, tab })}
+          stops={[{ id: 'claim', label: 'Claim' }, { id: 'tools', label: 'Thinking tools' }, { id: 'grounds', label: 'Grounds' }, { id: 'calibrate', label: 'Calibrate' }, { id: 'revise', label: 'Revise' }]}
+          primary={['claim', 'grounds', 'revise']} secondary={['tools', 'calibrate']}
+          panels={{ claim, tools, grounds: groundsPanel, calibrate: calibration, revise }} />
         <RecordLinkPicker records={linkableRecords.filter(item => !referenceTargets.has(`${item.type}:${item.id}`))}
           description="Add a reference without counting it as support or a challenge."
           onLink={async (record) => {
