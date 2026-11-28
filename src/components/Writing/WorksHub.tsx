@@ -7,7 +7,6 @@ import {
   Camera,
   CirclePlay,
   Cloud,
-  FileText,
   Mic,
   MoreVertical,
   NotebookPen,
@@ -27,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { PageHeader } from '@/components/shared/PageHeader';
 import type { Draft, DraftStatus, DraftType, Media, Question, UserPreferences, VaultEntry, WorkCategory, WritingStyle } from '@/lib/types';
@@ -37,6 +36,7 @@ import { compareLatestWorkTimestamp, workTimestamp } from '@/lib/work-activity';
 import { cn } from '@/lib/utils';
 import { usePrivateAssetUrl } from '@/hooks/use-private-asset-url';
 import { StageBadge } from '@/components/shared/StageBadge';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
 
 type HubCategory = WorkCategory | 'all';
 type HubStatus = 'all' | 'needs_revision' | 'external_docs' | DraftStatus;
@@ -63,7 +63,7 @@ const CATEGORIES: Array<{ value: HubCategory; label: string }> = [
 
 const STATUS_OPTIONS: Array<{ value: HubStatus; label: string }> = [
   { value: 'all', label: 'All statuses' },
-  { value: 'needs_revision', label: 'Needs revision' },
+  { value: 'needs_revision', label: 'In revision' },
   { value: 'external_docs', label: 'External documents' },
   { value: 'drafting', label: 'Drafting' },
   { value: 'final', label: 'Final' },
@@ -101,7 +101,7 @@ function wordCount(draft: Draft) {
 }
 
 function isNeedsRevision(draft: Draft) {
-  return ['rough', 'drafting', 'developing', 'revising', 'revised'].includes(draft.status);
+  return draft.status === 'revising';
 }
 
 function updatedLabel(date?: string) {
@@ -132,7 +132,7 @@ function workIcon(draft: Draft) {
   const category = draft.workCategory || workCategoryForDraft(draft.type);
   if (draft.type === 'voice_note' || draft.type === 'talk_to_text') return Mic;
   if (draft.type === 'recording') return Video;
-  if (category === 'writing') return FileText;
+  if (category === 'writing') return NOESIS_ICONS.work;
   if (category === 'drawing') return PencilLine;
   if (category === 'recording') return CirclePlay;
   return NotebookPen;
@@ -301,7 +301,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
         description="Develop ideas through documents, notes, recordings, and visual thinking on the page."
         meta={(
           <span className="noesis-eyebrow font-bold text-muted-foreground">
-            {counts.total} {counts.total === 1 ? 'work' : 'works'} · {counts.writing} {counts.writing === 1 ? 'writing' : 'writings'} · {counts.notes} {counts.notes === 1 ? 'note' : 'notes'} · {counts.revision} {counts.revision === 1 ? 'needs' : 'need'} revision
+            {counts.total} {counts.total === 1 ? 'work' : 'works'} · {counts.writing} {counts.writing === 1 ? 'writing' : 'writings'} · {counts.notes} {counts.notes === 1 ? 'note' : 'notes'} · {counts.revision} in revision
           </span>
         )}
         actions={(
@@ -316,6 +316,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
         onSearchChange={setSearch}
         searchPlaceholder="Search works, concepts, sources..."
         resultCount={visibleDrafts.length}
+        sortControl={<SortPill label="Sort works" value={sort} onChange={setSort} options={[{ value: 'activity', label: 'Current activity' }, { value: 'created', label: 'Date created' }, { value: 'title', label: 'Alphabetical' }]} />}
         resultLabel="works"
         activeFilterLabels={activeFilterLabels}
         onClear={clearFilters}
@@ -337,16 +338,6 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
           </SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map((item) => <SelectItem key={item.value} value={item.value} className="noesis-eyebrow">{item.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={sort} onValueChange={(value) => setSort(value as HubSort)}>
-          <SelectTrigger className="h-9 w-32 rounded-full border-border/50 bg-card noesis-eyebrow noesis-eyebrow--sm shadow-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="activity" className="noesis-eyebrow">Current activity</SelectItem>
-            <SelectItem value="created" className="noesis-eyebrow">Date created</SelectItem>
-            <SelectItem value="title" className="noesis-eyebrow">Title</SelectItem>
           </SelectContent>
         </Select>
       </FilterToolbar>
@@ -508,7 +499,7 @@ export function WorksHub({ drafts, media, vault, questions, writingDefaults, onA
             return (
               <Card
                 key={draft.id}
-                className="group relative overflow-hidden rounded-md border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20"
+                className="group relative self-start overflow-hidden rounded-md border-border/60 bg-card transition-colors hover:border-accent/50 hover:bg-muted/20"
               >
                 <div className={cn('flex gap-4', view === 'cards' ? 'flex-col' : 'items-start p-3')}>
                   {view === 'cards' && hasVisualPreview && (

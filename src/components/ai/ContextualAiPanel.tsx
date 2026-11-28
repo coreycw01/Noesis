@@ -2,12 +2,10 @@
 
 import { Fragment, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
-import { MAX_DESK_ITEMS } from '@/lib/saved-context-desks';
-import { addContextDeskSelection, contextDeskStorageKeys, normalizeContextDeskSelection } from '@/lib/context-desk-selection';
-import { navigateWorkspace } from '@/lib/workspace-navigation';
+import { CONTEXT_DESK_TYPES } from '@/lib/saved-context-desks';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
-import { ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCopy, Eye, Layers3, LayoutList, Loader2, Pencil, RotateCcw, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowLeft, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCopy, Eye, EyeOff, LayoutList, Loader2, Pencil, RotateCcw, X } from 'lucide-react';
+import { Button, IconButton } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,18 +13,30 @@ import { useToast } from '@/hooks/use-toast';
 import { requestContextualAi } from '@/lib/contextual-ai-client';
 import { AI_USER_PROMPT_LIMIT, boundedAiContext, CONTEXTUAL_AI_LABELS, CONTEXTUAL_AI_REVIEW, CONTEXTUAL_AI_SUGGESTED_PROMPTS, parseAiReviewItems, serializeAiReviewItems, type AiContextEnvelope, type AiReviewResult, type ContextualAiAction } from '@/lib/contextual-ai';
 import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
+import { ContextDeskFiling } from '@/components/ai/ContextDeskFiling';
+import { AssistanceHistory, useSaveExchange } from './AssistanceHistory';
+import { assistanceExchange, challengeClarification } from '@/lib/assistance-exchange';
+import type { AiAssistedHistoryEntry } from '@/lib/types';
+import { aiExcerptKey, contextualPromptCopy, prepareReviewedAiContext, type MemoryGroup } from '@/lib/contextual-ai-preview';
+
+type IncludedAiContext = ReturnType<typeof prepareReviewedAiContext>['included'];
 
 export interface ContextualAiPanelProps {
+  itemHistory?: readonly AiAssistedHistoryEntry[];
   actions: ContextualAiAction[];
   buildEnvelope: (action: ContextualAiAction, userPrompt?: string) => AiContextEnvelope | null;
   enabled?: boolean;
   showContextBeforeSending?: boolean;
   reasoningDepth?: 'light' | 'standard' | 'deep';
-  onAccept?: (result: AiReviewResult, editedContent: string) => void | Promise<void>;
-  acceptDestination?: ReactNode;
+  onAccept?: (result: AiReviewResult, editedContent: string, included: IncludedAiContext) => void | Promise<void>;
+  acceptDestination?: ReactNode | ((included: IncludedAiContext) => ReactNode);
   acceptLabel?: string;
   reviewContextKey?: string;
+  deskRecordKeys?: readonly string[];
   buttonLabel?: string;
+  iconOnly?: boolean;
+  showDeskFiling?: boolean;
+  actionPromptLabel?: string;
   promptLabel?: string;
   promptPlaceholder?: string;
   /**
@@ -123,6 +133,7 @@ const AI_DEPTHS: Array<{ id: AiDepth; label: string; hint: string }> = [
 ];
 
 export function ContextualAiPanel({
+  itemHistory,
   actions,
   buildEnvelope,
   enabled = true,
@@ -132,7 +143,11 @@ export function ContextualAiPanel({
   acceptDestination,
   acceptLabel,
   reviewContextKey,
+  deskRecordKeys,
   buttonLabel = 'Assistance',
+  iconOnly = false,
+  showDeskFiling = true,
+  actionPromptLabel,
   promptLabel,
   promptPlaceholder = 'Ask a focused question about this item...',
   prompt: controlledPrompt,
@@ -156,6 +171,9 @@ export function ContextualAiPanel({
     pending?.controller.abort();
   }, []);
   const [open, setOpen] = useState(false);
+  const [historyView, setHistoryView] = useState<'assist' | 'exchanges' | 'applied'>('assist');
+  const showHistory = historyView !== 'assist';
+  const saveExchange = useSaveExchange();
   // Move focus into the panel when it opens, so keyboard users land in it.
   useEffect(() => {
     if (!open) return;
@@ -172,19 +190,26 @@ export function ContextualAiPanel({
   const [requestError, setRequestError] = useState('');
   const [accepting, setAccepting] = useState(false);
   const [result, setResult] = useState<AiReviewResult | null>(null);
+  const clarification = challengeClarification(result);
   const [editedContent, setEditedContent] = useState('');
   const [editingResult, setEditingResult] = useState(false);
   const [reviewItems, setReviewItems] = useState<ReviewItemState[]>([]);
   const [reviewMode, setReviewMode] = useState<ReviewWorkspaceMode>('overview');
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [ownPrompt, setOwnPrompt] = useState('');
+  const [hiddenContext, setHiddenContext] = useState<Set<string>>(new Set());
   // Controlled when the surface supplies both halves; its own otherwise.
   const controlled = typeof controlledPrompt === 'string' && typeof onPromptChange === 'function';
   const userPrompt = controlled ? controlledPrompt : ownPrompt;
   const setUserPrompt = controlled ? onPromptChange : setOwnPrompt;
   const promptTooShort = userPrompt.trim().length === 1;
-  const rawEnvelope = useMemo(() => buildEnvelope(action, userPrompt.trim() || undefined), [action, buildEnvelope, userPrompt]);
+  const rawEnvelope = useMemo(() => {
+    const prompt = userPrompt.trim() || undefined;
+    const next = buildEnvelope(action, prompt);
+    return next && { ...next, userPrompt: prompt ?? next.userPrompt };
+  }, [action, buildEnvelope, userPrompt]);
   const envelope = useMemo(() => rawEnvelope ? boundedAiContext(rawEnvelope) : null, [rawEnvelope]);
+  const preview = useMemo(() => envelope ? prepareReviewedAiContext(envelope, hiddenContext, deskRecordKeys) : null, [envelope, hiddenContext, deskRecordKeys]);
   const actionAvailable = enabled && actions.includes(action);
   // Depth can be set per action (remembered on this device); the Settings default applies otherwise.
   const [depthByAction, setDepthByAction] = useState<Partial<Record<ContextualAiAction, AiDepth>>>({});
@@ -202,16 +227,19 @@ export function ContextualAiPanel({
       return next;
     });
   };
-  const request = useMemo(() => envelope && actionAvailable && !promptTooShort ? { ...envelope, reasoningDepth: effectiveDepth } : null, [envelope, effectiveDepth, actionAvailable, promptTooShort]);
+  const request = useMemo(() => preview?.isValid && actionAvailable && !promptTooShort ? { ...preview.envelope, reasoningDepth: effectiveDepth } : null, [preview, effectiveDepth, actionAvailable, promptTooShort]);
   const requestSignature = request ? JSON.stringify([request, reviewContextKey]) : null;
   const reviewIsStale = Boolean(result && (!request || result.targetId !== request.targetId || result.targetType !== request.targetType
     || result.action !== action || reviewedRequest.current !== requestSignature));
   const activeSuggestedPrompts = suggestedPrompts.length ? suggestedPrompts : CONTEXTUAL_AI_SUGGESTED_PROMPTS[action];
-  const contextDeskKey = rawEnvelope && ['source', 'annotation', 'concept', 'inquiry', 'position', 'practice'].includes(rawEnvelope.targetType)
-    ? `${rawEnvelope.targetType}:${rawEnvelope.targetId}`
+  const target = rawEnvelope ?? (actions[0] && buildEnvelope(actions[0]));
+  const promptCopy = target ? contextualPromptCopy[target.targetType] : null;
+  const contextDeskKey = showDeskFiling && target?.targetId && CONTEXT_DESK_TYPES.some(type => type === target.targetType)
+    ? `${target.targetType}:${target.targetId}`
     : null;
 
   const reviewedContent = () => {
+    if (clarification) return '';
     if (!result || !reviewItems.length) return editedContent.trim();
     return serializeAiReviewItems(result.action, reviewItems.filter((item) => (item.status === 'kept' || item.status === 'edited') && item.content.trim()));
   };
@@ -220,6 +248,9 @@ export function ContextualAiPanel({
   const focusedItemIndex = Math.max(0, reviewItems.findIndex((item) => item.id === focusedItemId));
   const focusedItem = reviewItems[focusedItemIndex] || null;
   const reviewItemLabel = result ? CONTEXTUAL_AI_REVIEW[result.action].itemName : 'item';
+  const destinationControl = typeof acceptDestination === 'function'
+    ? preview && !reviewIsStale ? acceptDestination(preview.included) : null
+    : acceptDestination;
 
   useLayoutEffect(() => {
     if (!focusReviewHeading.current) return;
@@ -240,7 +271,8 @@ export function ContextualAiPanel({
     }
   }, [cancelRequest, requestSignature]);
 
-  if (!open && (!enabled || actions.length === 0)) return null;
+  const hasHistoryAccess = itemHistory !== undefined;
+  if (!open && (!enabled || actions.length === 0) && !hasHistoryAccess && !(contextDeskKey && workspaceKey)) return null;
 
   const run = async () => {
     if (!request || !requestSignature || requestRef.current) return;
@@ -256,7 +288,14 @@ export function ContextualAiPanel({
       if (requestRef.current !== pending) return;
       controller.signal.throwIfAborted();
       reviewedRequest.current = requestSignature;
-      setResult({ ...next, reviewId: crypto.randomUUID() });
+      const id = crypto.randomUUID();
+      setResult({ ...next, reviewId: id, userPromptAtGeneration: request.userPrompt });
+      if (itemHistory !== undefined) {
+        void saveExchange(assistanceExchange(request, next, id)).catch(() => toast({
+          variant: 'destructive', title: 'Exchange not saved to assistance history',
+          description: 'The response is still available in this review.',
+        }));
+      }
       setEditedContent(next.content);
       setEditingResult(false);
       const nextItems = parseAiReviewItems(next.action, next.content).map((item, index) => ({
@@ -281,14 +320,15 @@ export function ContextualAiPanel({
 
   const accept = async () => {
     const acceptedContent = reviewedContent();
-    if (!result || !acceptedContent || !onAccept || acceptLock.current) return;
+    if (!result || !acceptedContent || !onAccept || !preview || acceptLock.current) return;
     if (reviewIsStale) return;
     acceptLock.current = true;
     setAccepting(true);
     try {
-      await onAccept(result, acceptedContent);
+      await onAccept(result, acceptedContent, preview.included);
       toast({ title: 'Reviewed result applied', description: 'The reviewed text was applied through this item\'s normal editing flow.' });
-      setOpen(false);
+      if (itemHistory !== undefined) setHistoryView('applied');
+      else setOpen(false);
       setResult(null);
       setReviewItems([]);
       setFocusedItemId(null);
@@ -328,7 +368,9 @@ export function ContextualAiPanel({
   );
 
   const updateReviewItem = (id: string, updates: Partial<ReviewItemState>) => {
-    setReviewItems((current) => current.map((item) => item.id === id ? { ...item, ...updates } : item));
+    const choosingChallenge = result?.action === 'generate_position_counterargument' && (updates.status === 'kept' || updates.status === 'edited');
+    setReviewItems((current) => current.map((item) => item.id === id ? { ...item, ...updates }
+      : choosingChallenge && (item.status === 'edited' || item.status === 'kept') ? { ...item, status: 'unreviewed' } : item));
   };
 
   const focusReviewItem = (id: string, enterFocus = false) => {
@@ -414,6 +456,7 @@ export function ContextualAiPanel({
     setOpen(next);
     if (!next) {
       cancelRequest();
+      setHiddenContext(new Set());
       setRequestError('');
       setResult(null);
       setEditedContent('');
@@ -427,41 +470,36 @@ export function ContextualAiPanel({
     }
   };
 
+  const contextRows = (group: MemoryGroup, lines: string[]) => (
+    <ul className="mt-2 divide-y divide-border/70 text-sm leading-6 text-muted-foreground">
+      {lines.map((line, index) => {
+        const key = aiExcerptKey(group, index, line);
+        const hidden = hiddenContext.has(key);
+        const label = `${group === 'itemMemory' ? 'current' : group === 'linkedMemory' ? 'linked' : 'comparison'} excerpt ${index + 1}`;
+        return (
+          <li key={key} className="flex min-w-0 items-start gap-2 py-1.5">
+            <p className="min-w-0 flex-1 whitespace-pre-wrap break-words py-2">{hidden ? `Excerpt ${index + 1} hidden · not sent` : line}</p>
+            <IconButton type="button" variant="ghost" label={hidden ? `Include ${label}` : `Hide ${label}`} aria-pressed={hidden} disabled={loading || accepting} onClick={() => {
+              setHiddenContext(current => {
+                const next = new Set(current);
+                if (hidden) next.delete(key); else next.add(key);
+                return next;
+              });
+              setRequestError('');
+            }}>{hidden ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}</IconButton>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   return (
     <span className="noesis-aidock-anchor" data-open={open || undefined}>
       <span className="noesis-aidock">
-        <Button variant="outline" size="sm" className="noesis-ai-trigger" aria-haspopup="dialog" aria-expanded={open} onClick={(event) => { dialogOpener.current = event.currentTarget; setOpen(true); }}>
-          <NoesisAiMark className="mr-2 size-5" /> {buttonLabel}
-        </Button>
-        {contextDeskKey && workspaceKey && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-9"
-            aria-label="Add this item to Context Desk"
-            title="Add to Context Desk"
-            onClick={() => {
-              try {
-                const { selection } = contextDeskStorageKeys(workspaceKey);
-                const stored = window.sessionStorage.getItem(selection);
-                let keys: string[] = [];
-                try { keys = normalizeContextDeskSelection(JSON.parse(stored || '[]'), MAX_DESK_ITEMS); } catch { /* Replace malformed selection. */ }
-                const next = addContextDeskSelection(keys, contextDeskKey, MAX_DESK_ITEMS);
-                if (next) window.sessionStorage.setItem(selection, JSON.stringify(next));
-                else toast({ title: 'Context Desk is full', description: 'Remove a selected record before adding this one.' });
-              } catch {
-                toast({ title: 'Could not add to Context Desk', description: 'Open Context Desk and select this item there.', variant: 'destructive' });
-                return;
-              }
-              const route = window.location.pathname.split('/')[1];
-              const prefix = route === 'demo' || route === 'review' ? `/${route}` : '';
-              navigateWorkspace(window.history, `${prefix}/context-desk/`);
-            }}
-          >
-            <Layers3 className="size-4" />
-          </Button>
-        )}
+        {((enabled && actions.length > 0) || hasHistoryAccess) && <Button variant="outline" size={iconOnly ? 'icon' : 'sm'} className={iconOnly ? 'noesis-ai-trigger noesis-ai-trigger--mark' : 'noesis-ai-trigger'} aria-haspopup="dialog" aria-expanded={open} aria-label={iconOnly ? 'Ask Noesis' : undefined} title={iconOnly ? 'Ask Noesis' : undefined} onClick={(event) => { dialogOpener.current = event.currentTarget; setHiddenContext(new Set()); setHistoryView(!enabled ? 'exchanges' : 'assist'); setOpen(true); }}>
+          <NoesisAiMark className={iconOnly ? 'size-5' : 'mr-2 size-5'} /> {!iconOnly && buttonLabel}
+        </Button>}
+        {contextDeskKey && <ContextDeskFiling recordKey={contextDeskKey} />}
       </span>
       <Dialog open={open} onOpenChange={changeOpen}>
         {/* Centred over the page. It used to open anchored under its button,
@@ -484,26 +522,44 @@ export function ContextualAiPanel({
                 )}
                 <NoesisAiMark className="size-9 shrink-0" />
                 <div className="min-w-0">
-                  <DialogTitle className="truncate text-lg sm:text-xl">{result ? 'Context Review' : 'Contextual Assistance'}</DialogTitle>
+                  <DialogTitle className="text-lg sm:text-xl">{historyView === 'exchanges' ? 'Assistance history' : showHistory ? 'Applied to item' : result ? 'Context Review' : 'Contextual Assistance'}</DialogTitle>
                   <DialogDescription className="mt-1 line-clamp-2 text-xs sm:text-sm">
-                    {result ? CONTEXTUAL_AI_REVIEW[result.action].guidance : 'Choose a focused action. You can inspect the context before sending it.'}
+                    {historyView === 'exchanges' ? 'Your questions and the original responses for this item.' : showHistory ? 'AI-assisted material saved to this item.' : result ? CONTEXTUAL_AI_REVIEW[result.action].guidance : hasHistoryAccess ? 'Questions and responses are saved in assistance history. Only what you approve is applied to this item.' : 'Choose a focused action. You can inspect the context before sending it.'}
                   </DialogDescription>
                 </div>
                 <Button type="button" variant="ghost" size="icon" className="ml-auto size-10 shrink-0" aria-label="Close Noesis assistance" onClick={() => changeOpen(false)}>
                   <X className="size-4" aria-hidden="true" />
                 </Button>
               </div>
+              {itemHistory !== undefined && <div className="mt-2 flex flex-wrap gap-1" role="group" aria-label="Item assistance views">
+                <Button type="button" size="sm" variant={showHistory ? 'ghost' : 'secondary'} aria-pressed={!showHistory} disabled={!enabled || accepting} onClick={() => setHistoryView('assist')}>Ask</Button>
+                <Button type="button" size="sm" variant={historyView === 'exchanges' ? 'secondary' : 'ghost'} aria-pressed={historyView === 'exchanges'} disabled={loading || accepting} onClick={() => setHistoryView('exchanges')}>Assistance history</Button>
+                <Button type="button" size="sm" variant={historyView === 'applied' ? 'secondary' : 'ghost'} aria-pressed={historyView === 'applied'} disabled={loading || accepting} onClick={() => setHistoryView('applied')}>Applied to item ({itemHistory.length})</Button>
+              </div>}
             </DialogHeader>
 
-            {staleReviewNotice}
+            {!showHistory && staleReviewNotice}
 
-            {!result ? (
+            {historyView === 'exchanges' ? <section className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+              {target ? <AssistanceHistory itemKey={target.targetType + ':' + target.targetId} /> : <p>No item is selected for this action.</p>}
+            </section> : showHistory && itemHistory !== undefined ? (
+              <section aria-label="Saved AI reviews" className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+                {!itemHistory.length && <p className="text-sm text-muted-foreground">No AI reviews saved to this item yet. Suggestions appear here only after you accept them.</p>}
+                {itemHistory.map(entry => <details key={entry.id} className="border-b border-border py-2">
+                  <summary className="cursor-pointer py-2 text-sm font-semibold">{entry.title} <time dateTime={entry.date} className="ml-2 font-normal text-muted-foreground">{Number.isFinite(Date.parse(entry.date)) ? new Date(entry.date).toLocaleDateString() : entry.date}</time></summary>
+                  <ContextualAiDocument content={entry.content} />
+                </details>)}
+              </section>
+            ) : clarification ? <section className="space-y-3 overflow-y-auto p-5"><h3 className="font-semibold">One question before suggesting challenges</h3>
+              <ContextualAiDocument content={clarification} />
+              <Button onClick={() => { setResult(null); setReviewItems([]); setUserPrompt((userPrompt.trim() + '\n' + clarification + '\nMy response: ').trimStart().slice(0, AI_USER_PROMPT_LIMIT)); requestAnimationFrame(() => document.getElementById(promptId)?.focus()); }}>Add my answer</Button>
+            </section> : !result ? (
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-8">
                 <div className="mx-auto max-w-3xl space-y-5">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground" htmlFor={`${promptId}-action`}>What should Noesis examine?</label>
+                    <label className="text-sm font-medium text-foreground" htmlFor={`${promptId}-action`}>{actionPromptLabel || promptCopy?.action || 'What should Noesis examine?'}</label>
                     <Select value={action} disabled={loading || accepting} onValueChange={(value) => { setAction(value as ContextualAiAction); setResult(null); setReviewItems([]); setFocusedItemId(null); }}>
-                      <SelectTrigger id={`${promptId}-action`} aria-label="Assistance action" className="min-h-11"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id={`${promptId}-action`} className="min-h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {actions.map((item) => <SelectItem key={item} value={item}>{CONTEXTUAL_AI_LABELS[item]}</SelectItem>)}
                       </SelectContent>
@@ -524,16 +580,16 @@ export function ContextualAiPanel({
                           className="noesis-ai-depth__option"
                         >
                           <span className="font-semibold">{option.label}</span>
-                          <span className="text-xs text-muted-foreground">{option.hint}</span>
+                          <span className="text-xs text-muted-foreground">{option.id === 'light' && action === 'generate_position_counterargument' ? 'Brief, unranked alternatives.' : option.hint}</span>
                         </button>
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">Remembered for {CONTEXTUAL_AI_LABELS[action]} on this device. The default is set in Settings.</p>
                   </fieldset>
 
-                  {promptLabel && !controlled && (
+                  {(promptLabel || promptCopy) && !controlled && (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground" htmlFor={promptId}>{promptLabel}</label>
+                      <label className="text-sm font-medium text-foreground" htmlFor={promptId}>{promptLabel || promptCopy?.question}</label>
                       {!!activeSuggestedPrompts.length && (
                         <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Suggested questions">
                           {activeSuggestedPrompts.slice(0, 6).map((prompt) => (
@@ -569,27 +625,21 @@ export function ContextualAiPanel({
                           <p className="mt-2 whitespace-pre-wrap break-words border-l border-border pl-3 text-sm leading-6 text-muted-foreground">{envelope.userPrompt}</p>
                         </div>
                       )}
-                      {(envelope.targetType === 'context_desk' || (rawEnvelope && JSON.stringify(rawEnvelope) !== JSON.stringify(envelope))) && <p className="mt-2 text-xs text-muted-foreground">Only the context excerpts below will be sent.</p>}
+                      <p className="mt-2 text-xs text-muted-foreground">Visible excerpts are included. Hidden excerpts won’t be sent in this request.</p>
                       <div className="mt-3">
                         <div className="text-xs font-medium text-foreground">Current item</div>
-                        <ul className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">
-                          {envelope.itemMemory.map((line, index) => <li key={index} className="whitespace-pre-wrap break-words border-l border-border pl-3">{line}</li>)}
-                        </ul>
+                        {contextRows('itemMemory', envelope.itemMemory)}
                       </div>
                       {envelope.secondaryTarget && (
                         <div className="mt-4">
                           <div className="break-words text-xs font-medium text-foreground">Comparison position: {envelope.secondaryTarget.label}</div>
-                          <ul className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">
-                            {envelope.secondaryTarget.memory.map((line, index) => <li key={index} className="whitespace-pre-wrap break-words border-l border-border pl-3">{line}</li>)}
-                          </ul>
+                          {contextRows('secondaryMemory', envelope.secondaryTarget.memory)}
                         </div>
                       )}
                       {!!envelope.linkedMemory.length && (
                         <details className="mt-4">
                           <summary className="min-h-11 cursor-pointer py-2 text-xs font-medium text-foreground">{envelope.linkedMemory.length} {envelope.targetType === 'context_desk' ? 'additional selected records' : 'linked context excerpts'}</summary>
-                          <ul className="mt-2 space-y-2 text-sm leading-6 text-muted-foreground">
-                            {envelope.linkedMemory.map((line, index) => <li key={index} className="whitespace-pre-wrap break-words border-l border-border pl-3">{line}</li>)}
-                          </ul>
+                          {contextRows('linkedMemory', envelope.linkedMemory)}
                         </details>
                       )}
                     </details>
@@ -600,6 +650,7 @@ export function ContextualAiPanel({
                   )}
 
                   <div className="sticky bottom-0 space-y-2 bg-background py-3">
+                    {preview && !preview.isValid && hiddenContext.size > 0 && <p role="status" className="text-sm text-muted-foreground">Include at least one excerpt from each required part before running this action.</p>}
                     {!enabled && <p role="status" className="text-sm text-muted-foreground">AI assistance is off in Settings.</p>}
                     {requestError && <p role="alert" className="break-words text-sm text-destructive">{requestError}</p>}
                     <div className="flex flex-wrap gap-2">
@@ -667,7 +718,7 @@ export function ContextualAiPanel({
                 </div>
 
                 <div className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
-                  {acceptDestination}
+                  {destinationControl}
                   <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between max-sm:[@media(max-height:600px)]:flex-row max-sm:[@media(max-height:600px)]:flex-wrap max-sm:[@media(max-height:600px)]:justify-between">
                     <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); setReviewItems([]); setFocusedItemId(null); setReviewMode('overview'); }} className="min-h-11 sm:w-auto">
                       <X className="mr-2 size-4" /> Dismiss review
@@ -701,7 +752,7 @@ export function ContextualAiPanel({
                   ) : (
                     <ContextualAiDocument content={editedContent} />
                   )}
-                  {acceptDestination}
+                  {destinationControl}
                   <div className="sticky bottom-0 flex flex-col-reverse gap-2 bg-background py-3 sm:flex-row sm:justify-end">
                     <Button variant="ghost" disabled={accepting} onClick={() => { setResult(null); setEditedContent(''); setEditingResult(false); }} className="min-h-11"><X className="mr-2 size-4" />Dismiss review</Button>
                     {onAccept ? (

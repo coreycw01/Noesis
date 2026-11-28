@@ -10,8 +10,6 @@ import type {
   PhilosophicalLink,
   Practice,
   Question,
-  ThinkingEvent,
-  TimelineEvent,
   Unknown,
   UserProfile,
   VaultEntry,
@@ -20,6 +18,7 @@ import type { NoesisView } from '@/lib/noesis-routes';
 import type { HomeHistoryTarget } from '@/lib/home-history';
 
 export interface HomeRoutePageProps {
+  aiEnabled: boolean;
   profile: UserProfile;
   concepts: Concept[];
   media: Media[];
@@ -27,14 +26,16 @@ export interface HomeRoutePageProps {
   positions: VaultEntry[];
   works: Draft[];
   practices: Practice[];
-  timeline: TimelineEvent[];
-  thinkingEvents: ThinkingEvent[];
   unknowns: Unknown[];
   links: PhilosophicalLink[];
   goal: GoalSettings;
   showCommitments: boolean;
   goalProgress: Partial<Record<MediaType, number>>;
   onCreateInquiry: (data: Partial<Question>) => Promise<Question>;
+  onCreateWork: (data: Partial<Draft>) => Promise<Draft>;
+  onCreatePosition: (data: Partial<VaultEntry>) => Promise<VaultEntry>;
+  onCreateConcept: (data: Partial<Concept>) => Promise<boolean>;
+  onCreatePractice: (data: Partial<Practice>) => Promise<Practice>;
   onUpdatePractice: (practice: Practice) => void | Promise<Practice | void>;
   onNavigate: (view: NoesisView, options?: {
     conceptId?: string | null;
@@ -64,6 +65,7 @@ function routeOptionsForHomeTarget(target: HomeHistoryTarget) {
 }
 
 export function HomeRoutePage({
+  aiEnabled,
   profile,
   concepts,
   media,
@@ -71,19 +73,22 @@ export function HomeRoutePage({
   positions,
   works,
   practices,
-  timeline,
-  thinkingEvents,
   unknowns,
   links,
   goal,
   showCommitments,
   goalProgress,
   onCreateInquiry,
+  onCreateWork,
+  onCreatePosition,
+  onCreateConcept,
+  onCreatePractice,
   onUpdatePractice,
   onNavigate,
 }: HomeRoutePageProps) {
   return (
     <ThinkingDesk
+      aiEnabled={aiEnabled}
       profile={profile}
       concepts={concepts}
       media={media}
@@ -91,14 +96,16 @@ export function HomeRoutePage({
       positions={positions}
       works={works}
       practices={practices}
-      timeline={timeline}
-      thinkingEvents={thinkingEvents}
       unknowns={unknowns}
       links={links}
       goal={goal}
       showCommitments={showCommitments}
       goalProgress={goalProgress}
       onCreateInquiry={onCreateInquiry}
+      onCreateWork={onCreateWork}
+      onCreatePosition={onCreatePosition}
+      onCreateConcept={onCreateConcept}
+      onCreatePractice={onCreatePractice}
       onUpdatePractice={onUpdatePractice}
       onNavigate={(target) => onNavigate(target.view, routeOptionsForHomeTarget(target))}
     />

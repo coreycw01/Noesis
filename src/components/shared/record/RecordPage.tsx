@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ChevronDown, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Pill } from '@/components/ui/pill';
 import { DetailLabel } from '@/components/shared/PageHeader';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useSectionDisclosure } from '@/components/shared/SectionDisclosure';
 
 export { RecordFooter, FooterSection } from '@/components/shared/RecordDetail';
 
@@ -26,17 +27,19 @@ export function RecordPage({ tone, identity, className, children }: { tone: Stag
 }
 
 /** Back link, label (kind · status), title, optional subtitle and tags, and the trailing tools (AI, menu). */
-export function RecordHeader({ backLabel, onBack, view, kind, status, extra, title, subtitle, tags, onTag, trailing, children }: {
+export function RecordHeader({ backLabel, onBack, view, kind, icon, status, extra, title, subtitle, tags, onTag, tagAction, trailing, children }: {
   backLabel: string;
   onBack: () => void;
   view: string;
   kind: string;
+  icon?: LucideIcon;
   status?: React.ReactNode;
   extra?: React.ReactNode;
   title: React.ReactNode;
   subtitle?: React.ReactNode;
   tags?: string[];
   onTag?: (tag: string) => void;
+  tagAction?: React.ReactNode;
   trailing?: React.ReactNode;
   children?: React.ReactNode;
 }) {
@@ -46,14 +49,15 @@ export function RecordHeader({ backLabel, onBack, view, kind, status, extra, tit
         <Button variant="link" onClick={onBack} className="text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden="true" /> {backLabel}</Button>
         {trailing && <div className="noesis-record__top-actions">{trailing}</div>}
       </div>
-      <DetailLabel view={view} kind={kind} status={status} extra={extra} />
+      <DetailLabel view={view} kind={kind} icon={icon} status={status} extra={extra} />
       <h1 className="noesis-record__title noesis-page-title">{title}</h1>
       {subtitle && <p className="noesis-record__subtitle">{subtitle}</p>}
-      {tags && tags.length > 0 && (
-        <div className="noesis-record__tags">
-          {tags.map((tag) => onTag
+      {(Boolean(tags?.length) || tagAction) && (
+        <div className="noesis-record__tags items-center">
+          {tags?.map((tag) => onTag
             ? <Pill key={tag} look="mono" tone="concept" onClick={() => onTag(tag)}>{tag}</Pill>
             : <Badge key={tag} tone="concept">{tag}</Badge>)}
+          {tagAction}
         </div>
       )}
       {children}
@@ -121,7 +125,7 @@ export function RecordPath({ stops, hereId, guide, label }: { stops: PathStop[];
 }
 
 /** One stop's section: a sheet with a title, a line of description, and tools that belong to it. */
-export function RecordSection({ id, title, description, aside, here, className, children, headingLevel: Heading = 'h2' }: {
+export function RecordSection({ id, title, description, aside, here, className, children, defaultOpen = true, headingLevel: Heading = 'h2' }: {
   id: string;
   title: React.ReactNode;
   description?: React.ReactNode;
@@ -129,16 +133,21 @@ export function RecordSection({ id, title, description, aside, here, className, 
   here?: boolean;
   className?: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
   headingLevel?: 'h2' | 'h3';
 }) {
+  const { open, toggle, body } = useSectionDisclosure(typeof title === 'string' ? title : 'section', undefined, defaultOpen);
   return (
     <section id={id} className={cn('noesis-step', className)} data-here={here ? 'true' : undefined} aria-labelledby={`${id}-title`}>
       <div className="noesis-step__head">
         <Heading id={`${id}-title`} className="noesis-step__title">{title}</Heading>
-        {aside && <div className="noesis-step__aside">{aside}</div>}
+        <div className="noesis-step__aside ml-auto flex items-center">
+          {aside && <div hidden={!open}>{aside}</div>}
+          {toggle}
+        </div>
         {description && <p className="noesis-step__desc">{description}</p>}
       </div>
-      {children}
+      <div {...body}>{children}</div>
     </section>
   );
 }

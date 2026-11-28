@@ -4,12 +4,13 @@ import { ContextDrawers } from '@/components/ai/ContextDrawers';
 import { AiUsageMeter } from '@/components/ai/AiUsageMeter';
 import { ContextDrawerStack } from '@/components/ai/ContextDrawerStack';
 import { ContextFolderStack } from '@/components/ai/ContextFolderStack';
+import { ContextDeskFiling } from '@/components/ai/ContextDeskFiling';
 import { deskComposition, deskSuggestions, proposeFromQuestion, type DeskItem } from '@/lib/context-desk-suggestions';
 import { MAX_DESK_ITEMS, readDeskMembership } from '@/lib/saved-context-desks';
 import { aiDepthFor } from '@/lib/ai-depth';
 import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { NoesisWorkspaceKeyContext } from '@/lib/noesis-route-context';
-import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection } from '@/lib/context-desk-selection';
+import { contextDeskRecordIsExcluded, contextDeskReviewKey, contextDeskSourceIds, contextDeskStorageKeys, MAX_CONTEXT_ITEMS, normalizeContextDeskSelection, resolveDeskSelection, sourceReflectionDeskKey } from '@/lib/context-desk-selection';
 import { Check, Filter, FolderOpen, GripVertical, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { buildContextDeskMemory, CONTEXTUAL_AI_SUGGESTED_PROMPTS, type AiContextEnvelope, type ContextualAiAction } from '@/lib/contextual-ai';
@@ -38,7 +39,9 @@ import { iconForNoesisView } from '@/lib/noesis-icons';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
 import { collectAiHistory, NoesisAiHistory } from '@/components/ai/NoesisAiHistory';
-import { History, ScanSearch, Sparkles } from 'lucide-react';
+import { History, Sparkles } from 'lucide-react';
+import { NOESIS_ICONS } from '@/lib/noesis-icons';
+import { includedDeskRecords } from '@/lib/contextual-ai-preview';
 import type { AiSettings, Concept, Draft, Media, Practice, Question, VaultEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -174,6 +177,22 @@ export function ContextDeskRoutePage({
       createdAt: item.dateAdded,
       updatedAt: item.dateUpdated || item.dateAdded,
     })),
+    ...media.flatMap(item => {
+      const reflection = item.capture?.after?.aiReflection?.trim();
+      return reflection ? [{
+        key: sourceReflectionDeskKey(item.id),
+        id: item.id,
+        type: 'source' as const,
+        label: `Reflection on ${item.title}`,
+        summary: compact(reflection),
+        memory: [`Reviewed AI-assisted reflection on ${item.title}: ${reflection}`],
+        sourceIds: [item.id],
+        conceptIds: item.conceptIds || [],
+        conceptTags: item.tags || [],
+        createdAt: item.dateAdded,
+        updatedAt: item.dateUpdated || item.dateAdded,
+      }] : [];
+    }),
     ...media.flatMap((source) => (source.annotations || []).map((annotation) => ({
       key: `annotation:${source.id}:${annotation.id}`,
       id: annotation.id,
@@ -426,7 +445,6 @@ export function ContextDeskRoutePage({
   const [openDrawerId, setOpenDrawerId] = useState<string | null>(null);
   const [carriedIn, setCarriedIn] = useState<Set<string>>(new Set());
   /** A record waiting to be put in a folder, chosen from its slip. */
-  const [filingKey, setFilingKey] = useState<string | null>(null);
   // Which slip is in hand, and which one it is hovering over.
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
@@ -629,7 +647,7 @@ export function ContextDeskRoutePage({
             label="Noesis AI views"
             items={[
               { id: 'ask', label: 'Ask Noesis', icon: Sparkles },
-              { id: 'desk', label: 'Context Desk', icon: ScanSearch, count: selectedKeys.length || undefined },
+              { id: 'desk', label: 'Context Desk', icon: NOESIS_ICONS.context, count: selectedKeys.length || undefined },
               { id: 'history', label: 'History', icon: History, count: aiHistory.length },
             ]}
           />
@@ -744,19 +762,21 @@ export function ContextDeskRoutePage({
           </div>
 
           <div className="grid gap-3 rounded-[var(--card-radius)] border border-border bg-card p-5">
-            <AiUsageMeter owner={savedDeskOwner} refreshKey={usageKey} />
+            <AiUsageMeter owner={workspaceKey?.endsWith(':demo') ? undefined : savedDeskOwner} refreshKey={usageKey} />
             <ContextualAiPanel
               actions={['review_selected_context']}
               enabled={aiSettings.aiAssistanceEnabled && selected.length > 0}
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiDepthFor(aiSettings, 'context-desk')}
               reviewContextKey={contextDeskReviewKey(analysisRecords)}
+              deskRecordKeys={analysisRecords.map(record => record.key)}
               buttonLabel={selected.length ? 'Ask Noesis' : 'Add something to read first'}
               prompt={question}
               onPromptChange={setQuestion}
               buildEnvelope={buildEnvelope}
-              onAccept={async (result, content) => {
-                const created = await onAddDraft(contextDeskWorkDraft(result, content, analysisRecords), { result, records: analysisRecords });
+              onAccept={async (result, content, included) => {
+                const records = includedDeskRecords(analysisRecords, included);
+                const created = await onAddDraft(contextDeskWorkDraft(result, content, records), { result, records });
                 setUsageKey((key) => key + 1);
                 onNavigate('writing', created.id);
               }}
@@ -900,8 +920,6 @@ export function ContextDeskRoutePage({
               uid={savedDeskOwner}
               onDesk={selectedKeys}
               labelFor={(key) => recordsByKey.get(key)?.label}
-              filing={filingKey}
-              onFiled={() => setFilingKey(null)}
               onAdd={(keys) => { setSelectedKeys((current) => [...current, ...keys.filter((key) => !current.includes(key))]); setCarriedIn((current) => new Set([...current, ...keys])); }}
               onRemove={(keys) => { setSelectedKeys((current) => current.filter((key) => !keys.includes(key))); setCarriedIn((current) => { const next = new Set(current); keys.forEach((key) => next.delete(key)); return next; }); }}
             />
@@ -1016,7 +1034,7 @@ export function ContextDeskRoutePage({
               </div>
             </div>
 
-            <AiUsageMeter className="border-t border-border/60 pt-3" owner={savedDeskOwner} refreshKey={usageKey} />
+            <AiUsageMeter className="border-t border-border/60 pt-3" owner={workspaceKey?.endsWith(':demo') ? undefined : savedDeskOwner} refreshKey={usageKey} />
 
             <ContextualAiPanel
               actions={['review_selected_context']}
@@ -1024,17 +1042,18 @@ export function ContextDeskRoutePage({
               showContextBeforeSending={aiSettings.showContextBeforeSending}
               reasoningDepth={aiDepthFor(aiSettings, 'context-desk')}
               reviewContextKey={contextDeskReviewKey(analysisRecords)}
+              deskRecordKeys={analysisRecords.map(record => record.key)}
               buttonLabel={selected.length ? 'Analyze next review' : 'Select context first'}
               prompt={question}
               onPromptChange={setQuestion}
               buildEnvelope={buildEnvelope}
               acceptLabel={savingTo === 'work' ? 'Save as Work' : savingTo === 'experiment' ? 'Save experiment draft' : 'Save for review'}
-              acceptDestination={<div className="mb-2 grid gap-2"><label className="grid gap-1 text-sm font-medium">
+              acceptDestination={included => <div className="mb-2 grid gap-2"><label className="grid gap-1 text-sm font-medium">
                 Save reviewed text to
                 <select value={savingTo} onChange={event => setSavingTo(event.target.value)} className="min-h-11 w-full rounded-md border border-border bg-background px-2">
                   <option value="work">New Work</option>
                   <option value="experiment">New experiment draft</option>
-                  {analysisRecords.filter(isDeskFindingTarget).map(record => <option key={record.key} value={record.key}>{record.type === 'practice' ? 'Praxis' : record.type === 'position' ? 'Position' : 'Inquiry'}: {record.label}</option>)}
+                  {includedDeskRecords(analysisRecords, included).filter(isDeskFindingTarget).map(record => <option key={record.key} value={record.key}>{record.type === 'practice' ? 'Praxis' : record.type === 'position' ? 'Position' : 'Inquiry'}: {record.label}</option>)}
                 </select>
               </label>
               {savingTo === 'experiment' && <div className="grid max-h-[25vh] gap-2 overflow-y-auto sm:grid-cols-2">
@@ -1045,22 +1064,23 @@ export function ContextDeskRoutePage({
                 ))}
               </div>}
               </div>}
-              onAccept={async (result, content) => {
+              onAccept={async (result, content, included) => {
+                const records = includedDeskRecords(analysisRecords, included);
                 if (savingTo === 'experiment') {
                   if (Object.values(experiment).some(value => !value.trim())) throw new Error('Name the experiment and fill in its action, prediction, and signal.');
                   const id = deskExperimentId(result.reviewId);
-                  await onSaveFinding({ type: 'practice', id }, result, content, analysisRecords, experiment);
+                  await onSaveFinding({ type: 'practice', id }, result, content, records, experiment);
                   onNavigate('labs', id);
                   return;
                 }
                 if (savingTo !== 'work') {
-                  const target = analysisRecords.find(record => record.key === savingTo);
+                  const target = records.find(record => record.key === savingTo);
                   if (!target || !isDeskFindingTarget(target)) throw new Error('Choose a destination included in this review.');
-                  await onSaveFinding(target, result, content, analysisRecords);
+                  await onSaveFinding(target, result, content, records);
                   onNavigate(viewForType[target.type], target.id);
                   return;
                 }
-                const created = await onAddDraft(contextDeskWorkDraft(result, content, analysisRecords), { result, records: analysisRecords });
+                const created = await onAddDraft(contextDeskWorkDraft(result, content, records), { result, records });
                 setUsageKey((key) => key + 1);
                 onNavigate('writing', created.id);
               }}
@@ -1111,11 +1131,7 @@ export function ContextDeskRoutePage({
                     </button>
                     <div className="flex items-start justify-end">
                     {!reads && <Button type="button" variant="ghost" size="icon" className="size-9" title="Send with next review" aria-label={`Move ${record.label} into this request`} onClick={() => setSelectedKeys(keys => [record.key, ...keys.filter(key => key !== record.key)])}><Plus className="size-4" /></Button>}
-                    <Button type="button" variant="ghost" size="icon" className="size-9" aria-pressed={filingKey === record.key}
-                      title={`Keep ${record.label} in a folder`} aria-label={`Keep ${record.label} in a folder`}
-                      onClick={() => setFilingKey((current) => current === record.key ? null : record.key)}>
-                      <FolderOpen className={cn('size-4', filingKey === record.key && 'text-[hsl(var(--kind-concept))]')} />
-                    </Button>
+                    <ContextDeskFiling recordKey={record.key} />
                     <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => toggleRecord(record)} aria-label={`Take ${record.label} off the desk`}><X className="size-4" /></Button>
                     </div>
                   </div>

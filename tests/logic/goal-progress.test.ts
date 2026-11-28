@@ -44,6 +44,13 @@ const works = [
 
 const context: GoalProgressContext = { concepts, sources, inquiries, positions, practices, works };
 
+test('automatic practice commitments ignore future days and honor an explicit missed check-in over a legacy date', () => {
+  const item = goal({ commitmentTracking: 'automatic', goalKind: 'practice', practiceMeasure: 'logged_days' });
+  const practice = { ...practices[0], logDates: ['2026-10-01', '2026-10-02', '2026-10-04'],
+    logs: [{ id: 'corrected', date: '2026-10-02T00:20:00+14:00', actionCompleted: false }] };
+  assert.equal(deriveGoalProgress(item, undefined, { ...context, practices: [practice] }, {}, new Date(2026, 9, 3, 12)).currentProgress, 1);
+});
+
 test('switching goal kind clears hidden count filters but preserves concept focus and legacy grounding', () => {
   const position = goal({ goalKind: 'position', positionMeasure: 'revised',
     relatedObjectIds: { positionIds: ['position-identity'], conceptIds: ['concept-identity'] } });
@@ -76,7 +83,7 @@ test('confidence goals exclude dormant claims without erasing recorded reviews o
     .map((status) => ({ ...positions[0], id: status, status, lastChallengedAt: '2026-10-01' }));
   const scoped = { ...context, positions: [positions[0], ...retired] };
   assert.equal(deriveAutomaticGoalProgress(goal({ positionMeasure: 'confident' }), 'position', scoped), 1);
-  assert.equal(deriveAutomaticGoalProgress(goal({ positionMeasure: 'reviewed' }), 'position', scoped), 5);
+  assert.equal(deriveAutomaticGoalProgress(goal({ positionMeasure: 'reviewed' }), 'position', scoped), 4);
   assert.equal(deriveAutomaticGoalProgress(goal({ positionMeasure: 'revised' }), 'position', scoped), 5);
 });
 
@@ -124,7 +131,8 @@ test('active, answered and resolved inquiry goals count distinct recorded states
     { ...inquiries[0], id: 'no-answer', status: 'answered', answer: ' ' },
   ] as Question[] };
   assert.equal(deriveAutomaticGoalProgress(goal({ inquiryMeasure: 'active' }), 'inquiry', inquiryContext), 2);
-  assert.equal(deriveAutomaticGoalProgress(goal({ inquiryMeasure: 'answered' }), 'inquiry', inquiryContext), 3);
+  assert.equal(deriveAutomaticGoalProgress(goal({ inquiryMeasure: 'answered' }), 'inquiry', inquiryContext), 2);
+  assert.equal(deriveAutomaticGoalProgress(goal({ inquiryMeasure: 'provisional' }), 'inquiry', inquiryContext), 1);
   assert.equal(deriveAutomaticGoalProgress(goal({ inquiryMeasure: 'resolved' }), 'inquiry', inquiryContext), 1);
 });
 
@@ -190,6 +198,20 @@ test('shared progress preserves manual increments and unique completed check-ins
   ] });
   assert.equal(deriveGoalProgress(item, undefined, context).currentProgress, 4);
   assert.equal(deriveGoalProgress({ ...item, currentProgress: 0 }, undefined, { ...context, inquiries: [] }).currentProgress, 1);
+});
+
+test('explicit commitment modes never blend activity, old counts, and check-ins', () => {
+  const item = goal({ goalKind: 'consumption', currentProgress: 8, commitmentCheckIns: [
+    { id: 'kept', date: '2026-11-05', status: 'completed' },
+    { id: 'skipped', date: '2026-11-06', status: 'skipped' },
+  ] });
+  const automatic = { ...item, commitmentTracking: 'automatic' as const };
+  const manual = { ...item, commitmentTracking: 'manual' as const };
+  assert.equal(deriveGoalProgress(automatic, undefined, context).currentProgress, 3);
+  assert.equal(deriveGoalProgress({ ...automatic, sourceType: 'book' }, undefined, context).currentProgress, 2);
+  assert.equal(deriveGoalProgress(automatic, undefined, { ...context, sources: [] }, { book: 80 }).currentProgress, 0);
+  assert.equal(deriveGoalProgress(manual, undefined, context).currentProgress, 1);
+  assert.equal(deriveGoalProgress(item, undefined, context).currentProgress, 8);
 });
 
 test('a check-in never copies automatic progress into the stored manual count', () => {

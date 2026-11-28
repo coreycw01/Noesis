@@ -33,10 +33,11 @@ export interface PositionsRoutePageProps {
   onUpdateEntry: (entry: VaultEntry, approval?: import('@/lib/position-ai-review').PositionReviewApproval) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateLink: (data: Partial<PhilosophicalLink>) => void;
-  onAddDraft: (data: Partial<Draft>) => void;
-  onAddPractice: (data: Partial<Practice>) => void;
-  onAddQuestion: (data: Partial<Question>) => void | Promise<unknown>;
+  onCreateLink: (data: Partial<PhilosophicalLink>) => void | Promise<unknown>;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
+  onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
+  onAddQuestion: (data: Partial<Question>) => Promise<Question>;
+  onUpdateQuestion: (question: Question) => void | Promise<void>;
   onUpdateLink: (link: PhilosophicalLink) => void;
   onNavigate: (view: NoesisView, options?: {
     questionId?: string | null;
@@ -68,6 +69,7 @@ export function PositionsRoutePage({
   onAddDraft,
   onAddPractice,
   onAddQuestion,
+  onUpdateQuestion,
   onUpdateLink,
   onNavigate,
 }: PositionsRoutePageProps) {
@@ -92,6 +94,7 @@ export function PositionsRoutePage({
       onAddDraft={onAddDraft}
       onAddPractice={onAddPractice}
       onAddQuestion={onAddQuestion}
+      onUpdateQuestion={onUpdateQuestion}
       onUpdateLink={onUpdateLink}
       onOpenSource={(id) => onNavigate('library', { sourceId: id })}
       onOpenQuestion={(id) => onNavigate('questions', { questionId: id })}

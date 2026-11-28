@@ -15,7 +15,7 @@ export const NOESIS_NAV_SECTIONS = ['Today', ...NOESIS_LOOP_STAGES, 'More'] as c
 export type NoesisNavSection = typeof NOESIS_NAV_SECTIONS[number];
 
 export const NOESIS_LOOP_LABELS: Record<NoesisNavSection, string> = {
-  Today: 'Today',
+  Today: 'My Desk',
   Notice: 'Encounter',
   Outline: 'Define',
   Examine: 'Question',
@@ -90,7 +90,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
   {
     view: 'home',
     route: '/home',
-    title: 'Today',
+    title: NOESIS_LOOP_LABELS.Today,
     purpose: 'Surface what deserves intellectual attention now and guide the next meaningful action.',
     section: 'Today',
     signatureExperience: 'A Thinking Desk for unfinished edges, provocations, recent movement, and quiet signals.',
@@ -219,7 +219,7 @@ export const NOESIS_PAGE_DEFINITIONS: NoesisPageDefinition[] = [
     title: 'Exercises',
     purpose: 'Short exercises that sharpen how the user thinks, from their own records and from general knowledge.',
     section: 'Implement',
-    signatureExperience: 'A card table with two decks; every card ends with an action on a real record or page.',
+    signatureExperience: 'Quick games and configurable rounds drawn from general knowledge and the workspace.',
     loadingLayout: 'list',
   },
   {
@@ -239,7 +239,7 @@ export const NOESIS_PAGE_BY_VIEW = NOESIS_PAGE_DEFINITIONS.reduce((acc, page) =>
 }, {} as Record<NoesisView, NoesisPageDefinition>);
 
 export const NOESIS_PAGE_DATA_REQUIREMENTS: Record<NoesisView, NoesisWorkspaceDataKey[]> = {
-  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal', 'goalPreferences'],
+  home: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'links', 'thinkingEvents', 'unknowns', 'goal', 'goalPreferences', 'aiSettings'],
   atlas: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'atlasMaps', 'links', 'thinkingEvents', 'unknowns'],
   concepts: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'timeline', 'insights', 'links', 'aiSettings'],
   questions: ['media', 'concepts', 'questions', 'vault', 'drafts', 'practices', 'links', 'aiSettings'],

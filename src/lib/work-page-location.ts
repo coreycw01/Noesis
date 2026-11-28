@@ -7,3 +7,11 @@ export function pageAtReadingLine<T extends { top: number; bottom: number }>(pag
     return distance < nearestDistance ? page : nearest;
   }, undefined);
 }
+
+export function workDragScrollStep(pointer: number, top: number, bottom: number) {
+  const edge = Math.min(64, (bottom - top) / 3);
+  if (edge <= 0) return 0;
+  const pressure = pointer < top + edge ? (pointer - top - edge) / edge
+    : pointer > bottom - edge ? (pointer - bottom + edge) / edge : 0;
+  return Math.round(Math.max(-1, Math.min(1, pressure)) * 18);
+}

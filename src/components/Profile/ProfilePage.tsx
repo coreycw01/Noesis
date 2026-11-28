@@ -244,12 +244,12 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
             <div className="flex flex-wrap gap-2">{derivedIdentity.themes.slice(0, 3).map((theme) => <Badge key={theme} variant="secondary" className="rounded-full">{theme}</Badge>)}<Badge variant="outline" className="rounded-full">{concepts.length} concepts</Badge><Badge variant="outline" className="rounded-full">{activePositions.length} active positions</Badge></div>
           </div>
           <ThinkingPortrait parts={[
-            { label: 'Sources', tone: 'encounter', count: sources.length },
-            { label: 'Concepts', tone: 'examine', count: concepts.length },
-            { label: 'Inquiries', tone: 'examine', count: inquiries.length },
-            { label: 'Positions', tone: 'claim', count: activePositions.length },
-            { label: 'Practices', tone: 'act', count: practices.length },
-            { label: 'Works', tone: 'more', count: works.length },
+            { label: 'Sources', tone: 'source', count: sources.length },
+            { label: 'Concepts', tone: 'concept', count: concepts.length },
+            { label: 'Inquiries', tone: 'inquiry', count: inquiries.length },
+            { label: 'Positions', tone: 'position', count: activePositions.length },
+            { label: 'Praxis', tone: 'practice', count: practices.length },
+            { label: 'Works', tone: 'work', count: works.length },
           ]} />
         </Card>
 
@@ -311,6 +311,7 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
               </div>
               {aiSettings.aiAssistanceEnabled ? (
                 <ContextualAiPanel
+                  itemHistory={savedReviews}
                   actions={['synthesize_profile_philosophy']}
                   buildEnvelope={buildPhilosophyEnvelope}
                   enabled={philosophyEvidenceCount >= 3}
@@ -318,7 +319,6 @@ export function ProfilePage({ user, reviewMode, profile, aiSettings, privacy, co
                   reasoningDepth={aiDepthFor(aiSettings, 'profile')}
                   onAccept={acceptPhilosophySynthesis}
                   buttonLabel="Request synthesis"
-                  promptLabel="What should Noesis examine?"
                   promptPlaceholder="For example: Is my confidence consistent with my evidence and tested practices?"
                 />
               ) : <Button variant="outline" size="sm" className="shrink-0" onClick={() => onNavigate('settings')}>Enable in Settings</Button>}
@@ -501,7 +501,7 @@ function EmptyCopy({ text }: { text: string }) { return <div className="text-sm 
 function formatDate(value?: string) { if (!value) return 'Unknown date'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
 
 /** Where this thinker's work sits on the loop, as one ring: wider arcs hold more records. */
-function ThinkingPortrait({ parts }: { parts: Array<{ label: string; tone: string; count: number }> }) {
+function ThinkingPortrait({ parts }: { parts: Array<{ label: string; tone: 'source' | 'concept' | 'inquiry' | 'position' | 'practice' | 'work'; count: number }> }) {
   const total = parts.reduce((sum, part) => sum + part.count, 0);
   if (!total) return null;
   const R = 44; const C = 2 * Math.PI * R; let offset = 0;
@@ -510,14 +510,14 @@ function ThinkingPortrait({ parts }: { parts: Array<{ label: string; tone: strin
       <svg viewBox="0 0 120 120" className="size-32 shrink-0 -rotate-90" role="img" aria-label={parts.map((part) => `${part.label} ${part.count}`).join(', ')}>
         <circle cx="60" cy="60" r={R} fill="none" stroke="hsl(var(--muted))" strokeWidth="14" />
         {parts.filter((part) => part.count).map((part) => {
-          const length = (part.count / total) * C; const dash = `${Math.max(0, length - 2)} ${C}`; const el = <circle key={part.label} data-stage-tone={part.tone} cx="60" cy="60" r={R} fill="none" stroke="hsl(var(--stage))" strokeWidth="14" strokeDasharray={dash} strokeDashoffset={-offset} />;
+          const length = (part.count / total) * C; const dash = `${length - Math.min(length * .15, 2)} ${C}`; const el = <circle key={part.label} data-tone={part.tone} cx="60" cy="60" r={R} fill="none" stroke="hsl(var(--tone))" strokeWidth="14" strokeDasharray={dash} strokeDashoffset={-offset} />;
           offset += length; return el;
         })}
       </svg>
       <ul className="grid flex-1 grid-cols-2 gap-x-6 gap-y-1.5 sm:grid-cols-3">
         {parts.map((part) => (
-          <li key={part.label} data-stage-tone={part.tone} className="flex items-center gap-2 text-sm">
-            <span className="size-2.5 rounded-sm" style={{ background: 'hsl(var(--stage))' }} />
+          <li key={part.label} data-tone={part.tone} className="flex items-center gap-2 text-sm">
+            <span className="size-2.5 shrink-0 rounded-sm bg-tone" />
             <span className="text-muted-foreground">{part.label}</span>
             <span className="ml-auto font-code text-xs">{part.count}</span>
           </li>

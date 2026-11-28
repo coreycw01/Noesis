@@ -4,6 +4,8 @@ import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app';
 import { collection, connectFirestoreEmulator, deleteDoc, disableNetwork, doc, enableNetwork, getDoc, getDocFromCache, getDocFromServer, getDocs, getDocsFromServer, initializeFirestore, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, terminate, Timestamp, updateDoc, where, writeBatch, type Firestore } from 'firebase/firestore';
 import { connectStorageEmulator, deleteObject, getBytes, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { commitWorkspaceMutation } from '../../src/lib/workspace-mutations';
+import { inquiryStartingObservation, inquiryWeighedCount, practiceEvidenceDraft } from '../../src/lib/inquiry-state';
+import { completedPracticeResult, practiceReviewDestination } from '../../src/lib/practice-state';
 import { contextDeskWorkDraft, contextDeskWorkProvenance, isContextDeskReviewRetry } from '../../src/lib/context-desk-work';
 import { thinkingHistoryQuery } from '../../src/lib/thinkingEvents/history-query';
 import { mergeThinkingHistory } from '../../src/lib/evolution-history';
@@ -453,6 +455,19 @@ test('workspace reads and export queries are owner-only', async () => {
   await assertFails(setDoc(doc(owner, 'users/workspace-owner/questions/fake'), { userId: 'workspace-outsider' }));
   await assertFails(setDoc(doc(owner, 'users/workspace-owner/questions/one/private/two'), { title: 'Unexpected nested write' }));
   await assertFails(getDoc(doc(owner, 'apiUsage/owner')));
+});
+
+test('assistance exchanges are private and original responses cannot be overwritten', async () => {
+  const path = 'users/exchange-owner/assistanceExchanges/run';
+  const own = doc(context('exchange-owner').firestore(), path);
+  const other = doc(context('exchange-outsider').firestore(), path);
+  const exchange = { id: 'run', itemKey: 'inquiry:one', action: 'socratic_inquiry_challenge', task: 'Challenge', question: 'Why?', answer: 'A suggestion', generatedAt: '2026-01-01' };
+  await assertFails(setDoc(other, exchange));
+  await assertSucceeds(setDoc(own, exchange));
+  await assertSucceeds(getDocFromServer(own));
+  await assertFails(getDocFromServer(other));
+  await assertFails(updateDoc(own, { answer: 'Replacement' }));
+  await assertSucceeds(deleteDoc(own));
 });
 
 test('Find reads all its collections under the requested owner and rejects other sessions', async () => {
@@ -1002,6 +1017,53 @@ test('a stale inquiry save does not overwrite a newer answer or add an edit even
   }), /record changed/);
   assert.equal((await getDocFromServer(ref)).data()?.answer, 'New answer');
   assert.equal((await getDocsFromServer(history)).size, 0);
+});
+
+test('reopening an inquiry preserves its grounds, and Praxis outcomes do not revise linked claims', async () => {
+  const uid = 'integrity-loop-owner';
+  const db = env.authenticatedContext(uid).firestore();
+  const inquiryRef = doc(db, 'users', uid, 'questions', 'inquiry');
+  const positionRef = doc(db, 'users', uid, 'vault', 'position');
+  const original = {
+    id: inquiryRef.id, text: 'Does a scheduled break help?', status: 'open',
+    uncertainty: 'The work varies by day.',
+    candidateAnswers: [{ id: 'a', statement: 'It depends on the task.' }, { id: 'b', statement: 'No meaningful change.' }],
+    evidenceRecords: [{ ...inquiryStartingObservation('A timer helped with one task.'), id: 'observation', candidateId: 'a', direction: 'supports', date: '2026-11-27' }],
+    investigationNotes: [{ id: 'criterion', title: 'What would change my mind', text: 'A comparable session with no improvement.', origin: 'user', date: '2026-11-27' }],
+  };
+  await setDoc(inquiryRef, original);
+  await setDoc(positionRef, { id: positionRef.id, title: 'Breaks can help.', confidence: 63 });
+  await commitWorkspaceMutation({ db, ref: inquiryRef, operation: 'update', data: { status: 'resolved', answer: 'It depends on the task.', resolutionSummary: 'One observation, with variation unresolved.' } });
+  await commitWorkspaceMutation({ db, ref: inquiryRef, operation: 'update', data: { status: 'reopened' } });
+  const reopened = (await getDocFromServer(inquiryRef)).data()!;
+  assert.deepEqual(reopened.evidenceRecords, original.evidenceRecords);
+  assert.deepEqual(reopened.candidateAnswers, original.candidateAnswers);
+  assert.deepEqual(reopened.investigationNotes, original.investigationNotes);
+  assert.equal(reopened.uncertainty, original.uncertainty);
+  assert.equal(reopened.answer, 'It depends on the task.');
+
+  for (const [verdict, status] of [['supported', 'concluded'], ['challenged', 'failed_productively'], ['mixed', 'concluded'], ['inconclusive', 'concluded'], ['abandoned', 'abandoned']] as const) {
+    const ref = doc(db, 'users', uid, 'practices', verdict);
+    await setDoc(ref, { id: verdict, title: 'Break timing', type: 'experiment', status,
+      questionIds: [inquiryRef.id], positionIds: [positionRef.id],
+      conclusion: { whatHappened: 'Some sessions ran longer.', hypothesisSupported: verdict },
+    });
+    const practice = (await getDocFromServer(ref)).data() as import('../../src/lib/types').Practice;
+    const result = completedPracticeResult(practice);
+    assert.equal(practice.conclusion?.hypothesisSupported, verdict);
+    if (verdict === 'abandoned') {
+      assert.equal(result, null);
+      continue;
+    }
+    assert.equal(practiceReviewDestination(practice, [reopened as import('../../src/lib/types').Question], [])?.targetId, inquiryRef.id);
+    const proposed = practiceEvidenceDraft(practice, result!.observation);
+    assert.equal(proposed.direction, 'contextualizes');
+    assert.equal(inquiryWeighedCount({ candidateAnswers: original.candidateAnswers, evidenceRecords: [
+      { ...inquiryStartingObservation(proposed.claim || ''), id: verdict, date: '2026-11-27' },
+    ] }), 0);
+  }
+  assert.deepEqual((await getDocFromServer(inquiryRef)).data(), reopened);
+  assert.equal((await getDocFromServer(positionRef)).data()?.confidence, 63);
 });
 
 test('only one client can convert the same open inquiry and record its position', async () => {

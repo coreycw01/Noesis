@@ -2,6 +2,7 @@
 
 import { aiDepthFor } from '@/lib/ai-depth';
 import { BeliefRivers, beliefRiverSeries } from '@/components/Evolution/BeliefRivers';
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarRange,
@@ -15,7 +16,7 @@ import type { Media, ThinkingEvent, ThinkingPattern, TimelineEvent, Unknown, Vau
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { WorkspaceTabs } from '@/components/shared/WorkspaceTabs';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ContextualAiDocument, ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
@@ -23,6 +24,7 @@ import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { localDateKey } from '@/lib/calendar';
 import { NOESIS_ICONS } from '@/lib/noesis-icons';
 import { EVOLUTION_SYNTHESIS_SAMPLE_LIMIT, evolutionActionKey, evolutionDateMatches, evolutionDisplayDate, evolutionSynthesisExcerpt, evolutionSynthesisReviewKey, evolutionSynthesisSourceIds, evolutionValueChange, indexEvolutionSources, isEvolutionDateOnly, isEvolutionSynthesis, isEvolutionTurningPoint, normalizeEvolutionDate, olderEvolutionHistoryMayMatch, readEvolutionSynthesis, unmatchedEvolutionMilestones } from '@/lib/evolution-history';
+import { withoutDuplicateConfidenceEdits } from '@/lib/evolution-history';
 
 interface EvolutionTimelineProps {
   aiSettings: import('@/lib/types').AiSettings;
@@ -385,6 +387,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
   const [timelineLayout, setTimelineLayout] = useEntityViewPreference('evolution');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<EvolutionFilter>('all');
+  const [chronology, setChronology] = useState<'newest' | 'oldest'>('newest');
   const [visibleCount, setVisibleCount] = useState(12);
   const [scrubberDate, setScrubberDate] = useState(() => localDateKey());
   const [periodEnd, setPeriodEnd] = useState('');
@@ -393,7 +396,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
   const sourcesForEvent = useMemo(() => indexEvolutionSources(media), [media]);
 
   const displayEvents = useMemo<DisplayEvent[]>(() => {
-    const notableThinking = thinkingEvents.filter((event) => !readEvolutionSynthesis(event) && isNotableThinkingEvent(event));
+    const notableThinking = withoutDuplicateConfidenceEdits(thinkingEvents).filter((event) => !readEvolutionSynthesis(event) && isNotableThinkingEvent(event));
     const fromThinking = notableThinking.map((event) => ({
       id: event.eventId || event.id,
       kind: 'thinking' as const,
@@ -455,7 +458,9 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       detail: pattern.description,
       date: normalizeEvolutionDate(pattern.dateUpdated || pattern.dateCreated) || '',
       filter: 'patterns' as const,
-      chips: [String(pattern.patternType || 'pattern').replace(/_/g, ' '), pattern.status, pattern.trendDirection],
+      chips: [String(pattern.patternType || 'pattern').replace(/_/g, ' '), 'acknowledged pattern', 'demoSeed' in pattern && pattern.demoSeed === true ? 'sample data' : pattern.createdFrom === 'ai' ? 'AI-labeled' : 'system-labeled'],
+      trigger: pattern.evidence?.length ? `Recorded basis: ${pattern.evidence.join('; ')}` : 'This saved pattern has no recorded basis.',
+      significance: 'A saved interpretation of workspace activity, not a verified trait or a new conclusion.',
     })).filter((event) => Boolean(event.date));
 
     return [...fromThinking, ...fromTimeline, ...fromUnknowns, ...fromPatterns].sort(
@@ -471,7 +476,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
   const filteredEvents = useMemo(() => {
     if (view !== 'timeline' || !dateRangeIsValid) return [];
     const query = searchTerm.toLowerCase();
-    return displayEvents.filter((event) => {
+    const matches = displayEvents.filter((event) => {
       const filterOk = filter === 'all' ||
         event.filter === filter ||
         (filter === 'positions' && targetTypeMatches(event, ['position', 'vault'])) ||
@@ -483,7 +488,8 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       return filterOk && (!query || `${event.title} ${event.detail} ${event.chips.join(' ')}`.toLowerCase().includes(query))
         && evolutionDateMatches(event.date, periodStart, periodEnd);
     });
-  }, [dateRangeIsValid, displayEvents, filter, periodEnd, periodStart, searchTerm, view]);
+    return chronology === 'oldest' ? matches.reverse() : matches;
+  }, [chronology, dateRangeIsValid, displayEvents, filter, periodEnd, periodStart, searchTerm, view]);
 
   const turningPoints = useMemo(() => {
     return view === 'turning_points' ? displayEvents.filter((event) => event.isTurningPoint).slice(0, 8) : [];
@@ -649,6 +655,9 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
             value={section}
             onChange={(next) => { if (section !== next) setView(next === 'compare' ? 'before_after' : next); }}
             label="Evolution views"
+            variant="segmented"
+            tone="integrate"
+            className="noesis-praxis-methods"
             items={[{ id: 'timeline', label: 'Timeline' }, { id: 'belief_rivers', label: 'Belief River' }, { id: 'compare', label: 'Compare' }]}
           />
         )}
@@ -696,6 +705,10 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
       {view === 'belief_rivers' && (
         <section className="mb-8 border-y border-border/60 py-6">
           <div className="mx-auto max-w-4xl">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="noesis-eyebrow font-bold">Belief River</h2>
+              <InstrumentHelp instrument="river" />
+            </div>
             <BeliefRivers positions={positions} thinkingEvents={thinkingEvents} onOpen={(id) => onOpenPosition?.(id)} onExplain={setExplainedRiver} />
           </div>
           {explainedRiver && (() => {
@@ -901,7 +914,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search changes..."
-        sortLabel="Newest meaningful changes first"
+        sortControl={<SortPill label="Sort timeline" value={chronology} onChange={setChronology} options={[{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest loaded first' }]} />}
         activeFilterLabels={activeEvolutionFilterLabels}
         onClear={clearEvolutionFilters}
         clearDisabled={!evolutionFiltersActive}
@@ -996,9 +1009,7 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                 userPrompt,
                 itemMemory: [
                   `Selected period: ${periodStart} through ${periodEnd}`,
-                  `Provided sample: ${periodSample.length} of ${selectedPeriodEvents.length} loaded matching changes. ${periodHasOlderMatches ? 'Older history may not be loaded; do not treat the sample as exhaustive.' : 'Use only the supplied events as evidence.'}`,
-                  `Change areas in sample: ${Array.from(new Set(periodSample.map(changeAreaForEvent))).join(', ') || 'none'}`,
-                  `Event types in sample: ${Array.from(new Set(periodSample.flatMap((event) => event.chips.slice(0, 1)))).join(', ') || 'none'}`,
+                  'Use only the supplied events as evidence; the sample may not be exhaustive.',
                 ],
                 linkedMemory: periodSample.map((event) => evolutionSynthesisExcerpt({
                   ...event,
@@ -1006,9 +1017,10 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                   actor: event.kind === 'thinking' ? event.chips[1] : undefined,
                 })),
               })}
-              onAccept={async (result, content) => {
+              onAccept={async (result, content, included) => {
                 if (!result.reviewId) throw new Error('This review could not be identified. Run assistance again.');
                 const id = `period-review-${result.reviewId}`;
+                const readEvents = periodSample.filter((_, index) => included.linked.has(index));
                 await onSaveSynthesis({
                   id,
                   entityId: `${periodStart}:${periodEnd}`,
@@ -1016,9 +1028,9 @@ export function EvolutionTimeline({ aiSettings, events, media, thinkingEvents, t
                   entityTitle: `Period synthesis · ${periodStart} to ${periodEnd}`,
                   eventType: 'refined',
                   reason: content,
-                  influencedBy: evolutionSynthesisSourceIds(periodSample),
+                  influencedBy: evolutionSynthesisSourceIds(readEvents),
                   date: new Date().toISOString(),
-                }, result, periodSample.map(({ id }) => id));
+                }, result, readEvents.map(({ id }) => id));
               }}
             />
           )}

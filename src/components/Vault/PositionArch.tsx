@@ -1,5 +1,7 @@
 "use client";
 
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
+
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
@@ -117,7 +119,10 @@ export function PositionArch({
     // The instrument at rest: a claim with nothing drawn under it yet.
     return (
       <section className={cn('noesis-arch', className)} data-tone="position" aria-label="What holds this claim up">
-        <Eyebrow as="h3">What holds it up</Eyebrow>
+        <div className="noesis-arch__head">
+          <Eyebrow as="h3">What holds it up</Eyebrow>
+          <InstrumentHelp instrument="arch" />
+        </div>
         <svg viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} role="img" className="noesis-arch__draw"
           aria-label="No assumptions recorded: the claim has nothing drawn under it.">
           <path d={wedge(90 + KEY_HALF, 90 - KEY_HALF)} className="noesis-arch__key" />
@@ -126,7 +131,7 @@ export function PositionArch({
             className="noesis-arch__absent" />
         </svg>
         <p className="noesis-arch__note">
-          Nothing is recorded under this claim. Name what it rests on and the span can be tested.
+          No explicit assumptions recorded. The grounds for and against the claim are tracked separately.
         </p>
         {onAddAssumption && (
           <Button type="button" variant="outline" size="sm" onClick={onAddAssumption}>Name an assumption</Button>
@@ -139,7 +144,10 @@ export function PositionArch({
     <section className={cn('noesis-arch', className)} data-tone="position" aria-label="What holds this claim up">
       <div className="noesis-arch__head">
         <Eyebrow as="h3">What holds it up</Eyebrow>
-        <span className="noesis-arch__hint">Pull a stone to test the span</span>
+        <div className="flex items-center gap-2">
+          <span className="noesis-arch__hint">Pull a stone to test the span</span>
+          <InstrumentHelp instrument="arch" />
+        </div>
       </div>
 
       <svg viewBox={`0 0 ${VIEW.w} ${VIEW.h}`} role="img" className="noesis-arch__draw"

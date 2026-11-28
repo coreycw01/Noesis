@@ -1,26 +1,27 @@
 'use client';
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PraxisMethodShape, praxisShapeFor } from './PraxisMethodShape';
+import { PRAXIS_METHOD_ICONS } from '@/lib/noesis-icons';
 
 const methods = [
-  { id: 'practices', label: 'Practices', kind: 'habit' },
+  { id: 'practices', label: 'Practices', kind: 'practice' },
   { id: 'experiments', label: 'Experiments', kind: 'experiment' },
   { id: 'commitments', label: 'Commitments', kind: 'commitment' },
 ] as const;
 
 export type PraxisMethod = typeof methods[number]['id'];
 
-export function PraxisMethodPicker({ method, onChange }: { method: PraxisMethod; onChange: (method: PraxisMethod) => void }) {
-  return <Select value={method} onValueChange={value => onChange(value as PraxisMethod)}>
-    <SelectTrigger aria-label="Praxis method" className="w-44"><SelectValue /></SelectTrigger>
-    <SelectContent>
+export function PraxisMethodTabs({ method, onChange }: { method: PraxisMethod; onChange: (method: PraxisMethod) => void }) {
+  return (
+    <div role="group" aria-label="Praxis views" className="noesis-praxis-methods" data-stage-tone="act">
       {methods.map(({ id, label, kind }) => {
-        const shape = praxisShapeFor(kind);
-        return <SelectItem key={id} value={id}>
-          <span className="flex items-center gap-2" data-stage-tone={shape.tone}><PraxisMethodShape shape={shape.shape} size={15} />{label}</span>
-        </SelectItem>;
+        const Icon = PRAXIS_METHOD_ICONS[kind];
+        return (
+          <button key={id} type="button" aria-pressed={method === id} onClick={() => { if (method !== id) onChange(id); }}>
+            <Icon size={15} className="shrink-0 text-[hsl(var(--stage))]" aria-hidden="true" />
+            <span>{label}</span>
+          </button>
+        );
       })}
-    </SelectContent>
-  </Select>;
+    </div>
+  );
 }

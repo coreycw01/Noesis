@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AiProvenanceBadge } from '@/components/ai/AiProvenanceBadge';
+import { AiCreationHistory } from '@/components/ai/AiCreationHistory';
 import { annotationEffectTarget, type AnnotationReviewApproval } from '@/lib/annotation-ai-review';
 import { sourceAnnotationReviewTarget } from '@/lib/ai-provenance';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -21,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ConceptTagPicker } from '@/components/ConceptTagPicker';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill, ViewModeToggle } from '@/components/shared/FilterToolbar';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import type { AiSettings, Annotation, AnnotationPhilosophyStatus, AnnotationType, Concept, Media, PhilosophicalLink, Practice, Question, VaultEntry } from '@/lib/types';
@@ -29,9 +30,10 @@ import { allAnnotations, conceptKey, MEDIA_LABELS, normalizeConceptTags, today, 
 import { MarkupSurface, markKind, shapeMarkText } from '@/components/shared/MarkupSurface';
 import { Dictation } from '@/components/shared/Dictation';
 import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordSection } from '@/components/shared/record/RecordPage';
-import { Connections, History } from '@/components/shared/record/RecordParts';
+import { ItemWorkspace } from '@/components/shared/record/ItemWorkspace';
+import { Connections } from '@/components/shared/record/RecordParts';
+import { ItemHistoryBackground, ItemHistoryTimeline } from '@/components/shared/record/ItemHistoryPanel';
 import { Eyebrow } from '@/components/ui/eyebrow';
-import { SectionEmpty } from '@/components/shared/SectionEmpty';
 import type { AnnotationMark, AnnotationMarkKind } from '@/lib/types';
 import type { BadgeTone } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -122,12 +124,19 @@ interface PreflightDraft {
   question: string;
   context: string;
   whyItMatters: string;
+  annotationHandoffNote: string;
   currentIntuition: string;
   description: string;
   supportNote: string;
   challengeNote: string;
   confidence: number;
   tags: string[];
+}
+
+function AnnotationExcerpt({ text, className }: { text: string; className?: string }) {
+  const excerpt = text.trim();
+  const alreadyQuoted = /^(?:"[\s\S]*"|\u201c[\s\S]*\u201d)$/.test(excerpt);
+  return <q className={cn('noesis-annotation-excerpt', className)} data-already-quoted={alreadyQuoted || undefined}>{excerpt}</q>;
 }
 
 export function AnnotationsIndex({
@@ -178,6 +187,7 @@ export function AnnotationsIndex({
   const [detailEffect, setDetailEffect] = useState<ConsequenceAction>('reference');
   const [preflight, setPreflight] = useState<PreflightDraft | null>(null);
   const [movingMark, setMovingMark] = useState<string | null>(null);
+  const [markHandoffNote, setMarkHandoffNote] = useState('');
   const [moveText, setMoveText] = useState('');
   const markSendLock = useRef(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -415,18 +425,41 @@ export function AnnotationsIndex({
     } finally { editSaveLock.current = false; setSavingEdit(false); }
   };
 
-  const saveReminder = async (reason: string) => {
-    if (!focusedAnnotation || editSaveLock.current || reason === (focusedAnnotation.savedReason || '')) return;
-    const { source, ...annotation } = focusedAnnotation;
+  const saveReminder = async (candidate: FlatAnnotation, reason: string) => {
+    if (editSaveLock.current || reason === (candidate.savedReason || '')) return;
+    const { source, ...annotation } = candidate;
     editSaveLock.current = true;
     setSavingEdit(true);
     try {
       if (!await persistAnnotation(source.id, { ...annotation, savedReason: reason })) return;
-      setEditing(current => current && annotationKey(current) === annotationKey(focusedAnnotation)
+      setEditing(current => current && annotationKey(current) === annotationKey(candidate)
         ? { ...current, savedReason: reason } : current);
       toast({ title: reason ? 'Reminder saved' : 'Reminder cleared' });
     } finally { editSaveLock.current = false; setSavingEdit(false); }
   };
+
+  const saveConceptTags = async (candidate: FlatAnnotation, tags: string[]) => {
+    if (editSaveLock.current) return false;
+    const { source, ...annotation } = candidate;
+    const conceptTags = normalizeConceptTags(tags);
+    editSaveLock.current = true;
+    setSavingEdit(true);
+    try {
+      if (!await persistAnnotation(source.id, { ...annotation, conceptTags })) return false;
+      setEditing(current => current && annotationKey(current) === annotationKey(candidate) ? { ...current, conceptTags } : current);
+      return true;
+    } finally {
+      editSaveLock.current = false;
+      setSavingEdit(false);
+    }
+  };
+
+  const conceptTagAction = (annotation: FlatAnnotation) => (
+    <ConceptTagPicker key={annotationKey(annotation)} concepts={concepts} value={annotationTags(annotation)}
+      onChange={(tags) => saveConceptTags(annotation, tags)}
+      onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+      triggerOnly triggerClassName="min-h-9 text-tone" disabled={savingEdit} />
+  );
 
   const openPreflight = (annotation: FlatAnnotation, mode: PreflightMode) => {
     const tags = normalizeConceptTags(annotation.conceptTags || annotation.source.tags);
@@ -445,6 +478,7 @@ export function AnnotationsIndex({
       question: annotation.type === 'question' ? annotation.text : `What does this imply: ${annotation.text}`,
       context,
       whyItMatters: `This annotation from ${sourceLabel} may change how I understand the related concept or position.${conceptPhrase}`,
+      annotationHandoffNote: '',
       currentIntuition: annotation.answer || annotation.context || annotation.text,
       description: `Formed from an annotation in ${sourceLabel}.\n\nAnnotation:\n${annotation.text}${annotation.context ? `\n\nContext:\n${annotation.context}` : ''}`,
       supportNote: annotation.type === 'objection' || annotation.consequenceKind === 'objection' ? '' : annotation.text,
@@ -526,6 +560,7 @@ export function AnnotationsIndex({
     const created = await onCreateInquiry({
       text,
       whyItMatters: shaped?.whyItMatters || `This inquiry was opened from an annotation in ${annotation.source.title}.`,
+      annotationHandoffNote: shaped?.annotationHandoffNote,
       currentIntuition: shaped?.currentIntuition || annotation.answer || annotation.context || '',
       assumptions: [
         `The annotation is relevant evidence from ${annotation.source.title}.`,
@@ -749,6 +784,7 @@ export function AnnotationsIndex({
       } else if (mark.kind === 'question') {
         const created = await onCreateInquiry({
           text, whyItMatters: provenance, currentIntuition: annotation.answer || annotation.context || '',
+          annotationHandoffNote: markHandoffNote,
           conceptIds: concepts.filter((concept) => tags.map(conceptKey).includes(conceptKey(concept.name))).map((concept) => concept.id),
           sourceIds: [annotation.source.id], evidenceIds: [annotation.id], type: 'annotation', sourceAnnotationId: annotation.id,
           annotationRefs: [{ sourceId: annotation.source.id, annotationId: annotation.id }],
@@ -872,8 +908,121 @@ export function AnnotationsIndex({
 
   const filtersActive = Boolean(search || filterType !== 'all' || filterConcept !== 'all' || filterSource !== 'all');
 
+  const annotationAi = editing && (
+    <ContextualAiPanel
+      key={`${editing.source.id}:${editing.id}`}
+      itemHistory={savedReviews}
+      actions={['suggest_annotation_effect']}
+      enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
+      showContextBeforeSending={aiSettings?.showContextBeforeSending}
+      reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
+      iconOnly
+      promptLabel="What do you want to understand about this note?"
+      promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
+      buildEnvelope={(action, userPrompt) => ({
+        action,
+        targetType: 'annotation',
+        targetId: `${editing.source.id}:${editing.id}`,
+        scope: 'linked_items',
+        itemMemory: [
+          `Annotation: ${editing.text}`,
+          `Type: ${editing.type}`,
+          `Source: ${editing.source.title}${editing.source.creator ? ` by ${editing.source.creator}` : ''}`,
+          `Source description: ${editing.source.description || 'Not recorded.'}`,
+          editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
+          editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
+          ...(editing.marks || []).map((mark) => `Marked as ${mark.kind}: ${mark.text}`),
+        ],
+        linkedMemory: [
+          ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
+          ...(editing.linkedPositionIds || []).map((id) => {
+            const position = positions.find((item) => item.id === id);
+            return position ? `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}` : 'A previously linked position is no longer available.';
+          }),
+        ],
+        userPrompt,
+      })}
+      onAccept={async (result, content) => {
+        const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
+        if (!saved) throw new Error('This annotation is no longer available.');
+        const { source } = saved;
+        const { source: _source, ...baseline } = editing;
+        const next = await onUpdateAnnotation(source.id, baseline, { result, text: content });
+        if (next) setEditing((current) => current?.id === next.id && current.source.id === source.id ? {
+          ...current, aiEffectReview: next.aiEffectReview, aiReviewHistory: next.aiReviewHistory, effectProvenance: next.effectProvenance,
+        } : current);
+      }}
+    />
+  );
+
+  const annotationMarkup = editing && (
+    <section className="my-4" aria-label="Markup">
+      <MarkupSurface key={annotationKey(editing)} text={editing.text} marks={editing.marks || []}
+        onAddMark={(kind, start, end, marked) => void addMark(editing, kind, start, end, marked)} />
+    </section>
+  );
+
+  const annotationMarks = editing && Boolean(editing.marks?.length) && (
+    <RecordSection id="ann-marks" title="Marks" headingLevel="h2"
+      aside={<Eyebrow size="sm">{(editing.marks || []).length} mark{(editing.marks || []).length === 1 ? '' : 's'}</Eyebrow>}>
+      {(editing.marks || []).map((mark) => {
+        const kind = markKind(mark.kind);
+        const Icon = kind.icon;
+        const open = movingMark === mark.id;
+        return (
+          <div key={mark.id} className="noesis-mark-row" data-tone={kind.tone}>
+            <Eyebrow tone={kind.tone}><Icon className="size-3.5" aria-hidden="true" /> {kind.label}</Eyebrow>
+            <span className="noesis-mark-row__text">“{mark.text}”</span>
+            <span className="noesis-mark-row__actions">
+              {mark.movedTo
+                ? sentMarkAction(mark)
+                : mark.kind === 'reference'
+                  ? <Eyebrow size="sm">Stays here</Eyebrow>
+                  : <Button variant="secondary" size="sm" tone={kind.tone} onClick={() => { setMovingMark(open ? null : mark.id); setMoveText(shapeMarkText(mark.kind, mark.text)); setMarkHandoffNote(''); }}>{open ? 'Close' : `Send to ${kind.destination}`}</Button>}
+              <IconButton label={`Remove the ${kind.label.toLowerCase()} mark`} size="sm" onClick={() => void removeMark(editing, mark.id)}><X className="size-3.5" /></IconButton>
+            </span>
+            {open && (
+              <Dictation className="col-span-full grid gap-2 border-t border-border pt-3" label="Dictate it">
+                <Eyebrow size="sm">{kind.prompt}</Eyebrow>
+                <Textarea value={moveText} onChange={(event) => setMoveText(event.target.value)} className="min-h-[72px]" aria-label={`What goes to ${kind.destination}`} />
+                {mark.kind === 'question' && <label className="grid gap-1 text-sm">What made you ask this? (optional)
+                  <Textarea value={markHandoffNote} onChange={event => setMarkHandoffNote(event.target.value)} maxLength={1000} disabled={Boolean(pendingAction)} />
+                </label>}
+                {mark.kind === 'definition' && (
+                  <div>
+                    <Label className="mb-1.5 block text-xs text-muted-foreground">Which concept does this define?</Label>
+                    <ConceptTagPicker concepts={concepts} value={editing.conceptTags || editing.source.tags || []} onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)} />
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="primary" size="sm" tone={kind.tone} disabled={Boolean(pendingAction) || !moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>{pendingAction === `mark:${mark.id}` ? 'Sending…' : `Send to ${kind.destination}`}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
+                  <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
+                </div>
+              </Dictation>
+            )}
+          </div>
+        );
+      })}
+    </RecordSection>
+  );
+
+  const annotationReminder = editing && (
+    <details key={annotationKey(editing)} className="mb-4 mt-5 max-w-xl border-l border-border pl-3">
+      <summary className="min-h-9 cursor-pointer py-2 text-sm font-medium">Why did you save this?</summary>
+      <form className="grid gap-2 pb-2" onSubmit={event => {
+        event.preventDefault();
+        const reason = String(new FormData(event.currentTarget).get('savedReason') || '').trim();
+        void saveReminder(editing, reason);
+      }}>
+        <Textarea name="savedReason" aria-label="Why did you save this?" defaultValue={editing.savedReason || ''} maxLength={1000} placeholder="A question it raised, a stance you had, or something you wanted to try." className="min-h-16" disabled={savingEdit} />
+        <Button type="submit" size="sm" variant="outline" className="justify-self-start" disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save reminder'}</Button>
+      </form>
+    </details>
+  );
+
   return (
-    <div className={cn('noesis-annotations-index', isFullPageDetail ? 'flex min-w-0 flex-1' : 'noesis-page')} data-noesis-identity="marginalia">
+    <div className={cn('noesis-annotations-index', isFullPageDetail ? 'flex min-h-0 min-w-0 flex-1' : 'noesis-page')} data-noesis-identity="marginalia">
       <div className={cn(isFullPageDetail && 'hidden')}>
       <PageHeader
         title="Annotations"
@@ -921,7 +1070,10 @@ export function AnnotationsIndex({
         resultLabel="annotations"
         onClear={clearFilters}
         clearDisabled={!filtersActive}
-        sortLabel={sortBy.replace(/_/g, ' ')}
+        sortControl={<SortPill label="Sort annotations" value={sortBy} onChange={setSortBy} options={[
+          { value: 'newest', label: 'Recently added' }, { value: 'oldest', label: 'Oldest' }, { value: 'source', label: 'Source order' },
+          { value: 'type', label: 'Type A–Z' }, { value: 'status', label: 'Status' },
+        ]} />}
         relatedLookups={[
           {
             id: 'sources',
@@ -956,19 +1108,6 @@ export function AnnotationsIndex({
         }
         className="mb-5"
       >
-        <Select value={sortBy} onValueChange={(value) => setSortBy(value as AnnotationSort)}>
-          <SelectTrigger aria-label="Sort annotations" className="w-44 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
-            <SelectValue placeholder="Sort" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest" className="noesis-eyebrow">Recently added</SelectItem>
-            <SelectItem value="status" className="noesis-eyebrow">Recently updated</SelectItem>
-            <SelectItem value="source" className="noesis-eyebrow">Source order</SelectItem>
-            <SelectItem value="oldest" className="noesis-eyebrow">Oldest</SelectItem>
-            <SelectItem value="type" className="noesis-eyebrow">A-Z by type</SelectItem>
-          </SelectContent>
-        </Select>
-
         <Select value={ANNOTATION_TYPES.some((option) => option.id === filterType) ? filterType : 'all'} onValueChange={(value) => setFilterType(value as AnnotationFilter)}>
           <SelectTrigger aria-label="Filter by annotation type" className="w-44 h-10 noesis-eyebrow rounded-full bg-card shadow-sm border-border/60">
             <SelectValue placeholder="Type" />
@@ -996,8 +1135,6 @@ export function AnnotationsIndex({
           ))}
         </div>
 
-      </FilterToolbar>
-
       {annotations.length > 0 && (() => {
         const stages: Array<{ id: AnnotationPhilosophyStatus; label: string; tone: string }> = [
           { id: 'raw', label: 'Captured', tone: 'encounter' },
@@ -1007,14 +1144,9 @@ export function AnnotationsIndex({
           { id: 'archived', label: 'Set aside', tone: 'integrate' },
         ];
         const counts = stages.map((stage) => annotations.filter((annotation) => annotationStatus(annotation) === stage.id).length);
-        const total = counts.reduce((sum, count) => sum + count, 0) || 1;
         return (
-          <section className="noesis-flowbar mb-6" aria-label="Where your notes are">
-            <div className="noesis-instrument__label">Where your notes are · {annotations.length}</div>
-            <div className="noesis-flowbar__bar" role="img" aria-label={stages.map((stage, index) => `${stage.label} ${counts[index]}`).join(', ')}>
-              {stages.map((stage, index) => counts[index] ? <span key={stage.id} data-stage-tone={stage.tone} style={{ flexGrow: counts[index] / total }} title={`${stage.label}: ${counts[index]}`} /> : null)}
-            </div>
-            <div className="flex flex-wrap gap-x-5 gap-y-1">
+          <section className="w-full border-t border-border pt-2" aria-label="Annotation stages">
+            <div className="flex flex-wrap gap-2">
               {stages.map((stage, index) => (
                 <button key={stage.id} type="button" data-stage-tone={stage.tone} className="noesis-flowbar__key" aria-pressed={filterType === stage.id} onClick={() => setFilterType(filterType === stage.id ? 'all' : stage.id as AnnotationFilter)}>
                   <i />{stage.label} <b>{counts[index]}</b>
@@ -1024,12 +1156,13 @@ export function AnnotationsIndex({
           </section>
         );
       })()}
+      </FilterToolbar>
       {(() => {
         const unsorted = annotations.filter((annotation) => !annotation.consequenceKind && !annotation.createdInquiryId && !annotation.createdPositionId && !(annotation.linkedPositionIds || []).length && !linkedInquiriesFor(annotation).length && annotationStatus(annotation) !== 'archived' && annotationStatus(annotation) !== 'reference_only');
         if (!unsorted.length) return null;
         const kinds: Array<[NonNullable<Annotation['consequenceKind']>, string, string]> = [['evidence', 'Evidence', 'act'], ['objection', 'Objection', 'claim'], ['question', 'Question', 'examine'], ['definition', 'Definition', 'outline'], ['claim', 'Claim', 'integrate']];
         return (
-          <details className="noesis-tray mb-6">
+          <details className="noesis-tray mb-3">
             <summary className="cursor-pointer py-2 text-sm font-medium">Sorting tray · {unsorted.length} to mark</summary>
             {unsorted.slice(0, 4).map((annotation) => (
               <div key={`${annotation.source.id}:${annotation.id}`} className="noesis-tray__row">
@@ -1048,7 +1181,7 @@ export function AnnotationsIndex({
           </details>
         );
       })()}
-      <section className="mb-8 hidden rounded-2xl border border-border/50 bg-card p-4 shadow-sm md:block">
+      {selectedAnnotations.length > 0 && <section className="mb-3 border-y border-border/60 py-2" aria-label="Selected annotations">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3 text-left">
             <Checkbox
@@ -1057,7 +1190,6 @@ export function AnnotationsIndex({
               aria-label={filtered.length > 0 && filtered.every((annotation) => selectedKeys.includes(annotationKey(annotation))) ? 'Clear visible annotation selection' : 'Select all visible annotations'}
             />
             <div>
-              <p className="noesis-eyebrow font-bold text-primary">Processing Inbox</p>
               <p className="text-xs text-muted-foreground">
                 {selectedAnnotations.length ? `${selectedAnnotations.length} selected` : 'Select notes to tag, open as inquiries, or form a position together.'}
               </p>
@@ -1080,7 +1212,7 @@ export function AnnotationsIndex({
             )}
           </div>
         </div>
-      </section>
+      </section>}
 
       {viewMode === 'table' && filtered.length > 0 ? (
         <section className="min-w-0 rounded-lg border border-border/60 bg-card">
@@ -1112,7 +1244,7 @@ export function AnnotationsIndex({
                     <Checkbox checked={selectedKeys.includes(annotationKey(annotation))} onCheckedChange={() => toggleSelected(annotation)} aria-label={`Select annotation from ${annotation.source.title}`} />
                   </TableCell>
                   <TableCell className="max-w-xl py-3 [overflow-wrap:anywhere]">
-                    <button type="button" onClick={() => openAnnotationDetail(annotation)} onKeyDown={(event) => activateEntityOnKey(event, () => openAnnotationDetail(annotation))} className="min-h-11 w-full rounded-sm text-left font-body text-sm leading-6 text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{annotation.text}</button>
+                    <button type="button" onClick={() => openAnnotationDetail(annotation)} onKeyDown={(event) => activateEntityOnKey(event, () => openAnnotationDetail(annotation))} className="min-h-11 w-full rounded-sm text-left font-body text-sm leading-6 text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><AnnotationExcerpt text={annotation.text} /></button>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground xl:hidden">
                       <span>{annotationLabel(annotationType(annotation))}</span>
                       <StageBadge type="annotation" stage={annotation.stage} status={annotation.philosophyStatus} />
@@ -1176,13 +1308,13 @@ export function AnnotationsIndex({
             ...(annotationType(annotation) === 'definition' && annotationTags(annotation).length ? [{ label: `Clarifies ${annotationTags(annotation)[0]}`, tone: 'concept' as const }] : []),
           ];
           return (
-          <Card key={`${annotation.source.id}:${annotation.id}`} data-note-stage={annotationStatus(annotation)} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
+          <Card key={`${annotation.source.id}:${annotation.id}`} role="group" aria-label={`Annotation: ${annotation.text.slice(0, 80)}`} tabIndex={0} onClick={(event) => {
             if (!isEntitySurfaceClick(event)) return;
             openAnnotationDetail(annotation);
           }} onKeyDown={(event) => {
             if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openAnnotationDetail(annotation); }
           }} className={cn(
-            "group border border-border/60 bg-card p-0 shadow-sm transition-all hover:border-accent/35 hover:shadow-md",
+            "noesis-annotation-card group self-start border border-border/60 bg-card p-0 shadow-sm transition-all hover:border-accent/35 hover:shadow-md",
             selectedKeys.includes(annotationKey(annotation)) && "border-accent/50 ring-2 ring-accent/10"
           )}>
             <div className="flex items-start justify-between gap-3 border-b border-border/40 px-4 py-3">
@@ -1207,6 +1339,7 @@ export function AnnotationsIndex({
                   ))}
                 </div>
               </div>
+              <div className="flex shrink-0 items-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button type="button" variant="ghost" size="icon" className="-mr-2 size-10 shrink-0" aria-label={`Actions for annotation from ${annotation.source.title}`}>
@@ -1219,10 +1352,11 @@ export function AnnotationsIndex({
                   <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteTarget(annotation)}><Trash2 className="mr-2 size-4" /> Delete</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              </div>
             </div>
 
             <button type="button" onClick={() => openAnnotationDetail(annotation)} className="block w-full px-4 py-4 text-left">
-              <p className="font-body text-sm leading-6 text-foreground line-clamp-4">{annotation.text}</p>
+              <AnnotationExcerpt text={annotation.text} className="line-clamp-4 break-words font-body text-sm leading-6 text-foreground" />
               {annotation.context?.trim() && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{annotation.context}</p>}
             </button>
 
@@ -1363,114 +1497,32 @@ export function AnnotationsIndex({
       {isFullPageDetail && editing ? (
         <RecordPage tone="encounter" identity="marginalia">
               <RecordHeader backLabel="Annotations" onBack={closeAnnotationDetail} view="annotations" kind="Annotation"
-                status={annotationLabel(annotationStatus(editing))} extra={`${editing.source.title}${editing.source.creator ? ` · ${editing.source.creator}` : ''}`}
-                title={`${annotationLabel(annotationType(editing))} from ${editing.source.title}`}
-                subtitle={editing.date && !Number.isNaN(Date.parse(editing.date)) ? `Captured ${new Date(editing.date).toLocaleDateString()}` : undefined}
-                tags={normalizeConceptTags(editing.conceptTags || editing.source.tags)}
-                trailing={<DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild><IconButton label="Annotation actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
+                status={annotationLabel(annotationStatus(editing))}
+                title={editing.source.title} subtitle={editing.source.creator || undefined}
+                tags={annotationTags(editing)} tagAction={<div data-tone="concept">{conceptTagAction(editing)}</div>}
+                trailing={<>{annotationAi}<DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild><IconButton ref={annotationMenuTrigger} label="Annotation actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onSelect={() => setEditDraft({ ...editing })}><Pencil className="mr-2 size-4" /> Edit the passage</DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => previewSource(editing.source, editing)}><ExternalLink className="mr-2 size-4" /> Open source</DropdownMenuItem>
                     <DropdownMenuItem className="text-problem focus:text-problem" onSelect={() => setDeleteTarget(editing)}><Trash2 className="mr-2 size-4" /> Delete annotation</DropdownMenuItem>
                   </DropdownMenuContent>
-                </DropdownMenu>} />
-                <details key={annotationKey(editing)} className="my-4 max-w-xl border-l border-border pl-3">
-                  <summary className="min-h-9 cursor-pointer py-2 text-sm font-medium">Why did you save this?</summary>
-                  <form className="grid gap-2 pb-2" onSubmit={event => {
-                    event.preventDefault();
-                    const reason = String(new FormData(event.currentTarget).get('savedReason') || '').trim();
-                    void saveReminder(reason);
-                  }}>
-                    <Textarea name="savedReason" aria-label="Why did you save this?" defaultValue={editing.savedReason || ''} maxLength={1000} placeholder="A question it raised, a stance you had, or something you wanted to try." className="min-h-16" disabled={savingEdit} />
-                    <Button type="submit" size="sm" variant="outline" className="justify-self-start" disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save reminder'}</Button>
-                  </form>
-                </details>
-                <RecordSection id="ann-markup" title="Markup" description="Mark any part of the passage. What you mark it as is where it goes." headingLevel="h2"
-                  aside={<ContextualAiPanel
-                      actions={['suggest_annotation_effect']}
-                      enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
-                      showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                      reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
-                      buttonLabel="Ask Noesis"
-                      promptLabel="What do you want to understand about this note?"
-                      promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
-                      buildEnvelope={(action, userPrompt) => ({
-                        action,
-                        targetType: 'annotation',
-                        targetId: `${editing.source.id}:${editing.id}`,
-                        scope: 'linked_items',
-                        itemMemory: [
-                          `Annotation: ${editing.text}`,
-                          `Type: ${editing.type}`,
-                          `Source: ${editing.source.title}${editing.source.creator ? ` by ${editing.source.creator}` : ''}`,
-                          `Source description: ${editing.source.description || 'Not recorded.'}`,
-                          editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
-                          editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
-                          ...(editing.marks || []).map((mark) => `Marked as ${mark.kind}: ${mark.text}`),
-                        ],
-                        linkedMemory: [
-                          ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
-                          ...(editing.linkedPositionIds || []).map((id) => {
-                            const position = positions.find((item) => item.id === id);
-                            return position ? `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}` : 'A previously linked position is no longer available.';
-                          }),
-                        ],
-                        userPrompt,
-                      })}
-                      onAccept={async (result, content) => {
-                        const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
-                        if (!saved) throw new Error('This annotation is no longer available.');
-                        const { source } = saved;
-                        const { source: _source, ...baseline } = editing;
-                        const next = await onUpdateAnnotation(source.id, baseline, { result, text: content });
-                        if (next) setEditing((current) => current?.id === next.id && current.source.id === source.id ? {
-                          ...current, aiEffectReview: next.aiEffectReview, aiReviewHistory: next.aiReviewHistory, effectProvenance: next.effectProvenance,
-                        } : current);
-                      }}
-                    />}>
-                  <MarkupSurface text={editing.text} marks={editing.marks || []} onAddMark={(kind, start, end, marked) => void addMark(editing, kind, start, end, marked)} />
-                </RecordSection>
-
-                <RecordSection id="ann-marks" title="Marks" description="Every mark is saved here. Send one down its pipeline when you are ready; the annotation stays where it is." headingLevel="h2"
-                  aside={<Eyebrow size="sm">{(editing.marks || []).length} mark{(editing.marks || []).length === 1 ? '' : 's'}</Eyebrow>}>
-                  {(editing.marks || []).length ? (editing.marks || []).map((mark) => {
-                    const kind = markKind(mark.kind);
-                    const Icon = kind.icon;
-                    const open = movingMark === mark.id;
-                    return (
-                      <div key={mark.id} className="noesis-mark-row" data-tone={kind.tone}>
-                        <Eyebrow tone={kind.tone}><Icon className="size-3.5" aria-hidden="true" /> {kind.label}</Eyebrow>
-                        <span className="noesis-mark-row__text">“{mark.text}”</span>
-                        <span className="noesis-mark-row__actions">
-                          {mark.movedTo
-                            ? sentMarkAction(mark)
-                            : mark.kind === 'reference'
-                              ? <Eyebrow size="sm">Stays here</Eyebrow>
-                              : <Button variant="secondary" size="sm" tone={kind.tone} onClick={() => { setMovingMark(open ? null : mark.id); setMoveText(shapeMarkText(mark.kind, mark.text)); }}>{open ? 'Close' : `Send to ${kind.destination}`}</Button>}
-                          <IconButton label={`Remove the ${kind.label.toLowerCase()} mark`} size="sm" onClick={() => void removeMark(editing, mark.id)}><X className="size-3.5" /></IconButton>
-                        </span>
-                        {open && (
-                          <Dictation className="col-span-full grid gap-2 border-t border-border pt-3" label="Dictate it">
-                            <Eyebrow size="sm">{kind.prompt}</Eyebrow>
-                            <Textarea value={moveText} onChange={(event) => setMoveText(event.target.value)} className="min-h-[72px]" aria-label={`What goes to ${kind.destination}`} />
-                            {mark.kind === 'definition' && (
-                              <div>
-                                <Label className="mb-1.5 block text-xs text-muted-foreground">Which concept does this define?</Label>
-                                <ConceptTagPicker concepts={concepts} value={editing.conceptTags || editing.source.tags || []} onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)} />
-                              </div>
-                            )}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button variant="primary" size="sm" tone={kind.tone} disabled={Boolean(pendingAction) || !moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>{pendingAction === `mark:${mark.id}` ? 'Sending…' : `Send to ${kind.destination}`}</Button>
-                              <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
-                              <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
-                            </div>
-                          </Dictation>
-                        )}
-                      </div>
-                    );
-                  }) : <SectionEmpty title="No marks yet." hint="Mark part of the passage above and it appears here." />}
-                </RecordSection>
+                </DropdownMenu></>} />
+                <ItemWorkspace key={`${editing.source.id}:${editing.id}`} history={
+                  <ItemHistoryTimeline title="Annotation history" empty="No annotation activity recorded yet." entries={[
+                    ...(editing.marks || []).map((mark) => ({ id: mark.id, date: mark.date, title: `Marked as ${mark.kind}`, text: mark.text })),
+                    { id: 'created', date: editing.date, title: 'Captured', text: `From ${editing.source.title}` },
+                  ]} background={<><ItemHistoryBackground title="Annotation background">
+                    <p className="text-muted-foreground">Current status: {annotationLabel(annotationStatus(editing))}</p>
+                    {editing.createdInquiryId && <p>Promoted to an inquiry.</p>}
+                    {editing.createdPositionId && <p>Promoted to a position.</p>}
+                  </ItemHistoryBackground>
+                  {editing.textProvenance && <AiCreationHistory provenance={editing.textProvenance} target={sourceAnnotationReviewTarget(editing.id)}
+                    description="You saved a Noesis AI suggestion from the source as this annotation." />}
+                  </>} />
+                }>
+                {annotationMarkup}
+                {annotationMarks}
 
                 {savedReviews.length > 0 && (
                   <AiAssistedHistory
@@ -1493,37 +1545,17 @@ export function AnnotationsIndex({
                   />
                 )}
 
+                {annotationReminder}
                 <RecordFooter>
-                  <FooterSection title="Connections" count={connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0)} defaultOpen>
+                  <FooterSection title="Connections" count={connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0)}>
                     <Connections groups={connectionsForAnnotation(editing).map((group) => ({
                       type: group.label,
                       tone: (group.label === 'Positions' ? 'position' : group.label === 'Inquiries' ? 'inquiry' : group.label === 'Concepts' ? 'concept' : 'source') as BadgeTone,
                       items: group.items.map((item) => ({ id: item.id, label: item.label, onOpen: item.open })),
                     }))} />
-                    <div className="mt-3">
-                      <Label className="mb-2 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concept tags</Label>
-                      <ConceptTagPicker
-                        concepts={concepts}
-                        inline
-                        selectedTone="concept"
-                        value={editing.conceptTags || editing.source.tags || []}
-                        onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
-                        onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                      />
-                    </div>
-                    <Button className="mt-3" size="sm" variant="outline" disabled={savingEdit} onClick={() => void saveEditing(editing)}>Save connections</Button>
-                  </FooterSection>
-                  <FooterSection title="History" count={(editing.marks || []).length}>
-                    <History entries={[
-                      { id: 'created', date: editing.date, title: 'Captured', text: `From ${editing.source.title}` },
-                      ...(editing.marks || []).map((mark) => ({ id: mark.id, date: mark.date, title: `Marked as ${mark.kind}`, text: mark.text })),
-                      ...(editing.createdInquiryId ? [{ id: 'inq', title: 'Became an inquiry' }] : []),
-                      ...(editing.createdPositionId ? [{ id: 'pos', title: 'Formed a position' }] : []),
-                      ...(annotationStatus(editing) === 'reference_only' ? [{ id: 'ref', title: 'Kept as reference' }] : []),
-                      ...(annotationStatus(editing) === 'archived' ? [{ id: 'arc', title: 'Archived' }] : []),
-                    ]} />
                   </FooterSection>
                 </RecordFooter>
+                </ItemWorkspace>
         </RecordPage>
       ) : (
       <Dialog open={!usesDetailRoute && !isFullPageDetail && !!editing} onOpenChange={(open) => !open && closeAnnotationDetail()}>
@@ -1537,95 +1569,25 @@ export function AnnotationsIndex({
           }}
         >
               <DialogHeader>
-                <DialogTitle className="font-headline text-2xl italic">Annotation Detail</DialogTitle>
+                <div className="flex items-center justify-between gap-2 pr-7">
+                  <div className="min-w-0">
+                    <DialogTitle className="break-words font-headline text-xl font-semibold">{editing?.source.title || 'Annotation'}</DialogTitle>
+                    {editing?.source.creator && <p className="mt-1 break-words text-sm italic text-muted-foreground">{editing.source.creator}</p>}
+                  </div>
+                  {editing && <div className="flex items-center gap-2">
+                    {annotationAi}
+                    <IconButton ref={annotationMenuTrigger} label="Edit the passage" variant="outline" onClick={() => setEditDraft({ ...editing })}><Pencil aria-hidden="true" /></IconButton>
+                  </div>}
+                </div>
+                {editing && <div className="flex flex-wrap items-center gap-2" data-tone="concept">
+                  {annotationTags(editing).map(tag => <Badge key={tag} tone="concept">{tag}</Badge>)}
+                  {conceptTagAction(editing)}
+                </div>}
               </DialogHeader>
             {editing && (
               <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pt-2 max-sm:pr-1">
-                <RecordSection id="ann-markup" title="Markup" description="Mark any part of the passage. What you mark it as is where it goes." headingLevel="h2"
-                  aside={<ContextualAiPanel
-                      actions={['suggest_annotation_effect']}
-                      enabled={Boolean(aiSettings?.aiAssistanceEnabled)}
-                      showContextBeforeSending={aiSettings?.showContextBeforeSending}
-                      reasoningDepth={aiDepthFor(aiSettings, 'annotations')}
-                      buttonLabel="Ask Noesis"
-                      promptLabel="What do you want to understand about this note?"
-                      promptPlaceholder="For example: Does this challenge my linked position, or only qualify it?"
-                      buildEnvelope={(action, userPrompt) => ({
-                        action,
-                        targetType: 'annotation',
-                        targetId: `${editing.source.id}:${editing.id}`,
-                        scope: 'linked_items',
-                        itemMemory: [
-                          `Annotation: ${editing.text}`,
-                          `Type: ${editing.type}`,
-                          `Source: ${editing.source.title}${editing.source.creator ? ` by ${editing.source.creator}` : ''}`,
-                          `Source description: ${editing.source.description || 'Not recorded.'}`,
-                          editing.context ? `Surrounding context: ${editing.context}` : 'No surrounding context supplied.',
-                          editing.consequenceNote ? `User note: ${editing.consequenceNote}` : 'No user interpretation supplied.',
-                          ...(editing.marks || []).map((mark) => `Marked as ${mark.kind}: ${mark.text}`),
-                        ],
-                        linkedMemory: [
-                          ...(editing.conceptTags || []).map((tag) => `Concept: ${tag}`),
-                          ...(editing.linkedPositionIds || []).map((id) => {
-                            const position = positions.find((item) => item.id === id);
-                            return position ? `Position (${position.confidence}% confidence): ${position.statement || position.title}; support: ${(position.evidenceFor || []).length}; challenges: ${(position.evidenceAgainst || []).length}` : 'A previously linked position is no longer available.';
-                          }),
-                        ],
-                        userPrompt,
-                      })}
-                      onAccept={async (result, content) => {
-                        const saved = annotations.find((item) => item.id === editing.id && item.source.id === editing.source.id);
-                        if (!saved) throw new Error('This annotation is no longer available.');
-                        const { source } = saved;
-                        const { source: _source, ...baseline } = editing;
-                        const next = await onUpdateAnnotation(source.id, baseline, { result, text: content });
-                        if (next) setEditing((current) => current?.id === next.id && current.source.id === source.id ? {
-                          ...current, aiEffectReview: next.aiEffectReview, aiReviewHistory: next.aiReviewHistory, effectProvenance: next.effectProvenance,
-                        } : current);
-                      }}
-                    />}>
-                  <MarkupSurface text={editing.text} marks={editing.marks || []} onAddMark={(kind, start, end, marked) => void addMark(editing, kind, start, end, marked)} />
-                </RecordSection>
-
-                <RecordSection id="ann-marks" title="Marks" description="Every mark is saved here. Send one down its pipeline when you are ready; the annotation stays where it is." headingLevel="h2"
-                  aside={<Eyebrow size="sm">{(editing.marks || []).length} mark{(editing.marks || []).length === 1 ? '' : 's'}</Eyebrow>}>
-                  {(editing.marks || []).length ? (editing.marks || []).map((mark) => {
-                    const kind = markKind(mark.kind);
-                    const Icon = kind.icon;
-                    const open = movingMark === mark.id;
-                    return (
-                      <div key={mark.id} className="noesis-mark-row" data-tone={kind.tone}>
-                        <Eyebrow tone={kind.tone}><Icon className="size-3.5" aria-hidden="true" /> {kind.label}</Eyebrow>
-                        <span className="noesis-mark-row__text">“{mark.text}”</span>
-                        <span className="noesis-mark-row__actions">
-                          {mark.movedTo
-                            ? sentMarkAction(mark)
-                            : mark.kind === 'reference'
-                              ? <Eyebrow size="sm">Stays here</Eyebrow>
-                              : <Button variant="secondary" size="sm" tone={kind.tone} onClick={() => { setMovingMark(open ? null : mark.id); setMoveText(shapeMarkText(mark.kind, mark.text)); }}>{open ? 'Close' : `Send to ${kind.destination}`}</Button>}
-                          <IconButton label={`Remove the ${kind.label.toLowerCase()} mark`} size="sm" onClick={() => void removeMark(editing, mark.id)}><X className="size-3.5" /></IconButton>
-                        </span>
-                        {open && (
-                          <Dictation className="col-span-full grid gap-2 border-t border-border pt-3" label="Dictate it">
-                            <Eyebrow size="sm">{kind.prompt}</Eyebrow>
-                            <Textarea value={moveText} onChange={(event) => setMoveText(event.target.value)} className="min-h-[72px]" aria-label={`What goes to ${kind.destination}`} />
-                            {mark.kind === 'definition' && (
-                              <div>
-                                <Label className="mb-1.5 block text-xs text-muted-foreground">Which concept does this define?</Label>
-                                <ConceptTagPicker concepts={concepts} value={editing.conceptTags || editing.source.tags || []} onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)} />
-                              </div>
-                            )}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button variant="primary" size="sm" tone={kind.tone} disabled={Boolean(pendingAction) || !moveText.trim() || (mark.kind === 'definition' && !(editing.conceptTags || editing.source.tags || []).length)} onClick={() => void sendMark(editing, mark)}>{pendingAction === `mark:${mark.id}` ? 'Sending…' : `Send to ${kind.destination}`}</Button>
-                              <Button variant="ghost" size="sm" onClick={() => setMovingMark(null)}>Cancel</Button>
-                              <span className="text-xs text-muted-foreground">The annotation stays in {editing.source.title ? 'Library' : 'its collection'}; only the mark travels.</span>
-                            </div>
-                          </Dictation>
-                        )}
-                      </div>
-                    );
-                  }) : <SectionEmpty title="No marks yet." hint="Mark part of the passage above and it appears here." />}
-                </RecordSection>
+                {annotationMarkup}
+                {annotationMarks}
 
                 {savedReviews.length > 0 && (
                   <AiAssistedHistory
@@ -1648,6 +1610,7 @@ export function AnnotationsIndex({
                   />
                 )}
 
+                {annotationReminder}
                 <details id="annotation-connect" className="noesis-workbench-panel scroll-mt-4">
                   <summary className="cursor-pointer list-none">
                   <div className="flex items-center justify-between gap-3">
@@ -1674,16 +1637,6 @@ export function AnnotationsIndex({
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3">
-                    <Label className="mb-2 block noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concept tags</Label>
-                    <ConceptTagPicker
-                      concepts={concepts}
-                      value={editing.conceptTags || editing.source.tags || []}
-                      onChange={(tags) => setEditing((prev) => prev ? { ...prev, conceptTags: normalizeConceptTags(tags) } : prev)}
-                      onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })}
-                    />
-                  </div>
-                  <Button className="mt-3" size="sm" variant="outline" disabled={savingEdit} onClick={() => void saveEditing(editing)}>Save connections</Button>
                   </div>
                 </details>
 
@@ -1798,6 +1751,10 @@ export function AnnotationsIndex({
                   <div className="space-y-2">
                     <Label htmlFor="annotation-promotion-question">Question To Work</Label>
                     <Textarea id="annotation-promotion-question" value={preflight.question} onChange={(event) => setPreflight((prev) => prev ? { ...prev, question: event.target.value } : prev)} className="min-h-[110px]" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="annotation-handoff-note">What made you ask this? (optional)</Label>
+                    <Textarea id="annotation-handoff-note" value={preflight.annotationHandoffNote} onChange={(event) => setPreflight((prev) => prev ? { ...prev, annotationHandoffNote: event.target.value } : prev)} maxLength={1000} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="annotation-promotion-whyItMatters">Why This Inquiry Matters</Label>

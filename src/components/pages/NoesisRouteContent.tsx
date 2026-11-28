@@ -163,7 +163,7 @@ export interface NoesisRouteContentProps {
       confidence: number;
     };
   }) => Promise<{ positionId: string; insightId: string; title: string }>;
-  addPhilosophicalLink: (data: Partial<PhilosophicalLink>) => void;
+  addPhilosophicalLink: (data: Partial<PhilosophicalLink>, options?: { creationMethod?: string; rethrow?: boolean }) => void | Promise<unknown>;
   addAtlasQuickLink: (data: Partial<PhilosophicalLink>) => void | Promise<void>;
   updatePhilosophicalLink: (link: PhilosophicalLink) => void;
   deletePhilosophicalLink: (id: string, options?: { method?: string }) => Promise<void>;
@@ -341,6 +341,7 @@ export function NoesisRouteContent({
     case 'home':
       return (
         <HomeRoutePage
+          aiEnabled={aiSettings.aiAssistanceEnabled}
           profile={profile}
           concepts={concepts}
           media={media}
@@ -348,14 +349,16 @@ export function NoesisRouteContent({
           positions={vault}
           works={drafts}
           practices={practices}
-          timeline={timeline}
-          thinkingEvents={thinkingEvents}
           unknowns={unknowns}
           links={links}
           goal={goalState}
           showCommitments={goalPreferenceSettings.showGoalsOnDashboard}
           goalProgress={goalProgress}
           onCreateInquiry={addQuestion}
+          onCreateWork={addDraft}
+          onCreatePosition={addVaultEntry}
+          onCreateConcept={addConcept}
+          onCreatePractice={addPractice}
           onUpdatePractice={updatePractice}
           onNavigate={navigateToView}
         />
@@ -427,17 +430,6 @@ export function NoesisRouteContent({
           onAttachSourcePhoto={attachSourcePhoto}
           onDeleteMedia={deleteMedia}
           onAddConcept={addConcept}
-          onCreateClaim={(data) => addVaultEntry({
-            title: data.title,
-            statement: data.title,
-            description: data.body,
-            confidenceReasoning: data.body,
-            confidence: 60,
-            status: 'developing',
-            tags: data.tags,
-            sourceIds: data.sourceIds,
-            createdFrom: 'manual',
-          })}
           onDeleteVaultEntry={deleteVaultEntry}
           focusedSourceId={focusedSourceId}
           onNavigate={navigateToView}
@@ -534,10 +526,11 @@ export function NoesisRouteContent({
           onUpdateEntry={updateVaultEntry}
           onDeleteEntry={deleteVaultEntry}
           onAddConcept={addConcept}
-          onCreateLink={addPhilosophicalLink}
+          onCreateLink={data => addPhilosophicalLink(data, { creationMethod: 'position_record_link', rethrow: true })}
           onAddDraft={addDraft}
           onAddPractice={addPractice}
           onAddQuestion={addQuestion}
+          onUpdateQuestion={updateQuestion}
           onUpdateLink={updatePhilosophicalLink}
           focusedEntryId={focusedPositionId}
           onNavigate={navigateToView}
@@ -550,7 +543,7 @@ export function NoesisRouteContent({
     case 'context-desk':
       return (
         <ContextDeskRoutePage
-          savedDeskOwner={!isReviewWorkspace && user?.uid === effectiveUid ? effectiveUid : undefined}
+          savedDeskOwner={isOfflineReviewPreview || (!isReviewWorkspace && user?.uid === effectiveUid) ? effectiveUid : undefined}
           aiSettings={aiSettings}
           media={media}
           concepts={concepts}

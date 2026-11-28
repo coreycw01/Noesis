@@ -4,16 +4,8 @@ import { cn } from '@/lib/utils';
 export type PraxisShape = 'circle' | 'triangle' | 'square';
 
 /**
- * Each way of acting has one shape, used everywhere a Praxis record appears:
- * a circle for upholding a principle (commitments and rules), a triangle for
- * testing an idea (experiments), and a square for building consistency
- * (practices and habits).
- *
- * All three are green, because all three are Praxis. The shapes used to carry
- * a stage colour each — a purple triangle, a green circle, an amber square —
- * which borrowed Question's and Encounter's colours to say something they do
- * not mean, and made one kind of record look like three. The shape alone says
- * which method it is; the colour says what kind of record it is.
+ * Compact calendar marks for Praxis day strips. Use the shared method icons
+ * for navigation and record labels; these shapes encode kept and missed days.
  */
 export function praxisShapeFor(type: PracticeType | string): { shape: PraxisShape; tone: string; intent: string } {
   if (type === 'experiment' || type === 'observation' || type === 'challenge' || type === 'exposure') return { shape: 'triangle', tone: 'act', intent: 'Test an idea' };

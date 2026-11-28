@@ -23,6 +23,7 @@ interface WorkspaceTabsProps<T extends string = string> {
   iconsOnly?: boolean;
   focusSelectedOnMount?: boolean;
   className?: string;
+  tone?: string;
 }
 
 export function WorkspaceTabs<T extends string>({
@@ -35,6 +36,7 @@ export function WorkspaceTabs<T extends string>({
   iconsOnly = false,
   focusSelectedOnMount = false,
   className,
+  tone,
 }: WorkspaceTabsProps<T>) {
   const [focused, setFocused] = useState<T | null>(null);
   const enabled = items.filter((item) => !item.disabled);
@@ -43,6 +45,7 @@ export function WorkspaceTabs<T extends string>({
   return (
     <div
       role="tablist"
+      data-stage-tone={tone}
       aria-label={label}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setFocused(null);

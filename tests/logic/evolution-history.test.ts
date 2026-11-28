@@ -2,7 +2,37 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { evolutionDateMatches, evolutionDisplayDate, evolutionSynthesisExcerpt, evolutionSynthesisReviewKey, evolutionSynthesisSourceIds, evolutionValueChange, indexEvolutionSources, isEvolutionDateOnly, isEvolutionTurningPoint, normalizeEvolutionDate, readEvolutionSynthesis, unmatchedEvolutionMilestones } from '../../src/lib/evolution-history';
 import type { ThinkingEvent, TimelineEvent } from '../../src/lib/types';
-import { olderEvolutionHistoryMayMatch } from '../../src/lib/evolution-history';
+import { olderEvolutionHistoryMayMatch, withoutDuplicateConfidenceEdits } from '../../src/lib/evolution-history';
+
+test('confidence history removes paired legacy edits but preserves distinct transitions', () => {
+  const canonical = {
+    id: 'canonical', entityId: 'p1', entityType: 'position', eventType: 'confidence_changed',
+    createdAt: '2026-11-20T08:07:00Z', summary: 'Confidence changed for a position',
+    confidenceBefore: 78, confidenceAfter: 41,
+  } as ThinkingEvent;
+  const legacy = { ...canonical, id: 'paired', summary: 'Position edited: a position',
+    confidenceBefore: undefined, confidenceAfter: undefined, before: { confidence: 78 }, after: { confidence: 41 } };
+  const next = { ...legacy, id: 'next', before: { confidence: 41 }, after: { confidence: 63 } };
+  const later = { ...legacy, id: 'later', createdAt: '2026-11-20T08:07:01Z' };
+  assert.deepEqual(withoutDuplicateConfidenceEdits([legacy, next, canonical, later]), [next, canonical, later]);
+});
+
+test('the seven audited Attention transitions render once each, in recorded order', () => {
+  const transitions = [
+    ['2026-11-19T11:02:04Z', 86, 60], ['2026-11-19T11:02:06Z', 60, 22],
+    ['2026-11-19T11:02:13Z', 22, 10], ['2026-11-19T11:02:16Z', 10, 55],
+    ['2026-11-20T13:06:02Z', 55, 78], ['2026-11-20T13:07:15Z', 78, 41],
+    ['2026-11-20T13:07:18Z', 41, 63],
+  ] as const;
+  const events = transitions.flatMap(([createdAt, from, to], index) => {
+    const base = { entityId: 'attention', entityType: 'position', eventType: 'confidence_changed', createdAt };
+    return [
+      { ...base, id: `edit-${index}`, summary: 'Position edited: Attention', confidenceBefore: null, confidenceAfter: null, before: { confidence: from }, after: { confidence: to } },
+      { ...base, id: `confidence-${index}`, summary: 'Confidence changed for Attention', confidenceBefore: from, confidenceAfter: to },
+    ] as ThinkingEvent[];
+  });
+  assert.deepEqual(withoutDuplicateConfidenceEdits(events).map(event => [event.createdAt, event.confidenceBefore, event.confidenceAfter]), transitions);
+});
 
 test('Evolution only warns about missing older history when it could match the range', () => {
   const history = [

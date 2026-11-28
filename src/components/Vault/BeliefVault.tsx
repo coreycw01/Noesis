@@ -3,20 +3,28 @@
 
 import { aiDepthFor } from '@/lib/ai-depth';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FooterSection, OptionalRecordActions, RecordFooter, RecordHeader, RecordPage, RecordPath, RecordSection, Row, SuggestionCards, type Suggestion } from '@/components/shared/record/RecordPage';
-import { BenchBand, Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
+import { FooterSection, RecordFooter, RecordHeader, RecordPage, RecordSection, Row } from '@/components/shared/record/RecordPage';
+import { ItemWorkspace } from '@/components/shared/record/ItemWorkspace';
+import { RecordLinkPicker, type LinkableRecord } from '@/components/shared/record/RecordLinkPicker';
+import { ItemHistoryBackground, ItemHistoryPanel } from '@/components/shared/record/ItemHistoryPanel';
+import { Connections, Tool, ToolsBand } from '@/components/shared/record/RecordParts';
+import { InstrumentWorkbench } from '@/components/shared/record/InstrumentWorkbench';
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { SectionEmpty } from '@/components/shared/SectionEmpty';
-import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { DeskFindings } from '@/components/ai/DeskFindings';
 import { CalibrationBar } from '@/components/Vault/CalibrationBar';
 import { PositionArch } from '@/components/Vault/PositionArch';
-import { AlertTriangle, ArrowLeft, Gauge, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
+import { PositionScopeTool } from '@/components/Vault/PositionScopeTool';
+import { PositionHandoffs } from '@/components/Vault/PositionHandoffs';
+import { AlertTriangle, ArrowLeft, CalendarRange, Gauge, ScanLine, Pencil, Plus, ShieldCheck, Trash2, Triangle, MoreHorizontal, Zap } from 'lucide-react';
 import { usePersistentView } from '@/hooks/use-persistent-view';
 import { useEntityViewPreference } from '@/hooks/use-entity-view-preference';
 import { Button, IconButton } from '@/components/ui/button';
 import { Pill } from '@/components/ui/pill';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card } from '@/components/ui/card';
+import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -37,7 +45,8 @@ import { StageBadge } from '@/components/shared/StageBadge';
 import { ConceptDetailDialog } from '@/components/Concepts/ConceptDetailDialog';
 import { useToast } from '@/hooks/use-toast';
 import { DetailLabel, PageHeader } from '@/components/shared/PageHeader';
-import { FilterToolbar, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { FilterToolbar, SortPill, ViewModeToggle } from '@/components/shared/FilterToolbar';
+import { COLLECTION_SORT_OPTIONS, sortCollection, type CollectionOrder } from '@/lib/collection-sort';
 import { PageEmptyState } from '@/components/shared/PageState';
 import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog';
 import { ToolOption, ToolOptions, WorkbenchPanel } from '@/components/shared/WorkbenchPanel';
@@ -48,9 +57,13 @@ import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { searchMatches } from '@/lib/search';
 import { ContextualAiPanel } from '@/components/ai/ContextualAiPanel';
 import { AiAssistedHistory } from '@/components/ai/AiAssistedHistory';
+import { itemAiHistory } from '@/lib/item-ai-history';
 import { PositionMiniScale, PullEvidenceDialog, zoneLabel } from '@/components/Vault/PositionCalibration';
 import { distinctPositionStatement, evidenceBalance, resolvePositionGrounds } from '@/lib/position-grounds';
 import { positionReviewInputs } from '@/lib/position-review-inputs';
+import { positionConfidenceTrace, positionHistoryDateMatches, type PositionHistoryRange } from '@/lib/position-revisions';
+import { formatPositionScopeCheck, scopeCheckIsCurrent } from '@/lib/position-scope-check';
+import { PromotedAnnotationCreationDetails } from '@/components/ai/AiCreationHistory';
 import { PromotedAnnotationOrigins } from '@/components/ai/AiProvenanceBadge';
 import type { AiContextEnvelope, AiReviewResult, ContextualAiAction } from '@/lib/contextual-ai';
 import { positionReviewTarget, type PositionReviewApproval } from '@/lib/position-ai-review';
@@ -71,10 +84,11 @@ interface BeliefVaultProps {
   onUpdateEntry: (entry: VaultEntry, approval?: PositionReviewApproval) => void | Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
   onAddConcept: (data: Partial<Concept>) => void;
-  onCreateLink: (data: Partial<PhilosophicalLink>) => void;
-  onAddDraft: (data: Partial<Draft>) => void;
-  onAddPractice: (data: Partial<Practice>) => void;
-  onAddQuestion: (data: Partial<Question>) => void | Promise<unknown>;
+  onCreateLink: (data: Partial<PhilosophicalLink>) => void | Promise<unknown>;
+  onAddDraft: (data: Partial<Draft>) => Promise<Draft>;
+  onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
+  onAddQuestion: (data: Partial<Question>) => Promise<Question>;
+  onUpdateQuestion: (question: Question) => void | Promise<void>;
   onUpdateLink?: (link: PhilosophicalLink) => void;
   onOpenSource?: (id: string) => void;
   onOpenQuestion?: (id: string) => void;
@@ -84,6 +98,8 @@ interface BeliefVaultProps {
   onFocusedEntryHandled?: () => void;
   onOpenEntryRoute?: (id: string | null) => void;
 }
+
+const ALL_POSITION_HISTORY: PositionHistoryRange = { from: '', to: '' };
 
 const vaultTypes: VaultType[] = ['belief', 'principle', 'mental_model', 'life_rule', 'worldview'];
 
@@ -115,6 +131,10 @@ const positionStatuses: Array<{ id: PositionPhilosophyStatus | 'questioning'; la
   { id: 'replaced', label: 'Replaced' },
   { id: 'abandoned', label: 'Abandoned' },
 ];
+
+function positionSavedStatus(status: VaultEntry['status']) {
+  return positionStatuses.find(option => option.id === status)?.label || status.replace(/_/g, ' ');
+}
 
 function splitLines(value?: string) {
   return (value || '')
@@ -209,8 +229,8 @@ function safePosition(entry: VaultEntry): VaultEntry {
     id: entry.id || title,
     title,
     type: (entry.type || 'belief') as VaultType,
-    statement: entry.statement || entry.description || '',
-    description: entry.description || entry.statement || '',
+    statement: entry.statement ?? entry.description ?? '',
+    description: entry.description ?? '',
     rationale: entry.rationale || '',
     confidence: confidencePercent(entry.confidence),
     status: entry.status || 'active',
@@ -233,7 +253,7 @@ function safePosition(entry: VaultEntry): VaultEntry {
 }
 
 function safePositionDate(value?: string) {
-  const date = value ? new Date(value) : new Date();
+  const date = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : value ? new Date(value) : new Date();
   return Number.isNaN(date.getTime()) ? new Date().toLocaleDateString() : date.toLocaleDateString();
 }
 
@@ -381,7 +401,7 @@ function buildStressStages(position: VaultEntry): StressStage[] {
   ];
 }
 
-export function BeliefVault({ aiSettings, entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
+export function BeliefVault({ aiSettings, entries, media, drafts, practices, questions, timeline, concepts, links, beliefProfiles, unknowns, onAddEntry, onUpdateEntry, onDeleteEntry, onAddConcept, onCreateLink, onAddDraft, onAddPractice, onAddQuestion, onUpdateQuestion, onUpdateLink, onOpenSource, onOpenQuestion, onOpenPractice, onOpenWork, focusedEntryId, onFocusedEntryHandled, onOpenEntryRoute }: BeliefVaultProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pullSide, setPullSide] = useState<'for' | 'against' | null>(null);
   const [comparePositionId, setComparePositionId] = useState('');
@@ -389,6 +409,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [savingEntry, setSavingEntry] = useState(false);
   const entrySaveRef = useRef(false);
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = usePersistentView<CollectionOrder>('noesis:position-sort', 'newest', ['newest', 'oldest', 'name']);
   const [typeFilter, setTypeFilter] = usePersistentView<'all' | VaultType>('noesis:positions-type', 'all', ['all', ...vaultTypes]);
   const [conceptFilter, setConceptFilter] = useState('all');
   const [viewFilter, setViewFilter] = usePersistentView<PositionViewFilter>('noesis:positions-filter', 'all', Object.keys(POSITION_VIEW_LABELS) as PositionViewFilter[]);
@@ -397,12 +418,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const [conceptPopupName, setConceptPopupName] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<VaultEntry | null>(null);
   const { toast } = useToast();
-  const inquiryCreationLock = useRef(false);
 
   const [stressDrafts, setStressDrafts] = useState<Record<string, string>>({});
   const [savingStress, setSavingStress] = useState(false);
   const stressSaveLock = useRef(false);
   const [revisionReason, setRevisionReason] = useState('');
+  const [positionHistoryFilter, setPositionHistoryFilter] = useState<PositionHistoryRange & { positionId: string }>();
   const [stressStageIndex, setStressStageIndex] = useState(0);
   const [tensionDrawerOpen, setTensionDrawerOpen] = useState(false);
 
@@ -422,7 +443,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   const routeControlsSelection = Boolean(onOpenEntryRoute);
   const activeEntryId = routeControlsSelection ? focusedEntryId : selectedId;
   const selected = safeEntries.find((entry) => entry.id === activeEntryId) || null;
-  const filteredEntries = safeEntries.filter(e => {
+  const filteredEntries = sortCollection(safeEntries.filter(e => {
     const diagnostic = positionDiagnostics.get(e.id) || diagnosePosition(e, links, practices);
     const typeOk = typeFilter === 'all'
       ? true
@@ -474,7 +495,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
       ...relatedInquiries.map((inquiry) => ({ value: inquiry.text, label: 'inquiry' })),
     ]);
     return typeOk && conceptOk && viewOk && queryOk;
-  });
+  }), sortOrder, item => item.title, item => item.dateUpdated || item.dateCreated);
 
   const positionStats = useMemo(() => {
     const tensionCount = safeEntries.filter((entry) => links.some((link) =>
@@ -539,12 +560,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     setSavingEntry(true);
     try {
     if (draftEntry.id) {
-      const nextConfidence = confidencePercent(draftEntry.confidence);
+      const current = safeEntries.find(entry => entry.id === draftEntry.id);
+      if (!current) throw new Error('This position is no longer available.');
       await onUpdateEntry({
-        ...(draftEntry as VaultEntry),
+        ...current,
         title: draftEntry.title.trim(),
-        tags: normalizeConceptTags(draftEntry.tags),
-        confidence: nextConfidence,
+        type: draftEntry.type ?? current.type,
+        positionKind: draftEntry.positionKind ?? current.positionKind,
+        status: draftEntry.status ?? current.status,
+        statement: draftEntry.statement?.trim() ?? current.statement,
         dateUpdated: today(),
       });
     }
@@ -600,33 +624,39 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
   }, [safeEntries, links]);
 
   if (selected) {
+    const range = positionHistoryFilter?.positionId === selected.id ? positionHistoryFilter : ALL_POSITION_HISTORY;
+    const hasRange = Boolean(range.from || range.to);
+    const invalidRange = Boolean(range.from && range.to && range.from > range.to);
+    const rangeKey = `${selected.id}:${range.from}:${range.to}`;
+    const historyDates = <PositionHistoryDates range={range} active={hasRange} invalid={invalidRange}
+      onChange={next => setPositionHistoryFilter({ ...next, positionId: selected.id })} />;
     const linkedSources = media.filter((item) => (selected.sourceIds || []).includes(item.id));
     const linkedDrafts = drafts.filter((draft) => (draft.beliefIds || []).includes(selected.id));
     const linkedPractices = practices.filter((practice) => (practice.positionIds || []).includes(selected.id));
-    const linkedQuestions = questions.filter((question) => (question.beliefIds || []).includes(selected.id));
+    const linkedQuestions = questions.filter((question) => question.id === selected.sourceInquiryId || (question.beliefIds || []).includes(selected.id));
     const typedLinks = links.filter((link) => (link.fromType === 'position' && link.fromId === selected.id) || (link.toType === 'position' && link.toId === selected.id));
+    const referenceTargets = new Set(typedLinks.filter(link => link.type === 'references' && link.createdFrom === 'manual').map(link =>
+      link.fromType === 'position' && link.fromId === selected.id ? `${link.toType}:${link.toId}` : `${link.fromType}:${link.fromId}`));
+    const linkableRecords: LinkableRecord<'source' | 'inquiry' | 'position' | 'practice' | 'work'>[] = [
+      ...media.map(item => ({ id: item.id, type: 'source' as const, label: 'Source', title: item.title })),
+      ...questions.map(item => ({ id: item.id, type: 'inquiry' as const, label: 'Inquiry', title: item.text })),
+      ...safeEntries.filter(item => item.id !== selected.id).map(item => ({ id: item.id, type: 'position' as const, label: 'Position', title: item.title })),
+      ...practices.map(item => ({ id: item.id, type: 'practice' as const, label: 'Praxis', title: item.title })),
+      ...drafts.map(item => ({ id: item.id, type: 'work' as const, label: 'Work', title: item.title || 'Untitled' })),
+    ];
     const tensionLinks = typedLinks.filter((link) => link.type === 'contradicts' || link.type === 'challenges' || link.note?.toLowerCase().includes('tension'));
     const relatedPositions = safeEntries.filter((entry) =>
       entry.id !== selected.id &&
-      typedLinks.some((link) =>
+      typedLinks.some((link) => (link.type !== 'references' || link.createdFrom !== 'manual') && (
         (link.fromId === entry.id && link.toId === selected.id) ||
         (link.toId === entry.id && link.fromId === selected.id)
-      )
+      ))
     );
     const beliefProfile = beliefProfiles.find((item) => item.positionId === selected.id);
     const linkedUnknowns = unknowns.filter((item) => (item.positionIds || []).includes(selected.id));
     const formation = positionFormation(selected);
     const diagnostic = positionDiagnostics.get(selected.id) || diagnosePosition(selected, links, practices);
     const firstLinkedSource = linkedSources[0];
-    const applicationItems = (selected.applications || []).length ? selected.applications || [] : [
-      linkedPractices.length ? `${linkedPractices.length} practice(s) already test this position.` : 'No lived test is attached yet.',
-      linkedDrafts.length ? `${linkedDrafts.length} work(s) express this position.` : 'No essay, note, script, or work expresses this position yet.',
-      selected.status === 'revised' ? 'This position has already changed and should preserve its revision path.' : 'If pressure changes the claim, mark a revision instead of silently editing it.',
-    ];
-    const consequenceItems = (selected.consequences || []).length ? selected.consequences || [] : [
-      'No explicit consequences have been written yet.',
-      'Ask what decisions, behaviors, writings, or practices would change if this position were true.',
-    ];
     const stressStages = buildStressStages(selected);
     const selectedStressStage = stressStages[Math.min(stressStageIndex, stressStages.length - 1)];
     const stressDraftKey = JSON.stringify([selected.id, selectedStressStage.field]);
@@ -927,6 +957,11 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     };
 
     const comparisonTarget = safeEntries.find((entry) => entry.id === comparePositionId) || null;
+    const scopeClaim = selected.statement.trim() || selected.title;
+    const savedScope = selected.scopeCheck;
+    const currentScope = savedScope && scopeCheckIsCurrent(savedScope, scopeClaim) ? savedScope : undefined;
+    const scopeNote = currentScope ? `Scope check: ${formatPositionScopeCheck(currentScope)}` : '';
+
     const buildPositionAiEnvelope = (action: ContextualAiAction): AiContextEnvelope | null => {
       if (action === 'compare_selected_positions' && !comparisonTarget) return null;
       return {
@@ -945,6 +980,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           (selected.evidenceFor || []).length ? `Evidence for: ${(selected.evidenceFor || []).join('; ')}` : '',
           (selected.evidenceAgainst || []).length ? `Evidence against: ${(selected.evidenceAgainst || []).join('; ')}` : '',
           selected.falsification ? `Falsification condition: ${selected.falsification}` : '',
+          scopeNote ? `${scopeNote} (the user's judgment about one case; not evidence by itself)` : '',
         ].filter(Boolean),
         linkedMemory: [
           ...linkedSources.slice(0, 8).map((source) => `Source: ${source.title} - ${source.description || source.capture?.after?.coreArgument || 'No summary'}`),
@@ -984,70 +1020,24 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     else if (gap !== null && Math.abs(gap) > 10) { hereId = 'pos-calibrate'; guide = 'Your confidence and the evidence balance differ. Review the grounds before deciding whether to change it.'; }
     else if (revisionCount > 1) { hereId = 'pos-revise'; guide = 'A revision is recorded.'; }
     else { hereId = 'pos-revise'; guide = 'Calibrated. If your thinking changed, record a revision. Otherwise you are done.'; }
-    const positionSuggestions: Suggestion[] = [];
-    if (!linkedQuestions.length) challengeItems.slice(0, 1).forEach((challenge, index) => positionSuggestions.push({
-      id: `question-${index}`, tone: 'inquiry', title: 'A question worth asking',
-      quote: `Does “${challenge}” undermine the claim, or only limit where it applies?`,
-      because: 'From your challenge, which isn\'t yet answered.', actionLabel: 'Open as an inquiry',
-      onAction: async () => {
-        if (inquiryCreationLock.current) return;
-        inquiryCreationLock.current = true;
-        try {
-          await onAddQuestion({ text: `Does “${challenge}” undermine “${selected.title}”, or only limit where it applies?`, status: 'open', beliefIds: [selected.id], conceptIds: concepts.filter((concept) => (selected.tags || []).includes(concept.name)).map((concept) => concept.id), sourceIds: selected.sourceIds || [], evidenceIds: [] });
-          toast({ title: 'Inquiry opened', description: 'The new question is linked to this position.' });
-        } catch { toast({ title: 'Inquiry not saved', description: 'Your position is unchanged. Please retry.', variant: 'destructive' }); }
-        finally { inquiryCreationLock.current = false; }
-      },
-    }));
-    if (!linkedPractices.length && supportItems[0]) {
-      const support = supportItems[0];
-      const action = `For a week, ${support.charAt(0).toLowerCase()}${support.slice(1)}: log each day whether it held.`;
-      positionSuggestions.push({
-        id: 'practice', tone: 'practice', title: 'A way to put it into practice', quote: action, because: 'Built from your strongest support.', actionLabel: 'Draft the practice',
-        onAction: () => { void Promise.resolve(onAddPractice({ title: `Test: ${selected.title.slice(0, 60)}`, description: `This practice tests the position: "${selected.statement}"`, type: 'experiment', status: 'planned', durationDays: 7, durationMode: 'repeated', hypothesis: support, action, intellectualBasis: selected.rationale || selected.description, positionIds: [selected.id], conceptTags: selected.tags || [], sourceIds: selected.sourceIds || [] })).then(() => toast({ title: 'Practice drafted', description: 'Open Praxis to finish its setup.' })).catch(() => toast({ title: 'Practice not created', description: 'Please retry. Your position is unchanged.', variant: 'destructive' })); },
-      });
-    }
     const groundRow = (text: string, side: 'for' | 'against', index: number) => (
       <Row key={`${side}-${index}`} onRemove={() => onUpdateEntry({ ...selected, [side === 'for' ? 'evidenceFor' : 'evidenceAgainst']: (side === 'for' ? supportItems : challengeItems).filter((_, i) => i !== index), dateUpdated: today() })} removeLabel="Remove">{text}</Row>
     );
-    const addGround = (side: 'for' | 'against') => (event: React.FormEvent<HTMLFormElement>) => {
+    const addGround = (side: 'for' | 'against') => async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const input = event.currentTarget.querySelector('input'); const text = input?.value.trim();
       if (!text) return;
-      void onUpdateEntry({ ...selected, [side === 'for' ? 'evidenceFor' : 'evidenceAgainst']: [...(side === 'for' ? supportItems : challengeItems), text], dateUpdated: today() });
-      if (input) input.value = '';
+      try {
+        await saveWorkspace({ [side === 'for' ? 'evidenceFor' : 'evidenceAgainst']: [...(side === 'for' ? supportItems : challengeItems), text] });
+        if (input?.value.trim() === text) input.value = '';
+      } catch (error) {
+        toast({ title: 'Ground not saved', description: noesisUserError(error, 'save this ground'), variant: 'destructive' });
+      }
     };
     const revisionDecisions = [['active', 'Retain'], ['revised', 'Revise'], ['replaced', 'Replace'], ['suspended', 'Suspend'], ['abandoned', 'Retire']] as const;
 
-    return (
-      <RecordPage tone="claim" identity="examination">
-        <RecordHeader backLabel="Positions" onBack={closeEntry} view="vault" kind="Position" status={diagnostic.readinessLabel} title={selected.title}
-          subtitle={(selected.statement || selected.description || '').trim() !== selected.title.trim() ? (selected.statement || selected.description) : undefined}
-          tags={selected.tags || []} onTag={(tag) => setConceptPopupName(tag)}
-          trailing={<>
-            {aiSettings.aiAssistanceEnabled && (
-              <Select value={comparePositionId} onValueChange={setComparePositionId}>
-                <SelectTrigger aria-label="Position to compare" className="h-9 w-44 rounded-[var(--button-radius)]"><SelectValue placeholder="Compare with…" /></SelectTrigger>
-                <SelectContent>{safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}</SelectContent>
-              </Select>
-            )}
-            <ContextualAiPanel enabled={aiSettings.aiAssistanceEnabled} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiDepthFor(aiSettings, 'positions')} actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']} buildEnvelope={buildPositionAiEnvelope} buttonLabel="Ask Noesis" onAccept={acceptPositionAiResult} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild><IconButton label="Position actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => openEditor(selected)}><Pencil className="mr-2 size-4" /> Edit position</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-problem focus:text-problem"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>}>
-          <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
-        </RecordHeader>
-
-        <RecordPath label="Where you are with this position" hereId={hereId} guide={guide} stops={[{ id: 'pos-claim', label: 'Claim' }, { id: 'pos-grounds', label: 'Grounds' }, { id: 'pos-calibrate', label: 'Calibrate' }, { id: 'pos-revise', label: 'Revise' }]} />
-
-
-        {/* ---------- Thinking tools: pressure you apply yourself ---------- */}
-        <ToolsBand note="For you, not for Noesis. Each one writes what you find back into this position.">
+    const tools = (
+        <ToolsBand note="Test this claim or carry it into a linked experiment, work, or inquiry.">
           <Tool label="Stress test" icon={Gauge}>
             <label className="grid gap-1 text-sm font-medium">Test this claim from one angle
               <select aria-label="Stress test prompt" className="min-h-11 w-fit max-w-full rounded-md border border-border bg-background px-2" value={stressStageIndex} onChange={event => setStressStageIndex(Number(event.target.value))}>
@@ -1064,32 +1054,40 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               {savingStress ? 'Saving…' : selectedStressStage.field === 'falsification' ? 'Save to Calibrate' : 'Save to Grounds'}
             </Button>
           </Tool>
+          <Tool label="Scope check" icon={ScanLine}>
+            <PositionScopeTool key={JSON.stringify([selected.id, scopeClaim])} claim={scopeClaim} saved={savedScope} onSave={async scopeCheck => {
+              await onUpdateEntry({ ...selected, scopeCheck, dateUpdated: today() });
+              toast({ title: 'Scope check saved to Revise' });
+            }} />
+          </Tool>
           {tensionLinks.length > 0 && (
             <Tool label={`Tensions · ${tensionLinks.length}`} icon={Zap}>
               <TensionResolutionPanel selected={selected} tensionLinks={tensionLinks} onUpdateEntry={onUpdateEntry} onUpdateLink={onUpdateLink} />
             </Tool>
           )}
+          <PositionHandoffs key={selected.id} position={selected} inquiries={linkedQuestions} concepts={concepts}
+            onAddPractice={onAddPractice} onAddDraft={onAddDraft} onAddQuestion={onAddQuestion} onUpdateQuestion={onUpdateQuestion}
+            onOpenPractice={onOpenPractice} onOpenWork={onOpenWork} onOpenQuestion={onOpenQuestion} />
         </ToolsBand>
+    );
 
-        <BenchBand note="Where you write the position out, and where Noesis can read over your shoulder if you ask it to." />
-
-        <RecordSection id="pos-claim" title="Claim" description="What you hold, and how sure you are." here={hereId === 'pos-claim'}>
-          <div className="noesis-ba">
-            <div className="noesis-confbox">
-              <ConfidenceEmber confidence={statedPercent} />
-              <div>
-                <Eyebrow>Stated confidence</Eyebrow>
-                <div className="noesis-confbox__big">{statedPercent}%</div>
-                <div className="text-xs text-muted-foreground">{zoneLabel(statedPercent).toLowerCase()}</div>
-              </div>
-            </div>
-            <div>
-              <Eyebrow>Why you hold it</Eyebrow>
-              <p className="mt-1 whitespace-pre-wrap text-base leading-6">{selected.rationale || selected.confidenceReasoning || <span className="text-muted-foreground">No reasoning recorded yet. Edit the position to say what presently supports it.</span>}</p>
-            </div>
-          </div>
-          {selected.createdFrom === 'annotation' && selected.sourceAnnotationId && selected.description.trim()
-            && selected.description.trim() !== selected.statement.trim() && (
+    const saveWorkspace = async (patch: Partial<VaultEntry>) => {
+      if (entrySaveRef.current) throw new Error('Another edit is still saving. Please try again.');
+      entrySaveRef.current = true;
+      try { await onUpdateEntry({ ...selected, ...patch, dateUpdated: today() }); }
+      finally { entrySaveRef.current = false; }
+    };
+    const hasSourcePassage = selected.createdFrom === 'annotation' && !!selected.sourceAnnotationId;
+    const claim = (
+        <RecordSection id="pos-claim" title="Claim" here={hereId === 'pos-claim'}>
+          <PositionWorkspaceText key={`${selected.id}:statement`} label="Position statement" value={selected.statement} placeholder="What do you believe, in one clear sentence?" onSave={statement => saveWorkspace({ statement })} />
+          <PositionWorkspaceText key={`${selected.id}:rationale`} label="Why you hold it" value={selected.rationale || ''} placeholder="What makes this claim persuasive to you?" onSave={rationale => saveWorkspace({ rationale })} />
+          {!hasSourcePassage && (
+            <PositionWorkspaceText key={`${selected.id}:scope`} label="Scope and context" value={selected.description.trim() === selected.statement.trim() ? '' : selected.description} placeholder="Where does this claim apply? What does it leave out?" onSave={description => saveWorkspace({ description })} />
+          )}
+          <PositionWorkspaceField key={`${selected.id}:tags`} label="Concept tags" value={selected.tags || []} onSave={tags => saveWorkspace({ tags: normalizeConceptTags(tags) })}
+            renderEditor={(tags, setTags) => <ConceptTagPicker concepts={concepts} value={tags} onChange={setTags} onCreateConcept={name => onAddConcept({ name, description: '', createdFrom: 'tag' })} />} />
+          {hasSourcePassage && selected.description.trim() && selected.description.trim() !== selected.statement.trim() && (
             <div className="mt-4 border-l border-border pl-3 text-sm">
               <Eyebrow>Source passage</Eyebrow>
               <p className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{selected.description}</p>
@@ -1098,7 +1096,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           )}
           {!formation.fullyFormed && <p className="mt-3 text-sm text-muted-foreground">Still missing: {formation.missing.join(', ')}.</p>}
         </RecordSection>
+    );
 
+    const groundsPanel = (
         <RecordSection id="pos-grounds" title="Grounds" description="What supports it, and what pushes against it. Add as you find them." here={hereId === 'pos-grounds'}>
           <DeskFindings type="position" id={selected.id} findings={selected.contextDeskFindings} />
           <div className="noesis-step__cols noesis-step__cols--even">
@@ -1115,31 +1115,49 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <Eyebrow tone="position">Challenges</Eyebrow>
               <div className="mt-1.5">{challengeItems.map((text, index) => groundRow(text, 'against', index))}</div>
               {linkedGrounds.against.map((link) => <p key={link.id} className="my-2 break-words text-sm"><strong>{link.fromLabel || 'Linked record'}:</strong> {link.note}</p>)}
-              {!challengeCount && <SectionEmpty title="None yet." hint="Name what would count against it." />}
+              {!challengeCount && <SectionEmpty title="None yet." hint="Add an objection or counterexample you already know about." />}
               <form className="noesis-add" onSubmit={addGround('against')}><Input placeholder="Add a challenge" aria-label="Add a challenge" className="h-9" /><Button type="submit" variant="secondary" tone="position">Add</Button></form>
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
           </div>
-          {/* The assumptions used to be a bulleted fold here. They are the
-              arch in Calibrate now, where they are load-bearing rather than
-              listed, so repeating them would say the same thing twice. */}
+          <PositionWorkspaceField key={`${selected.id}:sources`} label="Linked sources" value={selected.sourceIds || []} onSave={sourceIds => saveWorkspace({ sourceIds })}
+            renderEditor={(sourceIds, setSourceIds) => <SourceLinker media={media} selectedIds={sourceIds} onToggle={id => setSourceIds(sourceIds.includes(id) ? sourceIds.filter(sourceId => sourceId !== id) : [...sourceIds, id])} />} />
           <PullEvidenceDialog open={pullSide !== null} onOpenChange={(open) => { if (!open) setPullSide(null); }} side={pullSide || 'for'} media={media} concepts={concepts} questions={questions} positions={entries} excludePositionId={selected.id}
             onPick={(text) => { if (pullSide === 'against') onUpdateEntry({ ...selected, evidenceAgainst: [...challengeItems, text], dateUpdated: today() }); else onUpdateEntry({ ...selected, evidenceFor: [...supportItems, text], dateUpdated: today() }); }} />
         </RecordSection>
+    );
 
-        <RecordSection id="pos-calibrate" title="Calibrate" description="What the claim stands on, and your stated confidence beside what your grounds support." here={hereId === 'pos-calibrate'}>
-          {/* Two readings of the same claim: the arch is what it rests on and
-              what happens without each stone; the bar below is whether the
-              number you state matches the grounds you have. */}
+    const calibration = (
+      <>
+        <RecordSection id="pos-calibrate" title="Calibrate" here={hereId === 'pos-calibrate'}>
+          <CalibrationBar
+            stated={statedPercent}
+            grounds={grounds}
+            supportCount={supportCount}
+            challengeCount={challengeCount}
+            onCommit={async (value, reason) => {
+              await onUpdateEntry({
+                ...selected,
+                confidence: value,
+                confidenceReasoning: reason,
+                versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'refined', description: reason, confidence: value }],
+                dateUpdated: today(),
+              });
+              toast({ title: `Confidence moved to ${value}%`, description: 'The reason is now part of the belief biography.' });
+            }}
+          />
           <PositionArch
-            className="mb-4"
+            className="my-4"
             claim={selected.title}
             assumptions={selected.assumptions || []}
             confidence={statedPercent}
             challengeCount={challengeCount}
           />
+          <PositionWorkspaceText key={`${selected.id}:confidence-reason`} label="Confidence reasoning" value={selected.confidenceReasoning || ''} placeholder="Why does your current confidence fit the grounds?" onSave={confidenceReasoning => saveWorkspace({ confidenceReasoning })} />
+          <PositionWorkspaceText key={`${selected.id}:assumptions`} label="Assumptions" value={joinLines(selected.assumptions)} placeholder="What does this claim depend on being true? One assumption per line." onSave={text => saveWorkspace({ assumptions: splitLines(text) })} />
+          <PositionWorkspaceText key={`${selected.id}:reconsider`} label="What would change your mind?" value={selected.falsification || ''} placeholder="What future finding or result would make you revise the claim?" onSave={falsification => saveWorkspace({ falsification })} />
           {(criterion || objection || result) && (
-            <dl className="mb-4 space-y-3 border-l border-border pl-3 text-sm">
+            <dl className="mt-4 space-y-3 border-l border-border pl-3 text-sm">
               {criterion && <div><dt className="font-medium">What would change your mind</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{criterion}</dd></div>}
               {objection && <div><dt className="font-medium">Recorded objection</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{objection}</dd></div>}
               {result && <div>
@@ -1154,24 +1172,52 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               </div>}
             </dl>
           )}
-          <CalibrationBar
-            stated={statedPercent}
-            grounds={grounds}
-            supportCount={supportCount}
-            challengeCount={challengeCount}
-            onCommit={async (value, reason) => {
-              await onUpdateEntry({
-                ...selected,
-                confidence: value,
-                versionHistory: [...(selected.versionHistory || []), { date: today(), eventType: 'refined', description: reason, confidence: value }],
-                dateUpdated: today(),
-              });
-              toast({ title: `Confidence moved to ${value}%`, description: 'The reason is now part of the belief biography.' });
-            }}
-          />
         </RecordSection>
+        <RecordSection id="confidence-history" title="Confidence over time" aside={
+          <div className="flex items-center gap-1">
+            {historyDates}
+            <InstrumentHelp instrument="confidenceHistory" />
+          </div>
+        }>
+          <ConfidenceHistoryChart key={rangeKey} entry={selected} range={range} invalidRange={invalidRange} />
+        </RecordSection>
+      </>
+    );
 
+    const positionHistory = [...(selected.versionHistory || [])].sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0));
+    let priorConfidence: number | undefined;
+    const revisionEvents = positionHistory.map((version, index) => {
+      const confidence = typeof version.confidence === 'number' ? confidencePercent(version.confidence) : undefined;
+      const event = (
+        <RevisionEvent key={`${version.date}-${index}`} date={version.date}
+          action={version.eventType?.replace(/_/g, ' ') || 'Revision'}
+          description={version.description}
+          confidence={confidence}
+          previousConfidence={priorConfidence}
+          current={index === positionHistory.length - 1} />
+      );
+      priorConfidence = confidence ?? priorConfidence;
+      return !invalidRange && positionHistoryDateMatches(version.date, range) ? event : null;
+    }).filter(event => event !== null).reverse();
+    const allAiHistory = selected.aiReviewHistory || [];
+
+    const revise = (
         <RecordSection id="pos-revise" title="Revise" description="If your thinking changed, record it with a reason. Skip this if it didn't." here={hereId === 'pos-revise'}>
+          <PositionWorkspaceText key={`${selected.id}:consequences`} label="Consequences" value={joinLines(selected.consequences)} placeholder="What follows if this is true? One consequence per line." onSave={text => saveWorkspace({ consequences: splitLines(text) })} />
+          <PositionWorkspaceText key={`${selected.id}:applications`} label="Applications" value={joinLines(selected.applications)} placeholder="Where would you put this into practice? One application per line." onSave={text => saveWorkspace({ applications: splitLines(text) })} />
+          {savedScope && (
+            <div className="mb-4 border-l border-border pl-3 text-sm">
+              <Eyebrow>Scope check</Eyebrow>
+              <p className="mt-1 whitespace-pre-wrap break-words">{formatPositionScopeCheck(savedScope)}</p>
+              {!currentScope && <p className="mt-1 text-muted-foreground">Checked against an earlier wording of this claim.</p>}
+              {currentScope && currentScope.verdict !== 'holds' && (
+                <Button type="button" variant="link" size="sm" onClick={() => {
+                  setRevisionReason(previous => previous.includes(scopeNote) ? previous : [previous.trim(), scopeNote].filter(Boolean).join('\n\n'));
+                  document.getElementById('position-revision-reason')?.focus();
+                }}>Use in revision</Button>
+              )}
+            </div>
+          )}
           <Textarea id="position-revision-reason" value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} placeholder="What changed your mind? (becomes the reason)" aria-label="Reason for the revision" className="min-h-[72px]" />
           <div className="mt-3 flex flex-wrap gap-2">
             {revisionDecisions.map(([status, label]) => (
@@ -1182,19 +1228,67 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               }}>{label}</Button>
             ))}
           </div>
-          {(selected.versionHistory || []).length > 0 && (
-            <ul className="noesis-hist">{[...(selected.versionHistory || [])].reverse().slice(0, 5).map((version, index) => <li key={`${version.date}-${index}`}><Eyebrow size="sm">{safePositionDate(version.date)}</Eyebrow> {version.description || version.eventType}{typeof version.confidence === 'number' ? ` · ${confidencePercent(version.confidence)}%` : ''}</li>)}</ul>
-          )}
         </RecordSection>
+    );
 
-        {derivePositionLifecycleStage(selected.status) !== 'retired' && positionSuggestions.length > 0 && (
-          <OptionalRecordActions label="Suggested from what you’ve recorded">
-            <SuggestionCards suggestions={positionSuggestions} showLabel={false} />
-          </OptionalRecordActions>
-        )}
+    const history = (
+          <ItemHistoryPanel title="Position history" controls={historyDates} scrollKey={rangeKey}
+            entries={revisionEvents.length ? revisionEvents : <p className="noesis-inline-empty">{invalidRange ? 'Enter a valid date range.' : hasRange ? 'No history entries in this date range.' : 'No revisions recorded yet.'}</p>}
+            background={<ItemHistoryBackground title="Position background" lazy>
+                <InfoPanel title="Created from" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
+                <PromotedAnnotationCreationDetails origins={selected.annotationOrigins} />
+                {([['Strengthened by', beliefProfile?.strengthenedBy], ['Challenged by', beliefProfile?.challengedBy], ['Weakened by', beliefProfile?.weakenedBy]] as const).map(([title, items]) => (
+                  items?.length ? <InfoPanel key={title} title={title} items={items} empty="" /> : null
+                ))}
+            </ItemHistoryBackground>} />
+    );
+
+    return (
+      <RecordPage tone="claim" identity="examination">
+        <RecordHeader backLabel="Positions" onBack={closeEntry} view="vault" kind="Position"
+          status={positionSavedStatus(selected.status)} extra={derivePositionLifecycleStage(selected.status) === 'retired' ? undefined : `Workbench: ${diagnostic.readinessLabel}`} title={selected.title}
+          tags={selected.tags || []} onTag={(tag) => setConceptPopupName(tag)}
+          trailing={<>
+            {aiSettings.aiAssistanceEnabled && (
+              <Select value={comparePositionId} onValueChange={setComparePositionId}>
+                <SelectTrigger aria-label="Position to compare" className="h-9 w-44 rounded-[var(--button-radius)]"><SelectValue placeholder="Compare with…" /></SelectTrigger>
+                <SelectContent>{safeEntries.filter((entry) => entry.id !== selected.id).map((entry) => <SelectItem key={entry.id} value={entry.id}>{entry.title}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+            <ContextualAiPanel key={selected.id} itemHistory={itemAiHistory(selected)} iconOnly enabled={aiSettings.aiAssistanceEnabled} showContextBeforeSending={aiSettings.showContextBeforeSending} reasoningDepth={aiDepthFor(aiSettings, 'positions')} actions={['find_position_assumptions', 'generate_position_counterargument', 'identify_missing_position_evidence', 'compare_selected_positions']} buildEnvelope={buildPositionAiEnvelope} onAccept={acceptPositionAiResult} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><IconButton label="Position actions" variant="outline"><MoreHorizontal className="size-4" /></IconButton></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => openEditor(selected)}><Pencil className="mr-2 size-4" /> Edit position</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDeleteTarget(selected)} className="text-problem focus:text-problem"><Trash2 className="mr-2 size-4" /> Delete position</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>}>
+          <PromotedAnnotationOrigins origins={selected.annotationOrigins} />
+        </RecordHeader>
+
+        <ItemWorkspace key={selected.id} history={history}>
+        <p className="mb-3 text-sm text-muted-foreground">{guide}</p>
+        <InstrumentWorkbench key={selected.id} label="Position workbench" defaultValue="calibrate"
+          stops={[{ id: 'claim', label: 'Claim' }, { id: 'grounds', label: 'Grounds' }, { id: 'calibrate', label: 'Calibrate' }, { id: 'revise', label: 'Revise' }]}
+          primary={['calibrate', 'grounds']} secondary={['claim', 'revise']}
+          panels={{ calibrate: calibration, grounds: groundsPanel, claim: <>{claim}{tools}</>, revise }} />
+        <RecordLinkPicker records={linkableRecords.filter(item => !referenceTargets.has(`${item.type}:${item.id}`))}
+          description="Add a reference without counting it as support or a challenge."
+          onLink={async (record) => {
+            try {
+              await onCreateLink({ fromType: 'position', fromId: selected.id, fromLabel: selected.title, toType: record.type, toId: record.id, toLabel: record.title, type: 'references', createdFrom: 'manual' });
+              toast({ title: 'Record linked' });
+              return true;
+            } catch (error) {
+              toast({ title: 'Link not saved', description: noesisUserError(error, 'link this record'), variant: 'destructive' });
+              return false;
+            }
+          }} />
+
 
         <RecordFooter>
-          <FooterSection title="Connections" count={linkedSources.length + linkedQuestions.length + linkedDrafts.length + linkedPractices.length + relatedPositions.length}>
+          <FooterSection title="Connections" count={linkedSources.length + linkedQuestions.length + linkedDrafts.length + linkedPractices.length + relatedPositions.length + referenceTargets.size}>
             <Connections groups={[
               { type: 'Sources', tone: 'source', items: linkedSources.map((item) => ({ id: item.id, label: item.title, meta: `${item.type}${item.creator ? ` · ${item.creator}` : ''}`, onOpen: () => previewSource(item) })) },
               { type: 'Inquiries', tone: 'inquiry', items: linkedQuestions.map((item) => ({ id: item.id, label: item.text, meta: item.status.replace(/_/g, ' '), onOpen: () => previewInquiry(item) })) },
@@ -1202,47 +1296,19 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               { type: 'Praxis', tone: 'practice', items: linkedPractices.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewPractice(item) })) },
               { type: 'Works', tone: 'work', items: linkedDrafts.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewWork(item) })) },
               { type: 'Concepts', tone: 'concept', items: (selected.tags || []).map((tag) => ({ id: tag, label: tag })) },
+              { type: 'References', tone: 'neutral', items: linkableRecords.filter(item => referenceTargets.has(`${item.type}:${item.id}`)).map(item => ({
+                id: `${item.type}:${item.id}`, label: item.title, meta: item.label, manuallyLinked: true,
+                onOpen: item.type === 'source' ? () => onOpenSource?.(item.id) : item.type === 'inquiry' ? () => onOpenQuestion?.(item.id) : item.type === 'practice' ? () => onOpenPractice?.(item.id) : item.type === 'work' ? () => onOpenWork?.(item.id) : () => openEntry(item.id),
+              })) },
             ]} />
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <InfoPanel title="Applications" items={applicationItems} empty="No application path yet." />
-              <InfoPanel title="Consequences" items={consequenceItems} empty="No consequences have been written yet." />
-              <InfoPanel title="Linked unknowns" items={linkedUnknowns.map((item) => item.title)} empty="No linked unknowns yet." />
-            </div>
           </FooterSection>
 
-          <FooterSection title="History" count={revisionCount}>
-            <div className="grid gap-3 md:grid-cols-2">
-              <ConfidenceHistoryChart entry={selected} />
-              <InfoPanel title="Created from" items={beliefProfile?.originSummary ? [beliefProfile.originSummary] : [selected.createdFrom || 'Manual position entry']} empty="No origin summary yet." />
-              <InfoPanel title="Strengthened by" items={beliefProfile?.strengthenedBy || []} empty="No supporting developments recorded yet." />
-              <InfoPanel title="Challenged by" items={beliefProfile?.challengedBy || []} empty="No challenges recorded yet." />
-              <InfoPanel title="Weakened by" items={beliefProfile?.weakenedBy || []} empty="No weakening events recorded yet." />
-              <div className="md:col-span-2">
-                {(selected.versionHistory || []).length ? (selected.versionHistory || []).map((version, index) => {
-                  // Every revision already stored the confidence it left behind.
-                  // Reading it against the one before turns the list into a
-                  // record of what moved, rather than a list of dates.
-                  const history = selected.versionHistory || [];
-                  const earlier = history.slice(0, index).map((item) => item.confidence)
-                    .filter((value): value is number => typeof value === 'number');
-                  return (
-                    <RevisionEvent key={`${version.date}-${index}`} date={version.date}
-                      action={version.eventType?.replace(/_/g, ' ') || 'Revision'}
-                      description={version.description}
-                      confidence={typeof version.confidence === 'number' ? confidencePercent(version.confidence) : undefined}
-                      previousConfidence={earlier.length ? confidencePercent(earlier[earlier.length - 1]) : undefined}
-                      current={index === history.length - 1} />
-                  );
-                }) : <p className="noesis-inline-empty">No revisions recorded yet.</p>}
-              </div>
-            </div>
-            {(selected.aiReviewHistory || []).length > 0 && (
-              <div className="mt-3">
-                <AiAssistedHistory entries={(selected.aiReviewHistory || []).map((entry) => { const target = positionReviewTarget(selected.id, entry.action, entry.id); return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? { provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target } : undefined }; })} onChange={(aiReviewHistory) => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })} />
-              </div>
-            )}
-          </FooterSection>
-
+          {!!allAiHistory.length && <FooterSection title="Saved AI notes">
+            <AiAssistedHistory entries={allAiHistory.map(entry => {
+              const target = positionReviewTarget(selected.id, entry.action, entry.id);
+              return { ...entry, originDetails: target && entry.id.startsWith('ai-review-') ? { provenance: { provenanceId: entry.id, kind: 'ai-assisted' as const }, target } : undefined };
+            })} onChange={aiReviewHistory => onUpdateEntry({ ...selected, aiReviewHistory, dateUpdated: today() })} />
+          </FooterSection>}
           <FooterSection title="Record">
             <EntityMeta items={[
               { label: 'Type', value: (selected.type || 'belief').replace('_', ' ') },
@@ -1251,15 +1317,12 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               { label: 'Created', value: safePositionDate(selected.dateCreated) },
               { label: 'Updated', value: safePositionDate(selected.dateUpdated || selected.dateCreated) },
             ]} />
-            {selected.confidenceReasoning && <p className="mt-2 text-sm"><Eyebrow size="sm">Confidence reasoning</Eyebrow><br />{selected.confidenceReasoning}</p>}
             <div className="mt-3 grid gap-3"><InfoPanel title="Typed relationships" items={typedLinks.map((link) => `${link.type.replace(/_/g, ' ')}: ${link.fromLabel || link.fromType} -> ${link.toLabel || link.toType}`)} empty="No typed relationships recorded yet." />
             <InfoPanel title="Saved position comparisons" items={(selected.comparisonReviews || []).map((review) => `${review.positionTitle} · ${safePositionDate(review.date)}\n${review.content}`)} empty="No reviewed position comparison has been saved yet." /></div>
           </FooterSection>
 
-          <FooterSection title="Danger zone">
-            <Button variant="destructive" onClick={() => setDeleteTarget(selected)}><Trash2 /> Delete this position</Button>
-          </FooterSection>
         </RecordFooter>
+        </ItemWorkspace>
 
         <ConceptDetailDialog 
           name={conceptPopupName} 
@@ -1307,6 +1370,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         onSearchChange={setSearch}
         searchPlaceholder="Search positions, principles..."
         resultCount={filteredEntries.length}
+        sortControl={<SortPill label="Sort positions" value={sortOrder} onChange={setSortOrder} options={COLLECTION_SORT_OPTIONS} />}
         resultLabel="positions"
         activeFilterLabels={activeFilterLabels}
         onClear={clearPositionFilters}
@@ -1385,9 +1449,9 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
           const statement = distinctPositionStatement(entry.title, entry.statement || entry.description || '');
           const formation = positionFormation(entry);
           return (
-            <Card 
-              key={entry.id} 
-              className="noesis-position-card group cursor-pointer transition-all hover:-translate-y-0.5 p-4 md:p-5"
+            <Card
+              key={entry.id}
+              className="noesis-position-card group cursor-pointer self-start transition-all hover:-translate-y-0.5 p-4 md:p-5"
               onClick={(event) => { if (isEntitySurfaceClick(event)) openEntry(entry.id); }}
             >
             <div className="flex items-start justify-between gap-4 mb-4">
@@ -1395,12 +1459,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                 <div className="mb-2 flex flex-wrap items-center gap-1.5">
                   {/* As in the prototype: one type tag, and the challenge count when there is one. */}
                   <Badge variant="outline" className="rounded-full">{TYPE_LABELS[entry.type] || 'Position'}</Badge>
+                  <span className="text-xs capitalize text-muted-foreground">{positionSavedStatus(entry.status)}</span>
                 </div>
                 <h2 className="font-headline text-lg font-bold italic leading-tight group-hover:text-accent transition-colors whitespace-normal break-words text-primary">
                   <button type="button" className="text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openEntry(entry.id)}>{entry.title}</button>
                 </h2>
               </div>
-              <span className="noesis-ember" data-stage-tone="claim" aria-hidden="true" style={{ '--ember': `${0.45 + confidencePercent(entry.confidence) / 180}` } as React.CSSProperties} />
+              <div className="flex shrink-0 items-center gap-1">
+                <ConfidenceEmber confidence={confidencePercent(entry.confidence)} size={42} decorative />
+              </div>
             </div>
 
             {statement && <p className="mb-4 break-words text-xs italic leading-relaxed text-muted-foreground">{statement}</p>}
@@ -1886,17 +1953,42 @@ function InfoPanel({ title, items, empty }: { title: string; items: string[]; em
   );
 }
 
-function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
-  const points = (entry.versionHistory || [])
-    .filter((item) => typeof item.confidence === 'number')
-    .map((item) => ({ date: item.date, value: confidencePercent(item.confidence) }))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const current = { date: entry.dateUpdated, value: confidencePercent(entry.confidence) };
-  const series = (points.length ? [...points] : [{ date: entry.dateCreated, value: current.value }]).slice(-11);
-  const last = series[series.length - 1];
-  if (!last || last.value !== current.value || safePositionDate(last.date) !== safePositionDate(current.date)) {
-    series.push(current);
-  }
+function PositionHistoryDates({ range, active, invalid, onChange }: { range: PositionHistoryRange; active: boolean; invalid: boolean; onChange: (range: PositionHistoryRange) => void }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" size="sm" variant={active ? 'secondary' : 'outline'} aria-label="History date range">
+          <CalendarRange aria-hidden="true" />{active ? 'Dates set' : 'Dates'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" aria-label="History date range" className="w-[min(20rem,calc(100vw-2rem))]">
+        <fieldset className="min-w-0">
+          <legend className="text-sm font-semibold">History date range</legend>
+          <div className="mt-3 grid gap-2">
+            <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">From
+              <Input type="date" value={range.from} onChange={event => onChange({ ...range, from: event.target.value })} className="min-h-11 min-w-0" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">To
+              <Input type="date" value={range.to} onChange={event => onChange({ ...range, to: event.target.value })} className="min-h-11 min-w-0" />
+            </label>
+            <p className="text-xs text-muted-foreground" aria-live="polite">{invalid ? 'The end date must be on or after the start date.' : 'Filters confidence over time and position history.'}</p>
+            {active && <Button type="button" size="sm" variant="ghost" className="justify-self-end" onClick={() => onChange(ALL_POSITION_HISTORY)}>Clear dates</Button>}
+          </div>
+        </fieldset>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ConfidenceHistoryChart({ entry, range, invalidRange }: { entry: VaultEntry; range: PositionHistoryRange; invalidRange: boolean }) {
+  const series = invalidRange ? [] : positionConfidenceTrace(entry, range);
+  const [step, setStep] = useState<number | null>(null);
+  if (!series.length) return (
+    <p className="mt-3 text-sm text-muted-foreground">{invalidRange ? 'Enter a valid date range.' : 'No confidence readings in this date range.'}</p>
+  );
+  const selected = Math.min(step ?? series.length - 1, series.length - 1);
+  const reading = series[selected];
+  const prior = series[selected - 1];
   const width = 640;
   const height = 220;
   const padding = { top: 18, right: 18, bottom: 42, left: 38 };
@@ -1904,10 +1996,9 @@ function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
   const chartHeight = height - padding.top - padding.bottom;
   const x = (index: number) => series.length === 1 ? padding.left + chartWidth / 2 : padding.left + (index / (series.length - 1)) * chartWidth;
   const y = (value: number) => padding.top + ((100 - value) / 100) * chartHeight;
-  const linePoints = series.map((point, index) => `${x(index)},${y(point.value)}`).join(' ');
+  const linePoints = series.map((point, index) => `${x(index)},${y(point.value)}`);
   return (
-    <div className="rounded-xl border border-border/50 bg-background/50 p-4 md:col-span-2">
-      <div className="noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Confidence over time</div>
+    <div>
       <svg className="mt-3 h-auto w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Line graph of confidence history for ${entry.title}`}>
         {[0, 25, 50, 75, 100].map((value) => (
           <g key={value}>
@@ -1915,16 +2006,18 @@ function ConfidenceHistoryChart({ entry }: { entry: VaultEntry }) {
             <text x={padding.left - 8} y={y(value) + 3} textAnchor="end" className="fill-muted-foreground noesis-figure noesis-figure--sm">{value}</text>
           </g>
         ))}
-        {series.length > 1 && <polyline points={linePoints} fill="none" className="stroke-accent" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
-        {series.map((point, index) => (
-          <g key={`${point.date}-${index}`}>
-            <circle cx={x(index)} cy={y(point.value)} r="6" className="fill-background stroke-accent" strokeWidth="4" />
-            <text x={x(index)} y={Math.max(12, y(point.value) - 12)} textAnchor="middle" className="fill-foreground noesis-figure font-semibold">{point.value}%</text>
-            <text x={x(index)} y={height - 14} textAnchor="middle" className="fill-muted-foreground noesis-figure noesis-figure--sm">{safePositionDate(point.date)}</text>
-          </g>
-        ))}
+        {series.length > 1 && <polyline points={linePoints.join(' ')} fill="none" className="stroke-muted-foreground/60" strokeWidth="2" strokeDasharray="5 6" />}
+        {selected > 0 && <polyline points={linePoints.slice(0, selected + 1).join(' ')} fill="none" className="stroke-accent" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
+        <line x1={x(selected)} x2={x(selected)} y1={y(reading.value)} y2={y(0)} className="stroke-accent/50" strokeDasharray="3 4" />
+        <circle cx={x(selected)} cy={y(reading.value)} r="7" className="fill-background stroke-accent" strokeWidth="4" />
       </svg>
-      <p className="mt-3 text-xs leading-5 text-muted-foreground">Confidence is recorded when it changes. A flat history means no earlier confidence snapshots exist.</p>
+      {series.length > 1 && <input type="range" min={0} max={series.length - 1} value={selected}
+        className="h-10 w-full accent-[hsl(var(--accent))]" aria-label="Scrub confidence history"
+        aria-valuetext={`${safePositionDate(reading.date)}, ${reading.value}% confidence`} onChange={event => setStep(Number(event.target.value))} />}
+      <div className="grid min-w-0 gap-2 text-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-5" aria-live="polite">
+        <div><Eyebrow size="sm">{safePositionDate(reading.date)}</Eyebrow><p><strong>{reading.value}%</strong>{prior && <span className="ml-2 text-muted-foreground">Was {prior.value}%</span>}</p></div>
+        <div><Eyebrow size="sm">Recorded reason</Eyebrow><p className="break-words text-muted-foreground">{reading.reason || 'No reason recorded for this reading.'}</p></div>
+      </div>
     </div>
   );
 }
@@ -1978,6 +2071,60 @@ function EntityListPanel({
   );
 }
 
+function PositionWorkspaceField<T>({ label, value, summary, onSave, renderEditor }: {
+  label: string;
+  value: T;
+  summary?: React.ReactNode;
+  onSave: (value: T) => Promise<void>;
+  renderEditor: (value: T, setValue: (value: T) => void) => React.ReactNode;
+}) {
+  const [edit, setEdit] = useState<{ original: T; value: T } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const savingRef = useRef(false);
+  const changedElsewhere = !!edit && JSON.stringify(edit.original) !== JSON.stringify(value);
+  const changed = !!edit && JSON.stringify(edit.value) !== JSON.stringify(edit.original);
+  return (
+    <div className="my-3 min-w-0 border-t border-border pt-3">
+      <div className="flex items-center justify-between gap-2">
+        <Eyebrow>{label}</Eyebrow>
+        {!edit && <IconButton label={`Edit ${label.toLowerCase()}`} variant="ghost" onClick={() => { setEdit({ original: value, value }); setError(''); }}><Pencil className="size-4" /></IconButton>}
+      </div>
+      {!edit ? summary : (
+        <fieldset className="min-w-0 space-y-2" disabled={saving}>
+          <legend className="sr-only">{label}</legend>
+          {renderEditor(edit.value, next => setEdit({ ...edit, value: next }))}
+          {changedElsewhere && !saving && <p role="status" className="text-sm text-muted-foreground">This field changed since you opened it. Cancel and reopen it to see the latest value.</p>}
+          {error && <p role="alert" className="text-sm text-problem">{error}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="secondary" disabled={!changed || changedElsewhere || saving} onClick={async () => {
+              if (savingRef.current) return;
+              savingRef.current = true;
+              setSaving(true);
+              setError('');
+              try { await onSave(edit.value); setEdit(null); }
+              catch (error) { setError(noesisUserError(error, 'save this field')); }
+              finally { savingRef.current = false; setSaving(false); }
+            }}>{saving ? 'Saving...' : 'Save'}</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setEdit(null)}>Cancel</Button>
+          </div>
+        </fieldset>
+      )}
+    </div>
+  );
+}
+
+function PositionWorkspaceText({ label, value, placeholder, onSave }: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onSave: (value: string) => Promise<void>;
+}) {
+  return <PositionWorkspaceField label={label} value={value} onSave={text => onSave(text.trim())}
+    summary={<p className={cn('whitespace-pre-wrap break-words text-sm leading-6', !value.trim() && 'text-muted-foreground')}>{value.trim() || 'Not recorded yet.'}</p>}
+    renderEditor={(text, setText) => <Textarea aria-label={label} value={text} onChange={event => setText(event.target.value)} placeholder={placeholder} className="min-h-20" />} />;
+}
+
 function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, onAddConcept, onSave, saving = false }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1989,6 +2136,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
   onSave: () => void;
   saving?: boolean;
 }) {
+  const creating = !draft.id;
   const toggleSource = (id: string) => {
     setDraft(prev => {
       const current = prev.sourceIds || [];
@@ -2015,7 +2163,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className={cn('grid grid-cols-1 gap-4', creating ? 'md:grid-cols-3' : 'sm:grid-cols-2')}>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">POSITION KIND</Label>
               <Select value={draft.positionKind || 'interpretive'} onValueChange={(value) => setDraft((prev) => ({ ...prev, positionKind: value as PositionKind }))}>
@@ -2027,10 +2175,13 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
               <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">STATE</Label>
               <Select value={draft.status || 'tentative'} onValueChange={(value) => setDraft((prev) => ({ ...prev, status: value as VaultEntry['status'] }))}>
                 <SelectTrigger className="h-10 border-border/60 bg-card shadow-sm rounded-full noesis-eyebrow"><SelectValue /></SelectTrigger>
-                <SelectContent>{positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="noesis-eyebrow">{status.label}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {draft.status && !positionStatuses.some(status => status.id === draft.status) && <SelectItem value={draft.status}>{draft.status.replace(/_/g, ' ')}</SelectItem>}
+                  {positionStatuses.map((status) => <SelectItem key={status.id} value={status.id} className="noesis-eyebrow">{status.label}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            {creating && <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">CONFIDENCE</Label>
               <div className="flex items-center justify-between gap-2">
                 <span className="noesis-figure font-bold text-accent">{confidencePercent(draft.confidence)}%</span>
@@ -2046,28 +2197,25 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
                 className="h-6 w-full accent-[hsl(var(--accent))]"
                 aria-label="Position confidence percentage"
               />
-            </div>
+            </div>}
           </div>
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">POSITION STATEMENT</Label>
-            <Textarea value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value, description: prev.description || event.target.value }))} placeholder="The core position in one clear sentence..." className="min-h-[60px] italic text-base" />
+            <Textarea aria-label="Position statement" value={draft.statement || ''} onChange={(event) => setDraft((prev) => ({ ...prev, statement: event.target.value }))} placeholder="The core position in one clear sentence..." className="min-h-[60px] italic text-base" />
           </div>
-          <div className="space-y-2">
-            <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHAT DO YOU MEAN?</Label>
-            <Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Clarify scope, boundaries, and what this claim does not mean..." className="min-h-[90px] italic text-base" />
-          </div>
+          {creating && <>
           <div className="space-y-2">
             <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHY DO YOU HOLD IT?</Label>
             <Textarea value={draft.rationale || ''} onChange={(event) => setDraft((prev) => ({ ...prev, rationale: event.target.value }))} placeholder="In your own words, explain the reasons you currently find persuasive." className="min-h-[90px] italic text-base" />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHAT COULD CHALLENGE IT?</Label>
-              <Textarea value={joinLines(draft.evidenceAgainst)} onChange={(event) => setDraft((prev) => ({ ...prev, evidenceAgainst: splitLines(event.target.value) }))} placeholder="One objection, uncertainty, or counterexample..." className="min-h-[100px] italic text-base" />
+              <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">KNOWN CHALLENGES</Label>
+              <Textarea value={joinLines(draft.evidenceAgainst)} onChange={(event) => setDraft((prev) => ({ ...prev, evidenceAgainst: splitLines(event.target.value) }))} placeholder="An objection or counterexample you already know about." className="min-h-[100px] italic text-base" />
             </div>
             <div className="space-y-2">
               <Label className="readex-kicker uppercase opacity-50 font-bold text-label-sm">WHAT WOULD CHANGE YOUR MIND?</Label>
-              <Textarea value={draft.falsification || ''} onChange={(event) => setDraft((prev) => ({ ...prev, falsification: event.target.value }))} placeholder="What would weaken, overturn, or force revision?" className="min-h-[110px] italic text-base" />
+              <Textarea value={draft.falsification || ''} onChange={(event) => setDraft((prev) => ({ ...prev, falsification: event.target.value }))} placeholder="What future finding or result would make you revise the claim?" className="min-h-[110px] italic text-base" />
             </div>
           </div>
           <details className="rounded-2xl border border-border/50 bg-muted/10 p-4">
@@ -2102,6 +2250,7 @@ function BeliefEditor({ open, onOpenChange, draft, setDraft, concepts, media, on
           />
             </div>
           </details>
+          </>}
         </div>
         <DialogFooter className="pt-4"><Button onClick={onSave} disabled={saving || !draft.title?.trim()}>{saving ? 'Saving…' : 'Save position'}</Button></DialogFooter>
       </DialogContent>

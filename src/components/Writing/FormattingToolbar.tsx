@@ -53,6 +53,7 @@ import type { WorkToolKind } from '@/lib/types';
 
 interface FormattingToolbarProps {
   saveStatus?: string;
+  notebookRuling?: boolean;
   onOpenDrawing?: () => void;
   onInsertTool?: (tool: WorkToolKind) => void;
   onUploadImage?: (file: File) => Promise<string>;
@@ -70,7 +71,7 @@ type SpeechRecognitionCtor = new () => {
 
 type UtilityDialog = 'image' | 'link' | 'find' | 'replace' | null;
 
-export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onUploadImage }: FormattingToolbarProps) {
+export function FormattingToolbar({ saveStatus, notebookRuling, onOpenDrawing, onInsertTool, onUploadImage }: FormattingToolbarProps) {
   const { toast } = useToast();
   const [textColor, setTextColor] = useState('#31241d');
   const [highlightColor, setHighlightColor] = useState('#fef3c7');
@@ -161,7 +162,7 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
     const block = anchor?.closest('p, div, blockquote, li, h1, h2, h3') as HTMLElement | null;
     const editor = currentEditor();
     const target = block?.closest('[contenteditable="true"]') ? block : editor;
-    if (!target || !editor) return;
+    if (!target || !editor || editor.hasAttribute('data-notebook-editor')) return;
     target.style.lineHeight = value;
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'formatJustifyFull' }));
     rememberSelection();
@@ -391,9 +392,10 @@ export function FormattingToolbar({ saveStatus, onOpenDrawing, onInsertTool, onU
               <DropdownMenuItem onSelect={() => applyFormat('formatBlock', 'PRE')}><Code2 className="mr-2 size-4" /> Code block</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => applyFormat('removeFormat')}><CaseUpper className="mr-2 size-4" /> Clear formatting</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Line spacing</DropdownMenuLabel>
+              <DropdownMenuLabel>{notebookRuling ? 'Line spacing: notebook ruling' : 'Line spacing'}</DropdownMenuLabel>
               <div className="px-2 pb-2">
-                <select aria-label="Line spacing" defaultValue="1.5" onPointerDown={rememberSelection} onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-card px-2 text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground">
+                <select aria-label="Line spacing" disabled={notebookRuling} defaultValue={notebookRuling ? 'notebook' : '1.5'} key={notebookRuling ? 'notebook' : 'free'} onPointerDown={rememberSelection} onChange={(event) => applyLineSpacing(event.target.value)} className="h-8 w-full rounded-md border border-border/60 bg-card px-2 text-xs text-foreground outline-none [&>option]:bg-card [&>option]:text-foreground">
+                  {notebookRuling && <option value="notebook">Matches paper lines</option>}
                   <option value="1">Single</option>
                   <option value="1.15">1.15</option>
                   <option value="1.5">1.5</option>

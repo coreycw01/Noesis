@@ -402,7 +402,8 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
       return {
         backgroundImage: `linear-gradient(${guide} 1px, transparent 1px)`,
         backgroundSize: '100% var(--document-line-step)',
-        backgroundPosition: '0 calc(var(--document-page-padding) + 1.2em)'
+        backgroundOrigin: 'padding-box' as const,
+        backgroundPosition: '0 calc(var(--document-page-padding) + var(--document-rule-offset))'
       };
     }
     if (paperPattern === 'grid') {
@@ -450,13 +451,13 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
   };
 
   return (
-    <div className={cn(
-      "relative shadow-sm origin-center flex flex-col group [--document-line-height:1.5] [--document-line-step:24px] [--document-page-padding:1.5rem] sm:[--document-page-padding:4rem] lg:[--document-page-padding:6rem]",
+    <div data-work-page-paper="" className={cn(
+      "relative shadow-sm origin-center flex flex-col group [--document-line-height:1.5] [--document-page-padding:1.5rem] sm:[--document-page-padding:4rem] lg:[--document-page-padding:6rem]",
       sizeClasses[pageSize],
       colorClasses[paperColor],
       structureClasses[writingStyle],
       showBoundary && "border border-border/20",
-      paperPattern === 'notebook' && "before:absolute before:bottom-0 before:left-8 before:top-0 before:w-px before:bg-problem/25 sm:before:left-12 lg:before:left-20"
+      paperPattern === 'notebook' && "[--document-line-step:28px] [--document-rule-offset:calc(var(--document-line-step)/2_+_5px)] before:pointer-events-none before:absolute before:bottom-0 before:left-8 before:top-0 before:w-px before:bg-problem/25 sm:before:left-12 lg:before:left-20"
     )}
     style={getPatternStyles()}
     >
@@ -481,11 +482,12 @@ export function DocsPage({ pageNumber, pageSize, paperColor, paperPattern, writi
           aria-multiline="true"
           spellCheck
           data-placeholder="Start writing…"
+          data-notebook-editor={paperPattern === 'notebook' || undefined}
           onInput={(e) => onContentChange(sanitizeHtml(e.currentTarget.innerHTML))}
           className={cn(
             "relative z-[1] min-h-full p-[var(--document-page-padding)] font-[Georgia,serif] text-base not-italic leading-[var(--document-line-height)] focus:outline-none empty:before:pointer-events-none empty:before:text-current/25 empty:before:content-[attr(data-placeholder)] [&_p]:my-0 [&_p+p]:mt-3 [&_h1]:mb-4 [&_h2]:mb-3 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6",
             !isEditable && "pointer-events-none opacity-20",
-            paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28 [&_p+p]:mt-0",
+            paperPattern === 'notebook' && "pl-12 sm:pl-16 lg:pl-28",
             writingStyle === 'cornell_notes' && "pb-36 sm:pl-[240px]",
             writingStyle === 'two_column_debate' && "columns-2 gap-20",
             writingStyle === 'manuscript' && "leading-[2.8]",

@@ -1,11 +1,12 @@
 "use client";
 
 import React from 'react';
-import { Check, LayoutGrid, LayoutPanelLeft, LibraryBig, List, Search, SlidersHorizontal, TableProperties, X } from 'lucide-react';
+import { ArrowDownUp, Check, LayoutGrid, LayoutPanelLeft, LibraryBig, List, Search, SlidersHorizontal, TableProperties, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export type RelatedLookupGroup = {
   id: string;
@@ -24,6 +25,7 @@ interface FilterToolbarProps {
   resultCount?: number;
   resultLabel?: string;
   sortLabel?: string;
+  sortControl?: React.ReactNode;
   activeFilterLabels?: string[];
   activeFilters?: Array<{ id: string; label: string; onRemove?: () => void }>;
   activeFilterCount?: number;
@@ -45,6 +47,7 @@ export function FilterToolbar({
   resultCount,
   resultLabel = 'results',
   sortLabel,
+  sortControl,
   activeFilterLabels = [],
   activeFilters,
   activeFilterCount,
@@ -231,7 +234,7 @@ export function FilterToolbar({
                 }
               }}
             >
-              <div id={filterHeadingId} className="mb-3 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Filter and sort</div>
+              <div id={filterHeadingId} className="mb-3 noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground">Filters</div>
               <div className="flex flex-wrap items-center gap-2 [&_[role=combobox]]:min-w-[170px] [&_[role=combobox]]:flex-1">
                 {children}
               </div>
@@ -239,13 +242,14 @@ export function FilterToolbar({
             </PopoverContent>
           </Popover>
         )}
+        {sortControl}
+        {typeof resultCount === 'number' && (
+          <span role="status" className="shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+            {resultCount} {resultLabel}
+          </span>
+        )}
         {viewControlMobileRow ? <div className="basis-full sm:basis-auto">{viewControl}</div> : viewControl}
         <div className="ml-auto hidden shrink-0 flex-wrap items-center justify-end gap-2 sm:flex">
-          {typeof resultCount === 'number' && (
-            <span className="noesis-eyebrow font-bold text-muted-foreground">
-              {resultCount} {resultLabel}
-            </span>
-          )}
           {sortLabel && (
             <span className="hidden noesis-eyebrow noesis-eyebrow--sm font-bold text-muted-foreground xl:inline">
               Sorted by {sortLabel}
@@ -273,6 +277,32 @@ export function FilterToolbar({
         </div>
       )}
     </section>
+  );
+}
+
+export function SortPill<T extends string>({ value, onChange, options, label = 'Sort' }: {
+  value: T;
+  onChange: (value: T) => void;
+  options: readonly { value: T; label: string }[];
+  label?: string;
+}) {
+  const current = options.find(option => option.value === value)?.label;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-9 shrink-0 gap-1.5" aria-label={current ? `${label}: ${current}` : label}>
+          <ArrowDownUp aria-hidden="true" /> Sort
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuRadioGroup value={value} onValueChange={next => {
+          const option = options.find(item => item.value === next);
+          if (option) onChange(option.value);
+        }}>
+          {options.map(option => <DropdownMenuRadioItem key={option.value} value={option.value}>{option.label}</DropdownMenuRadioItem>)}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

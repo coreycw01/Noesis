@@ -10,8 +10,9 @@ import type {
   Question,
   VaultEntry,
 } from '@/lib/types';
-import { commitmentPositionIds, completedCommitmentDates } from './commitments';
+import { commitmentActivityToDate, commitmentPositionIds, completedCommitmentDates } from './commitments';
 import { practiceLogDates } from './practice-state';
+import { localDateKey } from './calendar';
 import { MEDIA_LABELS, today } from './readex';
 import { isInquiryActive } from './inquiry-state';
 import { isLivePosition } from './position-state';
@@ -23,6 +24,18 @@ export interface GoalProgressContext {
   positions: VaultEntry[];
   works: Draft[];
   practices: Practice[];
+}
+
+export function goalMeasureLabel(item: GoalItem, category?: GoalType) {
+  if (item.commitmentTracking === 'manual') return 'Completed check-ins';
+  switch (questKindForGoal(item, category)) {
+    case 'consumption': return item.sourceMeasure === 'fully_reflected' ? 'Finished sources with reflection' : 'Finished sources';
+    case 'inquiry': return item.inquiryMeasure === 'provisional' ? 'Provisional answers' : item.inquiryMeasure === 'resolved' ? 'Resolved inquiries' : item.inquiryMeasure === 'answered' ? 'Deliberately answered inquiries' : 'Active inquiries';
+    case 'position': return item.positionMeasure === 'confident' ? 'Current positions at 100% confidence' : item.positionMeasure === 'revised' ? 'Positions revised' : 'Positions with a dated challenge or revision';
+    case 'practice': return item.practiceMeasure === 'log_streak' ? 'Longest log streak' : item.practiceMeasure === 'logged_days' ? 'Days logged' : 'Completed, concluded, or integrated practices';
+    case 'expression': return item.workMeasure === 'published' ? 'Published works' : 'Complete, final, or published works';
+    default: return 'Recorded progress';
+  }
 }
 
 export function goalKindForType(type?: GoalType, fallbackTitle = ''): IntellectualGoalKind {
@@ -60,12 +73,25 @@ export function goalCategoryChange(item: GoalItem, previousType: GoalType | unde
   };
 }
 
-export function deriveGoalProgress(item: GoalItem, type: GoalType | undefined, context: GoalProgressContext, legacyProgress: Partial<Record<Media['type'], number>> = {}) {
-  const automatic = deriveAutomaticGoalProgress(item, questKindForGoal(item, type), context, type?.mediaTypes);
-  const legacy = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (legacyProgress[mediaType] || 0), 0);
-  const currentProgress = Math.max(item.currentProgress || 0, automatic ?? legacy, completedCommitmentDates(item).length);
+export function deriveGoalProgress(item: GoalItem, type: GoalType | undefined, context: GoalProgressContext, legacyProgress: Partial<Record<Media['type'], number>> = {}, now = new Date()) {
+  let currentProgress: number;
+  if (item.commitmentTracking === 'manual') {
+    currentProgress = commitmentActivityToDate(item, [], now).loggedDays;
+  } else if (item.commitmentTracking === 'automatic') {
+    currentProgress = deriveAutomaticGoalProgress(item, questKindForGoal(item, type), context, undefined, localDateKey(now)) ?? 0;
+  } else {
+    const automatic = deriveAutomaticGoalProgress(item, questKindForGoal(item, type), context, type?.mediaTypes, localDateKey(now));
+    const legacy = (type?.mediaTypes || []).reduce((sum, mediaType) => sum + (legacyProgress[mediaType] || 0), 0);
+    currentProgress = Math.max(item.currentProgress || 0, automatic ?? legacy, completedCommitmentDates(item).length);
+  }
   const targetProgress = Math.max(1, item.targetProgress || 1);
   return { currentProgress, targetProgress, percent: Math.min(100, (currentProgress / targetProgress) * 100) };
+}
+
+export const AUTOMATIC_COMMITMENT_KINDS = ['consumption', 'inquiry', 'position', 'practice', 'expression'] as const;
+
+export function supportsAutomaticCommitment(kind: IntellectualGoalKind) {
+  return AUTOMATIC_COMMITMENT_KINDS.some(item => item === kind);
 }
 
 export function goalCategories(settings: GoalSettings): GoalType[] {
@@ -104,9 +130,7 @@ function sourceHasCompleteDetails(source: Media) {
 function positionHasReviewActivity(position: VaultEntry) {
   return Boolean(
     position.lastChallengedAt ||
-    position.lastRevisedAt ||
-    (position.versionHistory?.length || 0) > 1 ||
-    ['revised', 'challenged', 'contested', 'unstable', 'uncertain'].includes(position.status)
+    position.lastRevisedAt
   );
 }
 
@@ -138,7 +162,7 @@ function countDistinctItems<T extends { id: string }>(items: readonly T[], match
   return ids.size;
 }
 
-export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGoalKind, context: GoalProgressContext, categoryMediaTypes?: Media['type'][]): number | null {
+export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGoalKind, context: GoalProgressContext, categoryMediaTypes?: Media['type'][], asOf = localDateKey()): number | null {
   const conceptId = item.relatedObjectIds?.conceptIds?.[0];
   const scopedConcept = context.concepts.find((concept) => concept.id === conceptId);
   const conceptNames = scopedConcept
@@ -166,7 +190,8 @@ export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGo
     return countDistinctItems(context.inquiries, (inquiry) => {
       if (inquiryId && inquiry.id !== inquiryId) return false;
       if (!matchesConcept(inquiry.conceptIds)) return false;
-      if (item.inquiryMeasure === 'answered') return Boolean(inquiry.answer?.trim());
+      if (item.inquiryMeasure === 'provisional') return inquiry.status === 'provisionally_answered' && Boolean(inquiry.answer?.trim());
+      if (item.inquiryMeasure === 'answered') return ['answered', 'resolved', 'converted'].includes(inquiry.status) && Boolean(inquiry.answer?.trim());
       if (item.inquiryMeasure === 'resolved') return inquiry.status === 'resolved' && Boolean(inquiry.answer?.trim());
       return isInquiryActive(inquiry);
     });
@@ -191,8 +216,8 @@ export function deriveAutomaticGoalProgress(item: GoalItem, kind: IntellectualGo
       if (positionId && !(practice.positionIds || []).includes(positionId)) return false;
       return matchesConcept(practice.conceptIds, practice.conceptTags);
     });
-    if (item.practiceMeasure === 'logged_days') return new Set(matches.flatMap(practiceLogDates)).size;
-    if (item.practiceMeasure === 'log_streak') return matches.reduce((longest, practice) => Math.max(longest, longestDateStreak(practiceLogDates(practice))), 0);
+    if (item.practiceMeasure === 'logged_days') return new Set(matches.flatMap(practice => practiceLogDates(practice).filter(day => day <= asOf))).size;
+    if (item.practiceMeasure === 'log_streak') return matches.reduce((longest, practice) => Math.max(longest, longestDateStreak(practiceLogDates(practice).filter(day => day <= asOf))), 0);
     return countDistinctItems(matches, completedPractice);
   }
 

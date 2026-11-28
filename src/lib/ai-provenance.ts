@@ -1,4 +1,4 @@
-import type { ContextualAiAction } from './contextual-ai';
+import { AI_USER_PROMPT_LIMIT, type ContextualAiAction } from './contextual-ai';
 import type { Media } from './types';
 
 export type ProvenanceRef = { provenanceId: string; kind: 'ai-assisted' };
@@ -34,10 +34,16 @@ export interface AiProvenanceRecord extends ProvenanceRef {
   generatedAt: string;
   acceptedAt: unknown;
   precursor: string | null;
+  userPrompt?: string;
   acceptedText?: string;
   contextRefs?: Array<{ type: string; id: string }>;
   acceptedTextHash: string;
   state: 'active' | 'redacted' | 'target-deleted';
+}
+
+export function aiCreationPrompt(result: { userPromptAtGeneration?: string }): Pick<AiProvenanceRecord, 'userPrompt'> {
+  const userPrompt = result.userPromptAtGeneration?.trim().slice(0, AI_USER_PROMPT_LIMIT).trimEnd();
+  return userPrompt ? { userPrompt } : {};
 }
 
 export async function acceptedTextHash(text: string) {

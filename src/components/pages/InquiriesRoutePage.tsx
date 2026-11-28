@@ -22,7 +22,7 @@ export interface InquiriesRoutePageProps {
   onLinkItem: (inquiryId: string, type: 'work' | 'practice', itemId: string) => Promise<void>;
   onAddPractice: (data: Partial<Practice>) => Promise<Practice>;
   onFormPositionFromInquiry: (question: Question, position: { title: string; statement: string; description: string; confidence: number }, finalAnswer: string) => Promise<VaultEntry>;
-  onNavigate: (view: NoesisView, options?: { questionId?: string | null; workId?: string | null; practiceId?: string | null; positionId?: string | null }) => void;
+  onNavigate: (view: NoesisView, options?: { questionId?: string | null; workId?: string | null; practiceId?: string | null; positionId?: string | null; annotationSourceId?: string; annotationId?: string }) => void;
 }
 
 export function InquiriesRoutePage({
@@ -64,6 +64,7 @@ export function InquiriesRoutePage({
       onAddPractice={onAddPractice}
       onOpenWork={(workId) => onNavigate('writing', { workId })}
       onOpenPosition={(positionId) => onNavigate('vault', { positionId })}
+      onOpenAnnotation={(annotationSourceId, annotationId) => onNavigate('annotations', { annotationSourceId, annotationId })}
       onOpenPractice={(practiceId) => onNavigate('labs', { practiceId })}
       onFormPositionFromInquiry={onFormPositionFromInquiry}
       focusedQuestionId={focusedQuestionId}

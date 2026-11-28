@@ -1,10 +1,13 @@
 "use client";
 
+import { InstrumentHelp } from '@/components/shared/InstrumentHelp';
+
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Input } from '@/components/ui/input';
 import { zoneLabel } from '@/components/Vault/PositionCalibration';
+import { ConfidenceEmber } from '@/components/Vault/ConfidenceEmber';
 
 /**
  * One bar carrying both numbers. The grounds marker sits where the record
@@ -28,16 +31,27 @@ export function CalibrationBar({ stated, grounds, supportCount, challengeCount, 
   useEffect(() => { if (asking) field.current?.focus(); }, [asking]);
 
   const moved = dragged !== stated;
-  const gap = grounds === null ? null : dragged - grounds;
   const cancel = () => { setDragged(stated); setAsking(false); setReason(''); };
 
   return (
     <div className="noesis-calbar" data-tone="position">
+      <div className="noesis-calbar__instrument">
+      <div className="noesis-confbox">
+        <ConfidenceEmber confidence={dragged} />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1">
+            <Eyebrow>{moved ? 'Confidence preview' : 'Stated confidence'}</Eyebrow>
+            <InstrumentHelp instrument="calibration" />
+          </div>
+          <div className="noesis-confbox__big">{dragged}%</div>
+          <div className="text-xs text-muted-foreground">{zoneLabel(dragged).toLowerCase()}</div>
+        </div>
+      </div>
       <div className="noesis-calbar__track">
         {grounds !== null && (
           <>
             <span className="noesis-calbar__grounds" style={{ left: `${grounds}%` }} aria-hidden="true" />
-            <span className="noesis-calbar__grounds-label" style={{ left: `${grounds}%` }}>Grounds {grounds}%</span>
+            <span className="noesis-calbar__grounds-label" style={{ left: `clamp(2.5rem, ${grounds}%, calc(100% - 2.5rem))` }}>For {grounds}%</span>
           </>
         )}
         {grounds !== null && (
@@ -46,20 +60,20 @@ export function CalibrationBar({ stated, grounds, supportCount, challengeCount, 
         <input
           type="range" min={0} max={100} value={dragged} disabled={disabled}
           className="noesis-calbar__range"
-          aria-label={`Stated confidence, ${dragged} percent${grounds === null ? '' : `; grounds at ${grounds} percent`}`}
+          aria-label={`Stated confidence, ${dragged} percent`}
           onChange={(event) => { setDragged(Number(event.target.value)); setAsking(false); }}
           onPointerUp={() => { if (dragged !== stated) setAsking(true); }}
-          onKeyUp={(event) => { if (event.key.startsWith('Arrow') && dragged !== stated) setAsking(true); }}
+          onKeyUp={(event) => { if ((event.key.startsWith('Arrow') || ['Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) && dragged !== stated) setAsking(true); }}
         />
-        <span className="noesis-calbar__stated-label" style={{ left: `${dragged}%` }}>{dragged}%</span>
+        <span className="noesis-calbar__stated-label" style={{ left: `clamp(1rem, ${dragged}%, calc(100% - 1rem))` }}>{dragged}%</span>
+      </div>
       </div>
 
       <p className="noesis-lean" aria-live="polite">
         {grounds === null ? <>Nothing weighed yet. Add support or a challenge to see the balance.</>
-          : !supportCount ? <>Only challenges are recorded. Look for supporting evidence before reading too much into the gap.</>
-            : !challengeCount ? <>Only support is recorded. Consider a counterargument before reading too much into the gap.</>
-              : Math.abs(gap!) <= 10 ? <>Your {dragged}% confidence is close to the {grounds}% evidence balance.</>
-                : <>Your {dragged}% confidence is <b>{Math.abs(gap!)} points {gap! > 0 ? 'above' : 'below'}</b> the {grounds}% evidence balance. Review why before making a change.</>}
+          : !supportCount ? <>Only challenges are recorded. Is there a reason or observation that supports the claim?</>
+            : !challengeCount ? <>Only support is recorded. Consider the strongest counterargument.</>
+              : <>Would the strongest ground for or against the claim change your confidence?</>}
         {' '}<span className="text-muted-foreground">{zoneLabel(dragged).toLowerCase()}</span>
       </p>
 
@@ -77,7 +91,7 @@ export function CalibrationBar({ stated, grounds, supportCount, challengeCount, 
       )}
 
       <p className="text-xs text-muted-foreground">
-        Evidence balance is a count, not a measure of whether the claim is true: {supportCount} for · {challengeCount} against. Your number only changes when you save it with a reason.
+        Grounds in support is the share of recorded grounds classified as support: {supportCount} for · {challengeCount} against. It does not estimate how confident you should be. Your confidence only changes when you save it with a reason.
       </p>
     </div>
   );

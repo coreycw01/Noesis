@@ -187,7 +187,7 @@ export function PositionMiniScale({ confidence, supportCount, challengeCount, sh
       </div>
       <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
         <span>Your confidence <strong className="text-foreground">{confidence}%</strong></span>
-        {earned === null ? <span>No evidence yet</span> : <span>Evidence balance <strong className="text-foreground">{earned}%</strong></span>}
+        {earned === null ? <span>No grounds yet</span> : <span title="Share of recorded grounds classified as support, by count">Grounds in support <strong className="text-foreground">{earned}%</strong></span>}
       </p>
       {earned !== null && <p className="text-xs text-muted-foreground">{supportCount} in support · {challengeCount} {challengeCount === 1 ? 'challenge' : 'challenges'}</p>}
       {cue && <p className="text-xs font-medium text-muted-foreground">{cue}</p>}

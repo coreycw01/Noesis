@@ -1,7 +1,22 @@
-import type { InquiryEvidence, Practice, Question } from '@/lib/types';
+import type { InquiryEvidence, Media, Practice, Question } from '@/lib/types';
 
 export const MAX_INQUIRY_EVIDENCE = 200;
 export const INQUIRY_STARTING_OBSERVATION = 'Starting observation';
+
+export type InquiryLinkType = 'work' | 'practice';
+
+export function inquiryConnectionKey(type: InquiryLinkType, id: string) {
+  return `${type}:${id}` as const;
+}
+
+export function isManualInquiryLink(inquiry: Question, type: InquiryLinkType, id: string) {
+  return inquiry.manualConnectionKeys?.includes(inquiryConnectionKey(type, id)) ?? false;
+}
+
+export function isCompleteManualInquiryLink(inquiry: Question, type: InquiryLinkType, item: { id: string; questionIds?: string[] }) {
+  const ids = type === 'work' ? inquiry.draftIds : inquiry.practiceIds;
+  return Boolean(ids?.includes(item.id) && item.questionIds?.includes(inquiry.id) && isManualInquiryLink(inquiry, type, item.id));
+}
 
 export function inquiryStartingObservation(text: string) {
   return {
@@ -17,17 +32,24 @@ export function inquiryStartingObservation(text: string) {
 }
 
 export function inquiryExperimentSetup(
-  { prediction, action, measure }: { prediction: string; action: string; measure: string },
+  { prediction, action, measure, against }: { prediction: string; action: string; measure: string; against?: string },
   observation = '',
 ) {
   if (![prediction, action, measure].every(value => value.trim())) return null;
+  const normalized = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  if (observation.trim() && [prediction, action].some(value => normalized(value) === normalized(observation))) return null;
   return {
     intellectualBasis: observation.trim(),
     hypothesis: prediction.trim(),
     action: action.trim(),
-    observationMethod: `After each attempt, record what you did and compare what happened with this signal: ${measure.trim()}`,
-    expectedOutcome: measure.trim(),
+    observationMethod: `After each attempt, record what you did and compare what happened with this signal: ${measure.trim()}${against?.trim() ? `\nWhat would count against the prediction: ${against.trim()}` : ''}`,
+    expectedOutcome: prediction.trim(),
   };
+}
+
+export function inquiryWeighedCount(question: Pick<Question, 'candidateAnswers' | 'evidenceRecords'>) {
+  const candidateIds = new Set((question.candidateAnswers || []).map(answer => answer.id));
+  return (question.evidenceRecords || []).filter(item => item.claim.trim() && candidateIds.has(item.candidateId) && (item.direction === 'supports' || item.direction === 'challenges')).length;
 }
 
 export function practiceEvidenceDraft(practice: Pick<Practice, 'title'>, observation: string) {
@@ -100,6 +122,24 @@ export function isInquiryClosed(question: Question) {
 
 export function inquirySourceIds(question: Question) {
   return Array.from(new Set([...(question.sourceIds || []), ...(question.evidenceIds || [])]));
+}
+
+export function inquiryAnnotationOrigins(question: Question, media: readonly Media[]) {
+  const explicit = new Set([question.sourceAnnotationId, ...(question.annotationOrigins || []).map(origin => origin.annotationId)].filter(Boolean));
+  const origins = media.flatMap(source => (source.annotations || []).flatMap(annotation => {
+    const transfer = annotation.marks?.find(mark => mark.movedTo === 'inquiry' && mark.movedId === question.id);
+    const backlink = Boolean(transfer || annotation.createdInquiryId === question.id);
+    if (!backlink && !explicit.has(annotation.id)) return [];
+    return [{ source, annotation, excerpt: transfer?.text || annotation.text, backlink }];
+  }));
+  const linkedSources = new Set(inquirySourceIds(question));
+  return origins.filter(origin => {
+    if (origin.backlink) return true;
+    const matches = origins.filter(candidate => candidate.annotation.id === origin.annotation.id);
+    if (matches.some(candidate => candidate.backlink)) return false;
+    if (matches.length === 1) return true;
+    return linkedSources.has(origin.source.id) && matches.filter(candidate => linkedSources.has(candidate.source.id)).length === 1;
+  });
 }
 
 export function inquiryPositionEvidence(question: Question, answer: string) {
