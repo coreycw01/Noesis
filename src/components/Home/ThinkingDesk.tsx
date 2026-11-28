@@ -21,7 +21,7 @@ import { PageEmptyState } from '@/components/shared/PageState';
 import { Progress } from '@/components/ui/progress';
 import { allAnnotations } from '@/lib/readex';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
-import { NOESIS_SOLID_DESK_ICONS } from '@/lib/noesis-icons';
+import { iconForNoesisView, NOESIS_SOLID_DESK_ICONS } from '@/lib/noesis-icons';
 import { isRepeatablePractice } from '@/lib/workflow-integrity';
 
 const { annotation: ClipboardCheck, concept: Lightbulb } = NOESIS_SOLID_DESK_ICONS;
@@ -617,6 +617,39 @@ export function ThinkingDesk({
           description="A starting point for your thinking."
           actions={<DeskThoughtStarter onSave={capture} aiEnabled={aiEnabled} />}
         >
+          {/* One place to begin. A thought first, because that is the cheapest
+              thing to record and the hardest to recover once it goes; then the
+              five things a thought becomes, each in its own kind's colour. */}
+          <section className="noesis-start" aria-label="Start something">
+            <p className="noesis-start__lead">Start with a thought, or go straight to the work.</p>
+            <div className="noesis-start__row">
+              <button type="button" className="noesis-start__item" data-tone="source"
+                onClick={() => onNavigate({ view: 'library' })}>
+                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('library'); return <I className="size-4" aria-hidden="true" />; })()}</span>
+                Add a source
+              </button>
+              <button type="button" className="noesis-start__item" data-tone="annotation"
+                onClick={() => onNavigate({ view: 'annotations' })}>
+                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('annotations'); return <I className="size-4" aria-hidden="true" />; })()}</span>
+                Capture an annotation
+              </button>
+              <button type="button" className="noesis-start__item" data-tone="inquiry"
+                onClick={() => onNavigate({ view: 'questions' })}>
+                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('questions'); return <I className="size-4" aria-hidden="true" />; })()}</span>
+                Formulate an inquiry
+              </button>
+              <button type="button" className="noesis-start__item" data-tone="position"
+                onClick={() => onNavigate({ view: 'vault' })}>
+                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('vault'); return <I className="size-4" aria-hidden="true" />; })()}</span>
+                Build a position
+              </button>
+              <button type="button" className="noesis-start__item" data-tone="work"
+                onClick={() => onNavigate({ view: 'writing' })}>
+                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('writing'); return <I className="size-4" aria-hidden="true" />; })()}</span>
+                Create a work
+              </button>
+            </div>
+          </section>
           {currentThemes.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current focus</span>

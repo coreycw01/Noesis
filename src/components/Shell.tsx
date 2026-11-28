@@ -23,13 +23,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { NOESIS_NAV_SECTIONS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, noesisPageTone } from '@/lib/noesis-page-definitions';
+import { NOESIS_LOOP_LABELS, NOESIS_NAV_SECTIONS, NOESIS_NAV_SECTION_TONE, NOESIS_PAGE_BY_VIEW, noesisPageTone } from '@/lib/noesis-page-definitions';
 import type { NoesisRouteTargetType } from '@/lib/noesis-routes';
 import { NOESIS_OBJECT_PREVIEW_EVENT, type NoesisObjectPreviewItem } from '@/lib/noesis-object-preview';
 import placeholderData from '@/app/lib/placeholder-images.json';
 import { NOESIS_WORKSPACE_SYNC_EVENT, type WorkspaceSyncState } from '@/lib/workspace-connectivity';
 import { MOBILE_REFRESH_THRESHOLD, mobilePullDistance, shouldRefreshFromPull } from '@/lib/mobile-refresh';
 import { iconForNoesisView } from '@/lib/noesis-icons';
+import { NoesisAiMark } from '@/components/ai/NoesisAiMark';
 import { LoopDock, useNavStyle } from '@/components/app-shell/LoopDock';
 import { findMatchRank } from '@/lib/workspace-find-rank';
 import { readBrowserPreference, writeBrowserPreference } from '@/lib/browser-preferences';
@@ -614,11 +615,18 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
   const activeMobileMorePage = activeMobileMoreItem
     ? NOESIS_PAGE_BY_VIEW[activeMobileMoreItem.id as keyof typeof NOESIS_PAGE_BY_VIEW]
     : null;
+  /**
+   * The phone's four destinations, in the order the work actually runs:
+   * open the Desk to see what is waiting, then develop an inquiry, a
+   * position, or a practice. The Library is not one of them — a source is
+   * where thinking starts, not somewhere you go between sessions — so it is
+   * reached from the Desk instead, which keeps a slot for Praxis.
+   */
   const mobilePrimaryNav = [
     { id: 'home', label: NOESIS_PAGE_BY_VIEW.home.title, icon: iconForNoesisView('home'), view: 'home' },
-    { id: 'library', label: 'Library', icon: iconForNoesisView('library'), view: 'library' },
     { id: 'questions', label: 'Inquiries', icon: iconForNoesisView('questions'), view: 'questions' },
     { id: 'vault', label: 'Positions', icon: iconForNoesisView('vault'), view: 'vault' },
+    { id: 'labs', label: 'Practices', icon: iconForNoesisView('labs'), view: 'labs' },
   ];
   const attentionTotal = movement?.uniqueTotal || 0;
   const attentionItems = [
@@ -897,46 +905,57 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
         {isMobile && (
               <SheetContent side="bottom" className="max-h-[78dvh] rounded-t-2xl border-border bg-background px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">
                 <SheetHeader className="border-b border-border/70 pb-3 text-left">
-                  <SheetTitle className="font-headline text-xl font-semibold italic">More pages</SheetTitle>
-                  <SheetDescription>Open another part of your thinking workspace.</SheetDescription>
+                  <SheetTitle className="font-headline text-xl font-semibold italic">Everything else</SheetTitle>
+                  <SheetDescription>Grouped by where each page sits in the loop.</SheetDescription>
                 </SheetHeader>
-                <div className="grid max-h-[58dvh] grid-cols-2 gap-2 overflow-y-auto py-4">
-                  {mobileMoreItems.map((item) => {
-                    const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
-                    const isActive = activeView === item.id || (item.id === 'labs' && activeView === 'goals');
-                    const count = 'count' in item ? item.count : undefined;
+                {/* Was a flat two-column grid of identical cards, which is the
+                    one place in the app that threw away the loop. The pages
+                    are gathered under their stage now and each takes that
+                    stage's colour, so the sheet reads like the dock. */}
+                <div className="noesis-more max-h-[58dvh] overflow-y-auto py-3">
+                  {NOESIS_NAV_SECTIONS.map((section) => {
+                    const inSection = mobileMoreItems.filter((item) => {
+                      const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
+                      return page?.section === section;
+                    });
+                    if (!inSection.length) return null;
                     return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          if (item.id === 'profile' && onOpenProfile) {
-                            setMobileMoreOpen(false);
-                            onOpenProfile();
-                            return;
-                          }
-                          if (item.id === 'labs' && activeView === 'goals') {
-                            try { window.localStorage.setItem('noesis:labs-tool', 'practices'); } catch { /* Optional view preference. */ }
-                          }
-                          handleNavChange(item.id);
-                        }}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'flex min-h-[76px] items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                          isActive
-                            ? 'border-accent/45 bg-accent/10 text-foreground'
-                            : 'border-border/70 bg-card text-foreground hover:border-accent/35 hover:bg-muted/35'
-                        )}
-                      >
-                        <item.icon className={cn('mt-0.5 size-5 shrink-0', isActive ? 'text-accent' : 'text-muted-foreground')} aria-hidden="true" />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="min-w-0 break-words text-sm font-semibold">{page.title}</span>
-                            {typeof count === 'number' && <span className="noesis-figure text-muted-foreground">{count}</span>}
-                          </span>
-                          <span className="mt-1 block line-clamp-2 text-xs leading-4 text-muted-foreground">{page.purpose}</span>
-                        </span>
-                      </button>
+                      <section key={section} className="noesis-more__group" data-stage-tone={NOESIS_NAV_SECTION_TONE[section]}>
+                        <p className="noesis-more__stage">{NOESIS_LOOP_LABELS[section]}</p>
+                        <div className="noesis-more__items">
+                          {inSection.map((item) => {
+                            const page = NOESIS_PAGE_BY_VIEW[item.id as keyof typeof NOESIS_PAGE_BY_VIEW];
+                            const isActive = activeView === item.id || (item.id === 'labs' && activeView === 'goals');
+                            const count = 'count' in item ? item.count : undefined;
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => {
+                                  if (item.id === 'profile' && onOpenProfile) {
+                                    setMobileMoreOpen(false);
+                                    onOpenProfile();
+                                    return;
+                                  }
+                                  if (item.id === 'labs' && activeView === 'goals') {
+                                    try { window.localStorage.setItem('noesis:labs-tool', 'practices'); } catch { /* Optional view preference. */ }
+                                  }
+                                  handleNavChange(item.id);
+                                }}
+                                aria-current={isActive ? 'page' : undefined}
+                                className="noesis-more__item"
+                              >
+                                <span className="noesis-more__mark" aria-hidden="true">{item.id === 'context-desk' ? <NoesisAiMark className="size-[17px]" /> : <item.icon className="size-[17px]" />}</span>
+                                <span className="noesis-more__text">
+                                  <span className="noesis-more__title">{page.title}</span>
+                                  <span className="noesis-more__purpose">{page.purpose}</span>
+                                </span>
+                                {typeof count === 'number' && <span className="noesis-more__count noesis-figure">{count}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
                     );
                   })}
                 </div>
@@ -1026,16 +1045,32 @@ export function Shell({ children, activeView, pendingPath, onViewChange, onOpenP
               </div>
             </nav>
           )}
+          {/* The Library left the tab bar, so the Desk carries the way in.
+              It sits beside capture because both are how a session starts:
+              bring something in, or write something down. */}
           {isMobile && activeView === 'home' && (
-            <Button
-              type="button"
-              onClick={(event) => openCommand('create', event.currentTarget)}
-              className="fixed bottom-[76px] right-4 z-40 size-12 rounded-full shadow-lg md:hidden"
-              aria-label="Capture or create an item"
-              title="Capture or create"
-            >
-              <Plus className="size-5" aria-hidden="true" />
-            </Button>
+            <div className="fixed bottom-[76px] right-4 z-40 flex flex-col items-end gap-2 md:hidden">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => handleNavChange('library')}
+                className="h-12 rounded-full px-4 shadow-lg"
+                aria-label="Open the Library"
+                title="Library"
+              >
+                {(() => { const LibraryIcon = iconForNoesisView('library'); return <LibraryIcon className="size-5" aria-hidden="true" />; })()}
+                <span className="ml-2 text-sm">Library</span>
+              </Button>
+              <Button
+                type="button"
+                onClick={(event) => openCommand('create', event.currentTarget)}
+                className="size-12 rounded-full shadow-lg"
+                aria-label="Capture or create an item"
+                title="Capture or create"
+              >
+                <Plus className="size-5" aria-hidden="true" />
+              </Button>
+            </div>
           )}
         </main>
 

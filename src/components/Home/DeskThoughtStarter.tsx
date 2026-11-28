@@ -159,7 +159,7 @@ export function DeskThoughtStarter({ onSave, aiEnabled }: { onSave: (kind: DeskT
                 <Button type="submit" disabled={!text.trim()}>Continue<ArrowRight className="size-4" aria-hidden="true" /></Button>
               </div>
               {aiEnabled && <p id={`${id}-ai-context`} className="text-right text-xs text-muted-foreground">Optional. Only this thought is sent to Noesis AI.</p>}
-              {aiEnabled && suggestionError && <p role="alert" className="text-sm text-muted-foreground">Noesis AI couldn't respond. You can still continue with your thought.</p>}
+              {aiEnabled && suggestionError && <p role="alert" className="text-sm text-muted-foreground">Noesis AI could not respond. You can still continue with your thought.</p>}
               {aiEnabled && suggestion && (
                 <section aria-label="AI suggestion" aria-live="polite" className="min-w-0 space-y-2 border-s-2 border-border ps-3 [overflow-wrap:anywhere]">
                   <h3 className="text-sm font-semibold">AI suggestion</h3>
