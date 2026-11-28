@@ -705,7 +705,7 @@ export function AnnotationsIndex({
     return 'Finish';
   };
 
-  const connectionsForAnnotation = (annotation: FlatAnnotation) => {
+  const connectionsForAnnotation = (annotation: FlatAnnotation, includeConcepts = true) => {
     const linkedPositionIds = Array.from(new Set([...(annotation.linkedPositionIds || []), annotation.createdPositionId].filter(Boolean) as string[]));
     const linkedPositions = positions.filter((position) => linkedPositionIds.includes(position.id));
     const linkedInquiries = linkedInquiriesFor(annotation);
@@ -727,7 +727,7 @@ export function AnnotationsIndex({
         label: 'Source',
         items: [{ id: annotation.source.id, label: annotation.source.title, open: onNavigate ? () => onNavigate('library', annotation.source.id) : undefined }],
       },
-    ].filter((group) => group.items.length > 0);
+    ].filter((group) => group.items.length > 0 && (includeConcepts || group.label !== 'Concepts'));
   };
 
   // A mark's kind is its destination, so marking is the whole decision: the
@@ -1547,8 +1547,8 @@ export function AnnotationsIndex({
 
                 {annotationReminder}
                 <RecordFooter>
-                  <FooterSection title="Connections" count={connectionsForAnnotation(editing).reduce((total, group) => total + group.items.length, 0)}>
-                    <Connections groups={connectionsForAnnotation(editing).map((group) => ({
+                  <FooterSection title="Connections" count={connectionsForAnnotation(editing, false).reduce((total, group) => total + group.items.length, 0)}>
+                    <Connections groups={connectionsForAnnotation(editing, false).map((group) => ({
                       type: group.label,
                       tone: (group.label === 'Positions' ? 'position' : group.label === 'Inquiries' ? 'inquiry' : group.label === 'Concepts' ? 'concept' : 'source') as BadgeTone,
                       items: group.items.map((item) => ({ id: item.id, label: item.label, onOpen: item.open })),
