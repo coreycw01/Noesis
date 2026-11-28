@@ -297,7 +297,6 @@ type PositionDiagnostic = {
 function positionFormation(entry: VaultEntry) {
   const checks = [
     { label: 'core claim', complete: Boolean((entry.statement || entry.title || '').trim()) },
-    { label: 'meaning and scope', complete: Boolean(entry.description?.trim()) },
     { label: 'confidence reasoning', complete: Boolean(entry.confidenceReasoning?.trim()) },
     { label: 'assumptions', complete: (entry.assumptions || []).some((item) => item.trim()) },
     { label: 'falsification test', complete: Boolean(entry.falsification?.trim()) },
@@ -662,7 +661,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
     const stressDraftKey = JSON.stringify([selected.id, selectedStressStage.field]);
     const stressAnswer = stressDrafts[stressDraftKey] || '';
     const { supportCount, challengeCount, linked: linkedGrounds } = resolvePositionGrounds(selected, links);
-    const { criterion, objection, result, resultNeedsReview } = positionReviewInputs(selected, linkedPractices, linkedGrounds.against);
+    const { result, resultNeedsReview } = positionReviewInputs(selected, linkedPractices, linkedGrounds.against);
     const revisionCount = (selected.versionHistory || []).length;
 
     const previewSource = (source: Media) => {
@@ -1082,11 +1081,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         <RecordSection id="pos-claim" title="Claim" here={hereId === 'pos-claim'}>
           <PositionWorkspaceText key={`${selected.id}:statement`} label="Position statement" value={selected.statement} placeholder="What do you believe, in one clear sentence?" onSave={statement => saveWorkspace({ statement })} />
           <PositionWorkspaceText key={`${selected.id}:rationale`} label="Why you hold it" value={selected.rationale || ''} placeholder="What makes this claim persuasive to you?" onSave={rationale => saveWorkspace({ rationale })} />
-          {!hasSourcePassage && (
-            <PositionWorkspaceText key={`${selected.id}:scope`} label="Scope and context" value={selected.description.trim() === selected.statement.trim() ? '' : selected.description} placeholder="Where does this claim apply? What does it leave out?" onSave={description => saveWorkspace({ description })} />
-          )}
-          <PositionWorkspaceField key={`${selected.id}:tags`} label="Concept tags" value={selected.tags || []} onSave={tags => saveWorkspace({ tags: normalizeConceptTags(tags) })}
-            renderEditor={(tags, setTags) => <ConceptTagPicker concepts={concepts} value={tags} onChange={setTags} onCreateConcept={name => onAddConcept({ name, description: '', createdFrom: 'tag' })} />} />
           {hasSourcePassage && selected.description.trim() && selected.description.trim() !== selected.statement.trim() && (
             <div className="mt-4 border-l border-border pl-3 text-sm">
               <Eyebrow>Source passage</Eyebrow>
@@ -1120,6 +1114,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               <Button variant="link" size="sm" onClick={() => setPullSide('against')}>⇣ Pull from your workspace</Button>
             </div>
           </div>
+          <PositionWorkspaceText key={`${selected.id}:reconsider`} label="What would change your mind?" value={selected.falsification || ''} placeholder="What future finding or result would make you revise the claim?" onSave={falsification => saveWorkspace({ falsification })} />
           <PositionWorkspaceField key={`${selected.id}:sources`} label="Linked sources" value={selected.sourceIds || []} onSave={sourceIds => saveWorkspace({ sourceIds })}
             renderEditor={(sourceIds, setSourceIds) => <SourceLinker media={media} selectedIds={sourceIds} onToggle={id => setSourceIds(sourceIds.includes(id) ? sourceIds.filter(sourceId => sourceId !== id) : [...sourceIds, id])} />} />
           <PullEvidenceDialog open={pullSide !== null} onOpenChange={(open) => { if (!open) setPullSide(null); }} side={pullSide || 'for'} media={media} concepts={concepts} questions={questions} positions={entries} excludePositionId={selected.id}
@@ -1146,21 +1141,24 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               toast({ title: `Confidence moved to ${value}%`, description: 'The reason is now part of the belief biography.' });
             }}
           />
+          <details className="noesis-fold my-3">
+            <summary><span>Confidence reasoning</span></summary>
+            <div className="noesis-fold__body">
+              <PositionWorkspaceText key={`${selected.id}:confidence-reason`} label="Reason" value={selected.confidenceReasoning || ''} placeholder="Why does your current confidence fit the grounds?" onSave={confidenceReasoning => saveWorkspace({ confidenceReasoning })} />
+            </div>
+          </details>
           <PositionArch
+            key={JSON.stringify([selected.id, selected.assumptions])}
             className="my-4"
-            claim={selected.title}
             assumptions={selected.assumptions || []}
             confidence={statedPercent}
+            supportCount={supportCount}
             challengeCount={challengeCount}
+            onSaveAssumptions={assumptions => saveWorkspace({ assumptions })}
           />
-          <PositionWorkspaceText key={`${selected.id}:confidence-reason`} label="Confidence reasoning" value={selected.confidenceReasoning || ''} placeholder="Why does your current confidence fit the grounds?" onSave={confidenceReasoning => saveWorkspace({ confidenceReasoning })} />
-          <PositionWorkspaceText key={`${selected.id}:assumptions`} label="Assumptions" value={joinLines(selected.assumptions)} placeholder="What does this claim depend on being true? One assumption per line." onSave={text => saveWorkspace({ assumptions: splitLines(text) })} />
-          <PositionWorkspaceText key={`${selected.id}:reconsider`} label="What would change your mind?" value={selected.falsification || ''} placeholder="What future finding or result would make you revise the claim?" onSave={falsification => saveWorkspace({ falsification })} />
-          {(criterion || objection || result) && (
+          {result && (
             <dl className="mt-4 space-y-3 border-l border-border pl-3 text-sm">
-              {criterion && <div><dt className="font-medium">What would change your mind</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{criterion}</dd></div>}
-              {objection && <div><dt className="font-medium">Recorded objection</dt><dd className="mt-1 whitespace-pre-wrap break-words text-muted-foreground">{objection}</dd></div>}
-              {result && <div>
+              <div>
                 <dt className="font-medium">Latest linked Praxis result</dt>
                 <dd className="mt-1 space-y-1 break-words text-muted-foreground">
                   <button type="button" onClick={() => previewPractice(result.practice)} className="min-h-8 text-left font-medium text-foreground underline underline-offset-2">{result.practice.title}</button>
@@ -1169,7 +1167,7 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
                   {result.alternative && <p className="whitespace-pre-wrap"><strong>Another explanation:</strong> {result.alternative}</p>}
                   <p className="text-xs">A linked result does not count as evidence on its own.</p>
                 </dd>
-              </div>}
+              </div>
             </dl>
           )}
         </RecordSection>
@@ -1248,6 +1246,15 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         <RecordHeader backLabel="Positions" onBack={closeEntry} view="vault" kind="Position"
           status={positionSavedStatus(selected.status)} extra={derivePositionLifecycleStage(selected.status) === 'retired' ? undefined : `Workbench: ${diagnostic.readinessLabel}`} title={selected.title}
           tags={selected.tags || []} onTag={(tag) => setConceptPopupName(tag)}
+          tagAction={<ConceptTagPicker key={selected.id} concepts={concepts} value={selected.tags || []} triggerOnly
+            onCreateConcept={name => onAddConcept({ name, description: '', createdFrom: 'tag' })}
+            onChange={async (tags) => {
+              try { await saveWorkspace({ tags: normalizeConceptTags(tags) }); return true; }
+              catch (error) {
+                toast({ title: 'Concepts not saved', description: noesisUserError(error, 'save concept tags'), variant: 'destructive' });
+                return false;
+              }
+            }} />}
           trailing={<>
             {aiSettings.aiAssistanceEnabled && (
               <Select value={comparePositionId} onValueChange={setComparePositionId}>
@@ -1270,8 +1277,8 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
         <ItemWorkspace key={selected.id} history={history}>
         <p className="mb-3 text-sm text-muted-foreground">{guide}</p>
         <InstrumentWorkbench key={selected.id} label="Position workbench" defaultValue="calibrate"
-          stops={[{ id: 'claim', label: 'Claim' }, { id: 'grounds', label: 'Grounds' }, { id: 'calibrate', label: 'Calibrate' }, { id: 'revise', label: 'Revise' }]}
-          primary={['calibrate', 'grounds']} secondary={['claim', 'revise']}
+          stops={[{ id: 'claim', label: 'Claim' }, { id: 'calibrate', label: 'Calibrate' }, { id: 'grounds', label: 'Grounds' }, { id: 'revise', label: 'Revise' }]}
+          primary={['calibrate']} secondary={['grounds', 'claim', 'revise']}
           panels={{ calibrate: calibration, grounds: groundsPanel, claim: <>{claim}{tools}</>, revise }} />
         <RecordLinkPicker records={linkableRecords.filter(item => !referenceTargets.has(`${item.type}:${item.id}`))}
           description="Add a reference without counting it as support or a challenge."
@@ -1295,7 +1302,6 @@ export function BeliefVault({ aiSettings, entries, media, drafts, practices, que
               { type: 'Positions', tone: 'position', items: relatedPositions.map((entry) => ({ id: entry.id, label: entry.title, meta: typedLinks.filter((link) => (link.fromId === entry.id && link.toId === selected.id) || (link.toId === entry.id && link.fromId === selected.id)).map((link) => link.type.replace(/_/g, ' ')).join(', '), onOpen: () => openEntry(entry.id) })) },
               { type: 'Praxis', tone: 'practice', items: linkedPractices.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewPractice(item) })) },
               { type: 'Works', tone: 'work', items: linkedDrafts.map((item) => ({ id: item.id, label: item.title, meta: `${item.type.replace(/_/g, ' ')} · ${item.status}`, onOpen: () => previewWork(item) })) },
-              { type: 'Concepts', tone: 'concept', items: (selected.tags || []).map((tag) => ({ id: tag, label: tag })) },
               { type: 'References', tone: 'neutral', items: linkableRecords.filter(item => referenceTargets.has(`${item.type}:${item.id}`)).map(item => ({
                 id: `${item.type}:${item.id}`, label: item.title, meta: item.label, manuallyLinked: true,
                 onOpen: item.type === 'source' ? () => onOpenSource?.(item.id) : item.type === 'inquiry' ? () => onOpenQuestion?.(item.id) : item.type === 'practice' ? () => onOpenPractice?.(item.id) : item.type === 'work' ? () => onOpenWork?.(item.id) : () => openEntry(item.id),
