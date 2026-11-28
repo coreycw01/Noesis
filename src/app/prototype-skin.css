@@ -930,22 +930,20 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
 .noesis-more__count { font-size: var(--text-xs); color: hsl(var(--stage)); }
 
-/* ---------- Start something, on the Desk ---------- */
-/* The thought starter used to stand alone with nothing beside it. A thought
-   is one of several things a session can begin with, so the rest sit under
-   it, each in its own kind's colour. */
-.noesis-start { display: grid; gap: var(--space-2); }
-.noesis-start__lead { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); margin: 0; }
-.noesis-start__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.noesis-start__item { display: inline-flex; align-items: center; gap: var(--space-2);
-  min-height: var(--control-h); padding: 0 var(--space-3); border-radius: var(--radius-pill);
-  border: 1px solid hsl(var(--tone) / .45); background: hsl(var(--tone) / .06);
-  color: hsl(var(--foreground)); font-size: var(--text-sm);
-  transition: background .14s ease, border-color .14s ease; }
-.noesis-start__item:hover, .noesis-start__item:focus-visible {
-  border-color: hsl(var(--tone)); background: hsl(var(--tone) / .14); }
-.noesis-start__mark { display: inline-flex; color: hsl(var(--tone)); }
+/* ---------- The Desk's one way in ---------- */
+/* Everything a session can begin with sits behind a single Start, on the line
+   that already names what you are working on, so the Desk opens with what
+   needs attention rather than with buttons for work you have not chosen. */
+.noesis-focus-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); width: 100%; }
+.noesis-focus-row__themes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.noesis-focus-row__start { margin-left: auto; min-height: var(--control-h); }
 @media (max-width: 640px) {
-  .noesis-start__row { display: grid; grid-template-columns: 1fr 1fr; }
-  .noesis-start__item { min-height: var(--touch-min); justify-content: flex-start; }
+  .noesis-focus-row__start { margin-left: 0; width: 100%; min-height: var(--touch-min); }
 }
+/* A focus theme names a concept you are working in, so it opens it. */
+button.noesis-today-focus { cursor: pointer; transition: border-color .14s ease, background .14s ease; }
+button.noesis-today-focus:hover, button.noesis-today-focus:focus-visible {
+  border-color: hsl(var(--kind-concept)); background: hsl(var(--kind-concept) / .12); }
+/* Concepts close the Praxis setup as pills, not as a field in a box. */
+.noesis-praxis-concepts { display: grid; gap: var(--space-2); margin-top: var(--space-4);
+  border-top: 1px solid hsl(var(--border)); padding-top: var(--space-3); }

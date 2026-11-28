@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   ChevronRight,
   Compass,
+  Plus,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,6 +24,7 @@ import { Progress } from '@/components/ui/progress';
 import { allAnnotations } from '@/lib/readex';
 import { openNoesisObjectPreview } from '@/lib/noesis-object-preview';
 import { iconForNoesisView, NOESIS_SOLID_DESK_ICONS } from '@/lib/noesis-icons';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { isRepeatablePractice } from '@/lib/workflow-integrity';
 
 const { annotation: ClipboardCheck, concept: Lightbulb } = NOESIS_SOLID_DESK_ICONS;
@@ -118,6 +121,7 @@ export function ThinkingDesk({
   onUpdatePractice,
 }: ThinkingDeskProps) {
   const day = useLocalDay();
+  const [thoughtOpen, setThoughtOpen] = useState(false);
   const [provocationAngle, setProvocationAngle] = useState(0);
   const [briefAnswer, setBriefAnswer] = useState('');
   const [creatingInquiry, setCreatingInquiry] = useState(false);
@@ -615,47 +619,57 @@ export function ThinkingDesk({
         <PageHeader
           title={NOESIS_PAGE_BY_VIEW.home.title}
           description="A starting point for your thinking."
-          actions={<DeskThoughtStarter onSave={capture} aiEnabled={aiEnabled} />}
         >
-          {/* One place to begin. A thought first, because that is the cheapest
-              thing to record and the hardest to recover once it goes; then the
-              five things a thought becomes, each in its own kind's colour. */}
-          <section className="noesis-start" aria-label="Start something">
-            <p className="noesis-start__lead">Start with a thought, or go straight to the work.</p>
-            <div className="noesis-start__row">
-              <button type="button" className="noesis-start__item" data-tone="source"
-                onClick={() => onNavigate({ view: 'library' })}>
-                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('library'); return <I className="size-4" aria-hidden="true" />; })()}</span>
-                Add a source
-              </button>
-              <button type="button" className="noesis-start__item" data-tone="annotation"
-                onClick={() => onNavigate({ view: 'annotations' })}>
-                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('annotations'); return <I className="size-4" aria-hidden="true" />; })()}</span>
-                Capture an annotation
-              </button>
-              <button type="button" className="noesis-start__item" data-tone="inquiry"
-                onClick={() => onNavigate({ view: 'questions' })}>
-                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('questions'); return <I className="size-4" aria-hidden="true" />; })()}</span>
-                Formulate an inquiry
-              </button>
-              <button type="button" className="noesis-start__item" data-tone="position"
-                onClick={() => onNavigate({ view: 'vault' })}>
-                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('vault'); return <I className="size-4" aria-hidden="true" />; })()}</span>
-                Build a position
-              </button>
-              <button type="button" className="noesis-start__item" data-tone="work"
-                onClick={() => onNavigate({ view: 'writing' })}>
-                <span className="noesis-start__mark">{(() => { const I = iconForNoesisView('writing'); return <I className="size-4" aria-hidden="true" />; })()}</span>
-                Create a work
-              </button>
-            </div>
-          </section>
-          {currentThemes.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current focus</span>
-              {currentThemes.map(theme => <span key={theme} className="noesis-today-focus break-words">{theme}</span>)}
-            </div>
-          )}
+          {/* One way in, on the line that already says what you are working
+              on. Everything a session can begin with lives behind it, so the
+              Desk opens with what needs attention rather than with a row of
+              buttons for things you have not decided to do yet. */}
+          <div className="noesis-focus-row">
+            {currentThemes.length > 0 && (
+              <div className="noesis-focus-row__themes">
+                <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Current focus</span>
+                {currentThemes.map(theme => {
+                  const concept = concepts.find(item => item.name.trim().toLowerCase() === theme.trim().toLowerCase());
+                  return (
+                    <button key={theme} type="button" className="noesis-today-focus break-words"
+                      aria-label={`Open the concept ${theme}`}
+                      onClick={() => onNavigate(concept ? { view: 'concepts', targetId: concept.id } : { view: 'concepts' })}>
+                      {theme}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" className="noesis-focus-row__start">
+                  <Plus className="size-4" aria-hidden="true" />Start
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem onSelect={() => setThoughtOpen(true)}>
+                  <Sparkles className="size-4" aria-hidden="true" />Start with a thought
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => onNavigate({ view: 'library' })}>
+                  {(() => { const I = iconForNoesisView('library'); return <I className="size-4" aria-hidden="true" />; })()}Add a source
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onNavigate({ view: 'annotations' })}>
+                  {(() => { const I = iconForNoesisView('annotations'); return <I className="size-4" aria-hidden="true" />; })()}Capture an annotation
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onNavigate({ view: 'questions' })}>
+                  {(() => { const I = iconForNoesisView('questions'); return <I className="size-4" aria-hidden="true" />; })()}Formulate an inquiry
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onNavigate({ view: 'vault' })}>
+                  {(() => { const I = iconForNoesisView('vault'); return <I className="size-4" aria-hidden="true" />; })()}Build a position
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onNavigate({ view: 'writing' })}>
+                  {(() => { const I = iconForNoesisView('writing'); return <I className="size-4" aria-hidden="true" />; })()}Create a work
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <DeskThoughtStarter onSave={capture} aiEnabled={aiEnabled} open={thoughtOpen} onOpenChange={setThoughtOpen} />
         </PageHeader>
 
         <section className="noesis-today-desk__lead noesis-today-desk__move p-4 sm:p-5" aria-labelledby="desk-next">
