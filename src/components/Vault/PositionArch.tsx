@@ -149,7 +149,7 @@ export function PositionArch({
         <text x={CX} y={GROUND + 34} className="noesis-arch__keylabel" textAnchor="middle">SUPPORTING GROUNDS</text>
 
         {/* Recorded challenges press on the extrados. */}
-        <g className="noesis-arch__load" aria-hidden="true">
+        <g className="noesis-arch__load" data-tone="challenge" aria-hidden="true">
           {Array.from({ length: load }, (_, index) => {
             const x = CX - (load - 1) * 17 + index * 34;
             return (
@@ -175,8 +175,8 @@ export function PositionArch({
         </span>
         {challengeCount > 0 && (
           <span>
-            <Eyebrow>Under load</Eyebrow>
-            <b className="noesis-arch__verdict">{challengeCount} {challengeCount === 1 ? 'challenge' : 'challenges'}</b>
+            <Eyebrow tone="challenge">Challenges</Eyebrow>
+            <b className="noesis-arch__verdict">{challengeCount}</b>
           </span>
         )}
       </div>
