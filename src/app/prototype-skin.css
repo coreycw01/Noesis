@@ -900,3 +900,52 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-sounding__meta span[data-done] b { color: hsl(var(--kind-source)); }
 .noesis-sounding__next { font-size: var(--text-base); color: hsl(var(--foreground)); }
 @media (prefers-reduced-motion: reduce) { .noesis-sounding__line, .noesis-sounding__bob { transition: none; } }
+
+/* ---------- The More sheet, grouped by the loop ---------- */
+/* It was a flat grid of identical cards — the one surface that threw the loop
+   away. Each page now sits under its stage and wears that stage's colour, so
+   the sheet reads like the dock rather than like a generic app drawer. */
+.noesis-more { display: grid; gap: var(--space-5); }
+.noesis-more__group { display: grid; gap: var(--space-2); }
+.noesis-more__stage { display: flex; align-items: center; gap: var(--space-2);
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-label);
+  letter-spacing: .14em; text-transform: uppercase; color: hsl(var(--stage)); margin: 0; }
+.noesis-more__stage::before { content: ""; width: 2px; height: 12px; background: hsl(var(--stage)); }
+.noesis-more__stage::after { content: ""; flex: 1; height: 1px; background: hsl(var(--stage) / .25); }
+.noesis-more__items { display: grid; gap: var(--space-1); }
+.noesis-more__item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--space-3);
+  align-items: center; width: 100%; text-align: left; min-height: var(--touch-min);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-panel);
+  border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  transition: border-color .14s ease, background .14s ease; }
+.noesis-more__item:hover, .noesis-more__item:focus-visible { border-color: hsl(var(--stage) / .6);
+  background: hsl(var(--stage) / .06); }
+.noesis-more__item[aria-current="page"] { border-color: hsl(var(--stage)); background: hsl(var(--stage) / .1); }
+.noesis-more__mark { display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--radius-sm); color: hsl(var(--stage));
+  background: hsl(var(--stage) / .12); }
+.noesis-more__text { display: grid; gap: 1px; min-width: 0; }
+.noesis-more__title { font-size: var(--text-sm); font-weight: 600; }
+.noesis-more__purpose { font-size: var(--text-xs); line-height: 1.35; color: hsl(var(--muted-foreground));
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+.noesis-more__count { font-size: var(--text-xs); color: hsl(var(--stage)); }
+
+/* ---------- Start something, on the Desk ---------- */
+/* The thought starter used to stand alone with nothing beside it. A thought
+   is one of several things a session can begin with, so the rest sit under
+   it, each in its own kind's colour. */
+.noesis-start { display: grid; gap: var(--space-2); }
+.noesis-start__lead { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); margin: 0; }
+.noesis-start__row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.noesis-start__item { display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: var(--control-h); padding: 0 var(--space-3); border-radius: var(--radius-pill);
+  border: 1px solid hsl(var(--tone) / .45); background: hsl(var(--tone) / .06);
+  color: hsl(var(--foreground)); font-size: var(--text-sm);
+  transition: background .14s ease, border-color .14s ease; }
+.noesis-start__item:hover, .noesis-start__item:focus-visible {
+  border-color: hsl(var(--tone)); background: hsl(var(--tone) / .14); }
+.noesis-start__mark { display: inline-flex; color: hsl(var(--tone)); }
+@media (max-width: 640px) {
+  .noesis-start__row { display: grid; grid-template-columns: 1fr 1fr; }
+  .noesis-start__item { min-height: var(--touch-min); justify-content: flex-start; }
+}
