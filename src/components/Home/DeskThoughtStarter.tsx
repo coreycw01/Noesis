@@ -23,9 +23,22 @@ const destinations = [
 
 export type DeskThoughtKind = (typeof destinations)[number]['kind'];
 
-export function DeskThoughtStarter({ onSave, aiEnabled }: { onSave: (kind: DeskThoughtKind, text: string, title: string) => Promise<void>; aiEnabled: boolean }) {
+/**
+ * Opens on its own button by default. Pass `open` and `onOpenChange` to drive
+ * it from somewhere else — the Desk opens it from a single Start menu, so the
+ * trigger would be a second way in to the same dialog.
+ */
+export function DeskThoughtStarter({ onSave, aiEnabled, open: controlledOpen, onOpenChange }: {
+  onSave: (kind: DeskThoughtKind, text: string, title: string) => Promise<void>;
+  aiEnabled: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = typeof controlledOpen === 'boolean' && typeof onOpenChange === 'function';
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = controlled ? onOpenChange : setOwnOpen;
   const [choosing, setChoosing] = useState(false);
   const [text, setText] = useState('');
   const [kind, setKind] = useState<DeskThoughtKind | null>(null);
@@ -99,7 +112,7 @@ export function DeskThoughtStarter({ onSave, aiEnabled }: { onSave: (kind: DeskT
       if (!next) cancelAssistance();
       setOpen(next);
     }}>
-      <DialogTrigger asChild><Button type="button"><Plus className="size-4" aria-hidden="true" />Start with a real thought</Button></DialogTrigger>
+      {!controlled && <DialogTrigger asChild><Button type="button"><Plus className="size-4" aria-hidden="true" />Start with a thought</Button></DialogTrigger>}
       <DialogContent className="max-h-[calc(100dvh-2rem)] !block overflow-y-auto" onOpenAutoFocus={event => {
         event.preventDefault();
         (choosing ? options.current : thought.current)?.focus();

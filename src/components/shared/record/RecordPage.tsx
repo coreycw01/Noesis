@@ -43,20 +43,47 @@ export function RecordHeader({ backLabel, onBack, view, kind, icon, status, extr
   trailing?: React.ReactNode;
   children?: React.ReactNode;
 }) {
+  const [allTagsOpen, setAllTagsOpen] = useState(false);
   return (
     <header className="noesis-record__header">
+      {/* The kind and its state used to take a row of their own under the
+          back button, which cost a line on every record page for two words.
+          They ride the back row now, with the accent rule standing between
+          where you came from and what you are looking at. */}
       <div className="noesis-record__top">
-        <Button variant="link" onClick={onBack} className="text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden="true" /> {backLabel}</Button>
+        <div className="noesis-record__whence">
+          <Button variant="link" onClick={onBack} className="text-muted-foreground hover:text-foreground"><ArrowLeft aria-hidden="true" /> {backLabel}</Button>
+          <DetailLabel view={view} kind={kind} icon={icon} status={status} extra={extra} inline />
+        </div>
         {trailing && <div className="noesis-record__top-actions">{trailing}</div>}
       </div>
-      <DetailLabel view={view} kind={kind} icon={icon} status={status} extra={extra} />
       <h1 className="noesis-record__title noesis-page-title">{title}</h1>
       {subtitle && <p className="noesis-record__subtitle">{subtitle}</p>}
+      {/* The concepts a record sits in, under its title, newest first. Only
+          three: a record that has collected a dozen would otherwise push its
+          own content below the fold. The rest are one click away. */}
       {(Boolean(tags?.length) || tagAction) && (
         <div className="noesis-record__tags items-center">
-          {tags?.map((tag) => onTag
-            ? <Pill key={tag} look="mono" tone="concept" onClick={() => onTag(tag)}>{tag}</Pill>
-            : <Badge key={tag} tone="concept">{tag}</Badge>)}
+          {(() => {
+            const all = tags || [];
+            const recent = [...all].reverse();
+            const shown = allTagsOpen ? recent : recent.slice(0, 3);
+            const hidden = recent.length - shown.length;
+            return (
+              <>
+                {shown.map((tag) => onTag
+                  ? <Pill key={tag} look="mono" tone="concept" onClick={() => onTag(tag)}>{tag}</Pill>
+                  : <Badge key={tag} tone="concept">{tag}</Badge>)}
+                {hidden > 0 && (
+                  <Pill look="mono" tone="concept" onClick={() => setAllTagsOpen(true)}
+                    aria-label={`Show all ${recent.length} connected concepts`}>+{hidden} more</Pill>
+                )}
+                {allTagsOpen && recent.length > 3 && (
+                  <Pill look="mono" tone="neutral" onClick={() => setAllTagsOpen(false)}>Show fewer</Pill>
+                )}
+              </>
+            );
+          })()}
           {tagAction}
         </div>
       )}

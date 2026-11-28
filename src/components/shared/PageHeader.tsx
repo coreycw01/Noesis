@@ -78,12 +78,21 @@ export function PageHeader({ title, description, actions, meta, className, child
  * the same accent rule, margin marker, and label line as an index page header,
  * naming the kind of record and its current state.
  */
-export function DetailLabel({ view, kind, status, extra, icon }: { view: string; kind: string; status?: React.ReactNode; extra?: React.ReactNode; icon?: LucideIcon }) {
+export function DetailLabel({ view, kind, icon, status, extra, inline }: {
+  view: string;
+  kind: string;
+  icon?: LucideIcon;
+  status?: React.ReactNode;
+  extra?: React.ReactNode;
+  /** Riding another row: drop the rule and the block spacing. */
+  inline?: boolean;
+}) {
   const Icon = icon || iconForNoesisView(view);
   const pageSection = NOESIS_PAGE_BY_VIEW[view as NoesisView]?.section;
   return (
-    <div className="noesis-detail-label" data-stage-tone={pageSection ? NOESIS_NAV_SECTION_TONE[pageSection] : undefined}>
-      <div className="noesis-page-header__rule" aria-hidden="true" />
+    <div className={cn('noesis-detail-label', inline && 'noesis-detail-label--inline')}
+      data-stage-tone={pageSection ? NOESIS_NAV_SECTION_TONE[pageSection] : undefined}>
+      {!inline && <div className="noesis-page-header__rule" aria-hidden="true" />}
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
         <span className="noesis-margin-marker"><Icon className="size-3.5" strokeWidth={2.2} aria-hidden="true" /></span>
         <span className="noesis-route-label">

@@ -19,6 +19,10 @@ export function ConfidenceEmber({ confidence, size = 84, decorative = false }: {
           <stop offset="1" stopColor="hsl(var(--kind-position))" stopOpacity=".12" />
         </radialGradient>
       </defs>
+      {/* The ring a full 100 would reach. Without it the ember is a size with
+          nothing to read it against, and a 40 looks much like a 70. */}
+      <circle cx="42" cy="42" r={40} fill="none" stroke="hsl(var(--kind-position))"
+        strokeOpacity=".22" strokeWidth="1" strokeDasharray="3 4" />
       <circle cx="42" cy="42" r={radius} fill={`url(#${id}-ember)`} opacity={opacity} />
     </svg>
   );

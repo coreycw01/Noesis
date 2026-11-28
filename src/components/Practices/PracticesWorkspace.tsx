@@ -1031,12 +1031,20 @@ function PracticeEditor({ aiSettings, open, onOpenChange, draft, savedRecord, se
         </div>
       </FooterSection>
       <FooterSection title="Notes and concepts">
+        {/* The written fields run in the order you would answer them — why,
+            what, when, then anything left over. Concepts came first and in a
+            box of its own, which gave a tag list the same weight as the
+            reasoning; it sits underneath now as its own pills and nothing
+            more. */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Field label="Concepts"><ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} /></Field>
           {!usesTestSetup && <Field label="Why this matters"><Textarea value={draft.intellectualBasis || ''} onChange={(event) => setDraft((prev) => ({ ...prev, intellectualBasis: event.target.value }))} className="min-h-20" /></Field>}
           <Field label="Description"><Textarea value={draft.description || ''} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} className="min-h-20" /></Field>
           <Field label="When and where"><Textarea value={draft.context || ''} onChange={(event) => setDraft((prev) => ({ ...prev, context: event.target.value }))} className="min-h-20" placeholder={experiment ? 'For example: At my desk, with my phone in another room.' : 'For example: After dinner, at the park.'} /></Field>
           <Field label="Notes"><Textarea value={draft.notes || ''} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} className="min-h-20" /></Field>
+        </div>
+        <div className="noesis-praxis-concepts">
+          <span className="noesis-eyebrow noesis-eyebrow--sm text-muted-foreground">Concepts</span>
+          <ConceptTagPicker concepts={concepts} value={draft.conceptTags || []} onChange={(conceptTags) => setDraft((prev) => ({ ...prev, conceptTags }))} onCreateConcept={(name) => onAddConcept({ name, description: '', createdFrom: 'tag' })} />
         </div>
       </FooterSection>
       <div className="mt-4 flex justify-end border-t border-border/60 pt-4">
