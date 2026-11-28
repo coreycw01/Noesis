@@ -816,23 +816,19 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
   fill: hsl(var(--kind-position) / .12); stroke: hsl(var(--kind-position)); stroke-width: 1.6;
   stroke-linejoin: round; transition: opacity .3s ease, transform .45s cubic-bezier(.3,.8,.3,1.05); }
 .noesis-arch__key { fill: hsl(var(--kind-position) / .3); stroke-width: 2.5; }
-.noesis-arch__key[data-failing] { opacity: .45; }
-.noesis-arch__stone[data-pulled] { opacity: .16; stroke-dasharray: 4 4; transform: translateY(20px); }
+.noesis-arch__stone[data-pulled] { opacity: .16; stroke-dasharray: 4 4; transform: scale(.96); transform-origin: center; }
 .noesis-arch__absent { fill: none; stroke: hsl(var(--kind-position) / .45); stroke-width: 1.6; stroke-dasharray: 5 6; }
-.noesis-arch__ground { stroke: hsl(var(--foreground) / .55); stroke-width: 2.5; stroke-linecap: round; fill: none; }
-.noesis-arch__hatch path { stroke: hsl(var(--foreground) / .3); stroke-width: 1.1; stroke-linecap: round; fill: none; }
+.noesis-arch__foundation { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.noesis-arch__foundation[data-recorded="true"] { fill: hsl(var(--stage-act) / .22); stroke: hsl(var(--stage-act)); stroke-dasharray: none; }
 .noesis-arch__load path { stroke: hsl(var(--stage-integrate)); stroke-width: 1.6; stroke-linecap: round;
   fill: none; stroke-dasharray: 4 4; }
 .noesis-arch__load .noesis-arch__head-fill { fill: hsl(var(--stage-integrate)); stroke: none; stroke-dasharray: none; }
 .noesis-arch__keylabel { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px;
   letter-spacing: 1.3px; fill: hsl(var(--muted-foreground)); }
-.noesis-arch__crack { fill: none; stroke: hsl(var(--stage-integrate)); stroke-width: 2.5; stroke-linecap: round; }
 .noesis-arch__read { display: flex; flex-wrap: wrap; gap: var(--space-5); align-items: baseline; }
 .noesis-arch__read > span { display: grid; gap: 2px; }
 .noesis-arch__figure { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-display);
   font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.noesis-arch__was { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-xs);
-  color: hsl(var(--muted-foreground) / .8); text-decoration: line-through; margin-left: var(--space-2); }
 .noesis-arch__verdict { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: var(--text-lg); font-weight: 500; }
 .noesis-arch__note { font-size: var(--text-sm); color: hsl(var(--muted-foreground)); line-height: 1.55; }
 .noesis-arch__stones { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }

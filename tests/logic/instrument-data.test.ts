@@ -57,7 +57,7 @@ test('the arch draws for every position in the workspace, assumptions or not', (
   }
 });
 
-test('every position carries a confidence the arch can price a stone against', () => {
+test('every position carries a stated confidence the arch can display', () => {
   for (const position of positions) {
     assert.equal(typeof position.confidence, 'number', `${position.title}: no confidence`);
     assert.ok(Number.isFinite(position.confidence));

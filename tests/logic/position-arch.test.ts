@@ -1,6 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { archSpans } from '../../src/components/Vault/PositionArch';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { archSpans, PositionArch } from '../../src/components/Vault/PositionArch';
+
+test('recorded grounds form a foundation even when there are no assumptions', () => {
+  const html = renderToStaticMarkup(createElement(PositionArch, {
+    assumptions: [], confidence: 63, supportCount: 3, challengeCount: 2,
+  }));
+  assert.match(html, /noesis-arch__foundation" data-recorded="true"/);
+  assert.match(html, /3 supporting grounds, 0 recorded assumptions, and 2 recorded challenges/);
+  assert.match(html, /63%/);
+  assert.match(html, /No explicit assumptions recorded/);
+  assert.doesNotMatch(html, /noesis-arch__stone"|Sound|Collapsed/);
+});
+
+test('an assumption does not count as support or imply a verdict about the claim', () => {
+  const html = renderToStaticMarkup(createElement(PositionArch, {
+    assumptions: ['The cases are comparable'], confidence: 80, supportCount: 0, challengeCount: 0,
+  }));
+  assert.match(html, /noesis-arch__foundation" data-recorded="false"/);
+  assert.match(html, /0 supporting grounds, 1 recorded assumptions/);
+  assert.match(html, /aria-pressed="false"[^>]*>.*The cases are comparable/);
+  assert.match(html, /80%/);
+  assert.doesNotMatch(html, /Sound|Collapsed|Unsafe/);
+});
 
 // The keystone holds 30 degrees at the crown; the stones tile the other 150.
 const KEY = 30;
