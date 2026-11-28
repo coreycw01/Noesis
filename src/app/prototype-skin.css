@@ -820,9 +820,9 @@ button.noesis-gcard:hover, button.noesis-gcard:focus-visible { transform: transl
 .noesis-arch__absent { fill: none; stroke: hsl(var(--kind-position) / .45); stroke-width: 1.6; stroke-dasharray: 5 6; }
 .noesis-arch__foundation { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1.5; stroke-dasharray: 5 5; }
 .noesis-arch__foundation[data-recorded="true"] { fill: hsl(var(--stage-act) / .22); stroke: hsl(var(--stage-act)); stroke-dasharray: none; }
-.noesis-arch__load path { stroke: hsl(var(--stage-integrate)); stroke-width: 1.6; stroke-linecap: round;
+.noesis-arch__load path { stroke: hsl(var(--tone)); stroke-width: 1.6; stroke-linecap: round;
   fill: none; stroke-dasharray: 4 4; }
-.noesis-arch__load .noesis-arch__head-fill { fill: hsl(var(--stage-integrate)); stroke: none; stroke-dasharray: none; }
+.noesis-arch__load .noesis-arch__head-fill { fill: hsl(var(--tone)); stroke: none; stroke-dasharray: none; }
 .noesis-arch__keylabel { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 9.5px;
   letter-spacing: 1.3px; fill: hsl(var(--muted-foreground)); }
 .noesis-arch__read { display: flex; flex-wrap: wrap; gap: var(--space-5); align-items: baseline; }
